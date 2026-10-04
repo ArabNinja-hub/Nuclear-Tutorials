@@ -3,28 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Courses — Nuclear Tutorials</title>
-<meta name="description" content="Browse every Nuclear Tutorials course and see exactly which lessons each access package unlocks.">
+<title>Explore Courses — Nuclear Tutorials</title>
+<meta name="description" content="Explore structured high-school and university courses by education level, subject, university and programme.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="courses">
 
-<div class="page-head">
+<section class="course-discovery-head">
   <div class="container">
     <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Courses</div>
-    <div class="page-head-row">
+    <div class="discovery-heading-row">
       <div>
-        <h1>Courses &amp; lessons</h1>
-        <p class="lede">Every lesson carries an access level. Your package unlocks its own level and everything below it — locked lessons stay locked until you upgrade.</p>
+        <span class="eyebrow">Course catalogue</span>
+        <h1>Find your next course.</h1>
+        <p class="lede">Browse structured learning for high school and university. Choose a pathway, explore subjects and see every lesson before you start.</p>
       </div>
-      <a class="btn btn-primary" href="pricing.html">Compare packages</a>
+      <a class="btn btn-primary" href="pricing.html">Compare access packages</a>
+    </div>
+    <div class="catalogue-hierarchy" aria-label="Academic course structure">
+      <div><span class="hierarchy-label">High School</span><span>Grade / Form / Level</span><b>Subject</b><span>Course</span><span>Lessons</span></div>
+      <div><span class="hierarchy-label">University</span><span>University</span><b>Programme / School</b><span>Course</span><span>Lessons</span></div>
     </div>
   </div>
-</div>
+</section>
 
-<section class="section-body">
-  <div class="container" id="courseList"></div>
+<section class="section-body course-discovery-body">
+  <div class="container">
+    <div class="course-filters card" aria-label="Filter courses">
+      <div class="filter-title"><span class="filter-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></span><div><b>Refine your search</b><small>Start with a learning pathway, then narrow by subject or course.</small></div></div>
+      <div class="course-filter-grid">
+        <label class="filter-field"><span>Education level</span><select class="input" id="courseEducation" aria-label="Filter by education level"></select></label>
+        <label class="filter-field"><span>Subject</span><select class="input" id="courseSubject" aria-label="Filter by subject"></select></label>
+        <label class="filter-field hidden" id="schoolLevelFilter"><span>Grade / form / level</span><select class="input" id="courseSchoolLevel" aria-label="Filter by grade or form"></select></label>
+        <div class="filter-field hidden" id="universityFilter">
+          <label for="courseUniversity">University</label><select class="input" id="courseUniversity" aria-label="Filter by university"></select>
+          <div class="filter-subfield"><label for="courseProgramme">Programme / school</label><select class="input" id="courseProgramme" aria-label="Filter by programme or school"></select></div>
+        </div>
+        <label class="filter-field filter-search"><span>Course</span><div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" id="courseSearch" type="search" placeholder="Search course titles or topics" aria-label="Search courses"></div></label>
+        <button class="btn btn-ghost filter-clear" id="clearCourseFilters" type="button">Clear filters</button>
+      </div>
+    </div>
+
+    <div class="course-results-head" id="courseResults" aria-live="polite"></div>
+    <div class="course-catalog-grid" id="courseList"></div>
+    <p class="catalogue-note"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> These are sample courses in the demo catalogue. The same flexible structure supports additional school levels, subjects, universities, programmes and courses.</p>
+  </div>
 </section>
 
 <script src="assets/js/icons.js"></script>

@@ -19,7 +19,7 @@
   var TITLES = {
     home: ["Admin Dashboard", "Simulated platform overview"],
     videos: ["Videos", "Manage lesson videos and their access levels"],
-    courses: ["Courses", "Subjects and their lesson counts"],
+    courses: ["Courses", "Course catalogue and academic pathways"],
     packages: ["Access Packages", "Pricing and what each package includes"],
     codes: ["Access Codes", "Generate and track redemption codes"],
     students: ["Students", "Enrolled students and their packages"],
@@ -224,37 +224,111 @@
 
   /* ---------------- courses ---------------- */
   function pageCourses(root) {
+    function pathwaySummary(course) {
+      return NT.coursePathways(course).map(function (path) {
+        if (path.educationLevel === "high-school") {
+          var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
+          return "High School" + (grade ? " · " + grade.label : "");
+        }
+        var programme = NT.programme(path.programmeId);
+        return "University" + (programme ? " · " + programme.name : "");
+      }).join("<br>");
+    }
+
     function render() {
       var s = NT.store.get();
-      var rows = D.COURSES.map(function (c) {
-        var ls = NT.courseLessons(c.id);
-        var n = { basic: 0, standard: 0, premium: 0 };
-        ls.forEach(function (l) { n[NT.levelOf(l)]++; });
-        return "<tr><td class=\"td-strong\" data-label=\"Course\">" + c.title + '</td><td data-label="Lessons">' + ls.length + '</td><td data-label="Basic">' + n.basic + '</td><td data-label="Standard">' + n.standard + '</td><td data-label="Premium">' + n.premium + '</td><td data-label="Status">' + statusBadge("published") + "</td></tr>";
+      var rows = D.COURSES.map(function (course) {
+        var lessons = NT.courseLessons(course.id);
+        var counts = { basic: 0, standard: 0, premium: 0 };
+        lessons.forEach(function (lesson) { counts[NT.levelOf(lesson)]++; });
+        var subject = NT.subject(course.subjectId) || { title: course.title };
+        return '<tr><td class="td-strong" data-label="Course">' + NT.esc(course.title) + '</td>' +
+          '<td data-label="Subject">' + NT.esc(subject.title) + '</td><td data-label="Academic path">' + pathwaySummary(course) + '</td>' +
+          '<td data-label="Lessons">' + lessons.length + '</td><td data-label="Basic">' + counts.basic + '</td><td data-label="Standard">' + counts.standard + '</td>' +
+          '<td data-label="Premium">' + counts.premium + '</td><td data-label="Status">' + statusBadge("published") + "</td></tr>";
       }).join("");
-      var extra = s.extraCourses.map(function (c) {
-        return "<tr><td class=\"td-strong\" data-label=\"Course\">" + NT.esc(c.title) + '</td><td data-label="Lessons">0</td><td data-label="Basic">0</td><td data-label="Standard">0</td><td data-label="Premium">0</td><td data-label="Status">' + statusBadge("draft") + "</td></tr>";
+      var extra = s.extraCourses.map(function (course) {
+        var subject = NT.subject(course.subjectId) || { title: "—" };
+        var level = NT.educationLevel(course.educationLevel);
+        var levelLabel = level ? level.label : "—";
+        var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === course.levelId; })[0];
+        var university = NT.university(course.universityId);
+        var programme = NT.programme(course.programmeId);
+        var path = course.educationLevel === "university"
+          ? levelLabel + (university ? " · " + university.name : "") + (programme ? " · " + programme.name : "")
+          : levelLabel + (grade ? " · " + grade.label : "");
+        return '<tr><td class="td-strong" data-label="Course">' + NT.esc(course.title) + '</td><td data-label="Subject">' + NT.esc(subject.title) +
+          '</td><td data-label="Academic path">' + NT.esc(path) + '</td><td data-label="Lessons">0</td><td data-label="Basic">0</td><td data-label="Standard">0</td><td data-label="Premium">0</td>' +
+          '<td data-label="Status">' + statusBadge("draft") + "</td></tr>";
       }).join("");
+
       root.innerHTML =
-        '<div class="adm-toolbar"><p class="muted small">Lessons per access level, per course. Changing a video\'s level on the Videos page updates these counts.</p>' +
+        '<div class="adm-toolbar"><p class="muted small">Course records connect a subject to an education pathway. Lesson access levels stay manageable from Videos.</p>' +
         '<span class="spacer"></span><button class="btn btn-primary" id="createCourse">' + NT.icon("plus") + "Create Course</button></div>" +
-        '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Course</th><th>Lessons</th><th>Basic</th><th>Standard</th><th>Premium</th><th>Status</th></tr></thead><tbody>' +
+        '<div class="academic-model-strip"><div><b>High School</b><span>Grade / Form / Level → Subject → Course → Lessons</span></div><div><b>University</b><span>University → Programme / School → Course → Lessons</span></div></div>' +
+        '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Course</th><th>Subject</th><th>Academic path</th><th>Lessons</th><th>Basic</th><th>Standard</th><th>Premium</th><th>Status</th></tr></thead><tbody>' +
         rows + extra + "</tbody></table></div>";
+
       root.querySelector("#createCourse").addEventListener("click", function () {
+        var levels = D.EDUCATION_LEVELS.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.label) + "</option>"; }).join("");
+        var subjects = D.SUBJECTS.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.title) + "</option>"; }).join("");
         var m = NT.modal({
-          title: "Create Course (simulated)",
-          body: '<div class="field"><label>Course title</label><input class="input" id="cTitle" placeholder="e.g. Geography"></div>' +
-            '<div class="field"><label>Description</label><textarea class="input" id="cDesc" rows="3" placeholder="Short course description"></textarea></div>' +
-            '<p class="field-hint">The course is created as a draft. Upload videos to populate its lessons.</p>',
-          footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="cGo">Create course</button>'
+          title: "Create course draft",
+          body: '<div class="field"><label for="cTitle">Course title</label><input class="input" id="cTitle" placeholder="e.g. Geography"></div>' +
+            '<div class="field"><label for="cDesc">Description</label><textarea class="input" id="cDesc" rows="3" placeholder="Short course description"></textarea></div>' +
+            '<div class="input-row"><div class="field"><label for="cLevel">Education level</label><select class="input" id="cLevel">' + levels + '</select></div>' +
+            '<div class="field"><label for="cSubject">Subject</label><select class="input" id="cSubject">' + subjects + "</select></div></div>" +
+            '<div id="cPathwayFields"></div>' +
+            '<p class="field-hint">This creates a locally saved draft with its academic pathway. New catalogue taxonomies can be added to the shared education data model.</p>',
+          footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="cGo">Create course draft</button>'
         });
+        var levelInput = m.querySelector("#cLevel");
+        var pathFields = m.querySelector("#cPathwayFields");
+        function renderPathwayFields() {
+          if (levelInput.value === "university") {
+            pathFields.innerHTML = '<div class="input-row"><div class="field"><label for="cUniversity">University</label><select class="input" id="cUniversity">' +
+              D.UNIVERSITIES.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.name) + "</option>"; }).join("") +
+              '</select></div><div class="field"><label for="cProgramme">Programme / School</label><select class="input" id="cProgramme"></select></div></div>';
+            var universityInput = pathFields.querySelector("#cUniversity");
+            var programmeInput = pathFields.querySelector("#cProgramme");
+            function updateProgrammes() {
+              var available = D.PROGRAMMES.filter(function (item) { return item.universityId === universityInput.value; });
+              programmeInput.innerHTML = available.length ? available.map(function (item) {
+                return '<option value="' + item.id + '">' + NT.esc(item.name + " · " + item.school) + "</option>";
+              }).join("") : '<option value="">No programmes available</option>';
+              programmeInput.disabled = !available.length;
+            }
+            universityInput.addEventListener("change", updateProgrammes);
+            updateProgrammes();
+          } else {
+            pathFields.innerHTML = '<div class="field"><label for="cGrade">Grade / Form / Level</label><select class="input" id="cGrade">' +
+              D.HIGH_SCHOOL_LEVELS.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.label + " · " + item.detail) + "</option>"; }).join("") + "</select></div>";
+          }
+        }
+        levelInput.addEventListener("change", renderPathwayFields);
+        renderPathwayFields();
+
         m.querySelector("#cGo").addEventListener("click", function () {
           var title = m.querySelector("#cTitle").value.trim() || "New Course";
-          NT.store.mutate(function (s) {
-            s.extraCourses.push({ id: "c" + (s.extraCourses.length + 1), title: title, desc: m.querySelector("#cDesc").value.trim(), status: "draft" });
+          var course = {
+            title: title,
+            desc: m.querySelector("#cDesc").value.trim(),
+            subjectId: m.querySelector("#cSubject").value,
+            educationLevel: levelInput.value,
+            status: "draft"
+          };
+          if (course.educationLevel === "university") {
+            course.universityId = m.querySelector("#cUniversity").value;
+            course.programmeId = m.querySelector("#cProgramme").value;
+          } else {
+            course.levelId = m.querySelector("#cGrade").value;
+          }
+          NT.store.mutate(function (state) {
+            course.id = "c" + (state.extraCourses.length + 1);
+            state.extraCourses.push(course);
           });
           m.close();
-          NT.toast("Course created as draft: " + title, "success");
+          NT.toast("Course draft saved: " + title, "success");
           render();
         });
       });
@@ -268,16 +342,23 @@
       var s = NT.store.get();
       var counts = NT.counts();
       var cum = { basic: counts.basic, standard: counts.basic + counts.standard, premium: counts.total };
+      var extraPackages = Array.isArray(s.extraPackages) ? s.extraPackages : [];
       root.innerHTML =
         '<div class="adm-toolbar"><p class="muted small">Packages control what a student can watch after payment.</p><span class="spacer"></span>' +
-        '<button class="btn btn-primary" id="createPkg">' + NT.icon("plus") + "Create Package</button></div>" +
+        '<button class="btn btn-primary" id="createPkg">' + NT.icon("plus") + "New Package Draft</button></div>" +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Package</th><th>Price</th><th>Includes</th><th>Videos</th><th>Action</th></tr></thead><tbody>' +
         D.LEVELS.map(function (lv) {
-          var p = D.PACKAGES[lv];
-          return "<tr><td data-label=\"Package\">" + NT.levelBadge(lv) + '</td><td data-label="Price"><b>' + NT.kwacha(NT.packagePrice(lv)) + "</b></td>" +
-            '<td data-label="Includes"><span class="small muted">' + p.features.join(" · ") + "</span></td>" +
+          var p = NT.packageDetails(lv);
+          return "<tr><td data-label=\"Package\">" + NT.levelBadge(lv) + (p.name !== D.LEVEL_LABEL[lv] ? '<small class="package-admin-name">' + NT.esc(p.name) + "</small>" : "") + '</td><td data-label="Price"><b>' + NT.kwacha(NT.packagePrice(lv)) + "</b></td>" +
+            '<td data-label="Includes"><span class="small muted">' + NT.esc(p.features.join(" · ")) + "</span></td>" +
             '<td data-label="Videos"><b>' + cum[lv] + "</b> <span class=\"tiny muted\">of " + counts.total + "</span></td>" +
             '<td data-label="Action"><button class="btn btn-sm btn-secondary" data-edit="' + lv + '">' + NT.icon("pencil", "icon-sm") + "Edit</button></td></tr>";
+        }).join("") +
+        extraPackages.map(function (pkg) {
+          var benefits = Array.isArray(pkg.features) && pkg.features.length ? pkg.features.join(" · ") : "Benefits not set";
+          return '<tr class="package-draft-row"><td data-label="Package"><b>' + NT.esc(pkg.name) + '</b><span class="badge badge-warn">Draft</span><small class="package-admin-name">Admin-only · not active at checkout</small></td>' +
+            '<td data-label="Price"><b>' + NT.kwacha(pkg.price) + '</b></td><td data-label="Includes"><span class="small muted">' + NT.esc(benefits) + '</span></td>' +
+            '<td data-label="Videos"><span class="muted">—</span></td><td data-label="Action"><button class="btn btn-sm btn-ghost" data-discard-package="' + NT.esc(String(pkg.id)) + '">Discard draft</button></td></tr>';
         }).join("") +
         "</tbody></table></div>";
       root.querySelectorAll("[data-edit]").forEach(function (b) {
@@ -285,32 +366,68 @@
           var lv = b.dataset.edit;
           var m = NT.modal({
             title: "Edit " + D.LEVEL_LABEL[lv] + " package",
-            body: '<div class="field"><label>Price (K)</label><input class="input" type="number" id="pPrice" value="' + NT.packagePrice(lv) + '"></div>' +
-              '<div class="field"><label>Includes (one per line)</label><textarea class="input" id="pFeat" rows="4">' + D.PACKAGES[lv].features.join("\n") + '</textarea></div>' +
-              '<p class="field-hint">Price changes apply across pricing, checkout and the public site. Feature text is display-only in this demo.</p>',
+            body: '<div class="field"><label>Package name</label><input class="input" id="pName" value="' + NT.esc(NT.packageDetails(lv).name) + '"></div>' +
+              '<div class="field"><label>Price (K)</label><input class="input" type="number" id="pPrice" value="' + NT.packagePrice(lv) + '"></div>' +
+              '<div class="field"><label>Short description</label><input class="input" id="pTagline" value="' + NT.esc(NT.packageDetails(lv).tagline) + '"></div>' +
+              '<div class="field"><label>Includes (one per line)</label><textarea class="input" id="pFeat" rows="4">' + NT.esc(NT.packageDetails(lv).features.join("\n")) + '</textarea></div>' +
+              '<p class="field-hint">Package names, prices and benefits are saved in this browser and update pricing, checkout and access summaries. The demo keeps the three access tiers.</p>',
             footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="pSave">Save changes</button>'
           });
           m.querySelector("#pSave").addEventListener("click", function () {
             var v = parseInt(m.querySelector("#pPrice").value, 10);
-            if (!isNaN(v) && v > 0) NT.store.mutate(function (st) { st.packages[lv] = v; });
+            var name = m.querySelector("#pName").value.trim() || D.LEVEL_LABEL[lv];
+            var tagline = m.querySelector("#pTagline").value.trim();
+            var features = m.querySelector("#pFeat").value.split("\n").map(function (line) { return line.trim(); }).filter(Boolean);
+            NT.store.mutate(function (st) {
+              if (!isNaN(v) && v > 0) st.packages[lv] = v;
+              st.packageDetails[lv] = { name: name, tagline: tagline, features: features };
+            });
             m.close();
-            NT.toast(D.LEVEL_LABEL[lv] + " package updated", "success");
+            NT.toast(name + " package updated", "success");
             render();
           });
         });
       });
+      root.querySelectorAll("[data-discard-package]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var id = button.dataset.discardPackage;
+          NT.store.mutate(function (st) {
+            st.extraPackages = (st.extraPackages || []).filter(function (pkg) { return String(pkg.id) !== id; });
+          });
+          NT.toast("Package draft discarded", "success");
+          render();
+        });
+      });
       root.querySelector("#createPkg").addEventListener("click", function () {
         var m = NT.modal({
-          title: "Create Package (simulated)",
-          body: '<div class="input-row"><div class="field"><label>Package name</label><input class="input" id="nName" placeholder="e.g. Exam Booster"></div>' +
-            '<div class="field"><label>Price (K)</label><input class="input" type="number" id="nPrice" value="150"></div></div>' +
-            '<div class="field"><label>Includes</label><textarea class="input" rows="3" placeholder="One benefit per line"></textarea></div>' +
-            '<p class="field-hint">Creating additional packages is simulated in the demo — the three live tiers remain Basic, Standard and Premium.</p>',
-          footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="nGo">Create package</button>'
+          title: "New package draft",
+          body: '<div class="input-row"><div class="field"><label for="nName">Package name</label><input class="input" id="nName" placeholder="e.g. Exam Booster" required></div>' +
+            '<div class="field"><label for="nPrice">Price (K)</label><input class="input" type="number" id="nPrice" min="1" value="150"></div></div>' +
+            '<div class="field"><label for="nFeat">Benefits</label><textarea class="input" id="nFeat" rows="3" placeholder="One benefit per line"></textarea></div>' +
+            '<p class="field-hint">This saves an admin-only draft in this browser. It does not change checkout; Basic, Standard and Premium remain the three active access tiers.</p>',
+          footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="nGo">Save draft</button>'
         });
         m.querySelector("#nGo").addEventListener("click", function () {
+          var name = m.querySelector("#nName").value.trim();
+          var price = parseInt(m.querySelector("#nPrice").value, 10);
+          if (!name) {
+            m.querySelector("#nName").focus();
+            NT.toast("Enter a name for this package draft", "error");
+            return;
+          }
+          if (isNaN(price) || price < 1) {
+            m.querySelector("#nPrice").focus();
+            NT.toast("Enter a valid package price", "error");
+            return;
+          }
+          var features = m.querySelector("#nFeat").value.split("\n").map(function (line) { return line.trim(); }).filter(Boolean);
+          NT.store.mutate(function (st) {
+            st.extraPackages = Array.isArray(st.extraPackages) ? st.extraPackages : [];
+            st.extraPackages.unshift({ id: "draft-package-" + Date.now(), name: name, price: price, features: features, created: new Date().toISOString() });
+          });
           m.close();
-          NT.toast("Package \"" + (m.querySelector("#nName").value || "New package") + "\" created (demo)", "success");
+          NT.toast(name + " package draft saved", "success");
+          render();
         });
       });
     }

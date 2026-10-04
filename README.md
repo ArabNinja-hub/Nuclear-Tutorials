@@ -24,6 +24,20 @@ A student can watch a lesson when their package level is **at least** the lesson
 access level. Every one of the 40 demo lessons (5 courses × 8 lessons) carries a
 Basic / Standard / Premium level.
 
+## Academic catalogue
+
+The public catalogue supports two education pathways:
+
+- **High School** → Grade / Form / Level → Subject → Course → Lessons
+- **University** → University → Programme / School → Course → Lessons
+
+`assets/js/data.js` keeps education levels, school levels, subjects, universities,
+programmes and course offerings as separate data collections. Current Mathematics,
+Physics, Chemistry, Computer Science and Biology listings are sample/demo content;
+their illustrative high-school and university offerings do not claim to represent a
+specific institution's official syllabus. Course discovery can be filtered by level,
+subject, grade, university and programme.
+
 ## Run it
 
 ```bash
@@ -34,15 +48,16 @@ python3 -m http.server 8000
 
 ## Demo walkthrough (student)
 
-1. **Browse** — `index.html`, `courses.html`, `library.html` (visitor sees everything locked).
+1. **Browse** — `index.html`, `courses.html`, `library.html` (filter course samples by High School or University; a visitor sees lesson access states).
 2. **Pay** — `pricing.html` → *Get Access* → `checkout.html` (Airtel Money, MTN MoMo,
    Zamtel Money or Card — visual-only fields) → *Pay K… (demo)*.
 3. **Code** — the receipt issues a code like `NT-STANDARD-4826`; it is also stored
    in the admin Access Codes list as *Redeemed*.
 4. **Unlock** — or redeem a prepared code on `access.html`:
    `NT-BASIC-2026`, `NT-STANDARD-2026`, `NT-PREMIUM-2026`.
-5. **Learn** — `dashboard.html` (stats, continue learning, locked content, access info)
-   and `lesson.html` (internal player with progress, complete-state, prev/next, related).
+5. **Learn** — `dashboard.html` (course progress, recently watched, unlocked courses,
+   locked content and package info) and `lesson.html` (internal player with progress,
+   complete-state, prev/next and related lessons).
 6. **Prove the model** — `control.html` lets the presenter click
    *View as Basic / Standard / Premium student* and watch the entire platform re-lock
    live. A floating banner ends the demo view.
@@ -51,14 +66,15 @@ python3 -m http.server 8000
 
 `admin/index.html` — a separate console: Dashboard (1,284 students · 962 active ·
 40 videos · K96,450 revenue, revenue-by-package, recent payments), Videos (change any
-lesson's access level and see the student library react; simulated upload), Courses,
-Access Packages (edit prices live), Access Codes (generate codes), Students,
-Payments, Settings.
+lesson's access level and see the student library react; simulated upload), Courses
+(education-pathway metadata and course drafts), Access Packages (edit names, prices and
+benefits live; save admin-only package drafts), Access Codes (generate codes), Students,
+Payments, Settings. Basic, Standard and Premium remain the active checkout tiers.
 
 ## State
 
 Everything persists in `localStorage` (`nt_demo_state_v1`) while navigating:
-access level, completed lessons, generated codes, payments, admin edits.
+access level, completed/recent lessons, generated codes, payments, package edits and other admin changes.
 Reset any time from **Admin → Settings → Reset demo data**.
 
 ## Brand

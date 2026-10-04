@@ -79,18 +79,19 @@
 
   /* ---------- header ---------- */
   var NAV = [
-    { id: "courses", label: "Courses", href: "courses.html", icon: "book-open" },
-    { id: "pricing", label: "Pricing", href: "pricing.html", icon: "banknote" },
-    { id: "control", label: "Access Control", href: "control.html", icon: "shield-check" },
-    { id: "library", label: "Library", href: "library.html", icon: "library" },
-    { id: "dashboard", label: "Dashboard", href: "dashboard.html", icon: "layout-dashboard" }
+    { id: "courses", page: "courses", label: "Courses", href: "courses.html", icon: "book-open", defaultCourse: true },
+    { id: "high-school", page: "courses", label: "High School", href: "courses.html?level=high-school", icon: "graduation-cap", level: "high-school" },
+    { id: "university", page: "courses", label: "University", href: "courses.html?level=university", icon: "graduation-cap", level: "university" },
+    { id: "pricing", page: "pricing", label: "Packages", href: "pricing.html", icon: "layers" },
+    { id: "library", page: "library", label: "Library", href: "library.html", icon: "library" },
+    { id: "dashboard", page: "dashboard", label: "Dashboard", href: "dashboard.html", icon: "layout-dashboard" }
   ];
 
   function brandHtml() {
     return '<a class="brand" href="' + NT.base() + 'index.html">' +
       NT.logoImg("brand-logo") +
       '<span><span class="brand-name">Nuclear <span>Tutorials</span></span>' +
-      '<span class="brand-sub">Learn · Pay · Unlock</span></span></a>';
+      '<span class="brand-sub">High School · University</span></span></a>';
   }
 
   NT.renderHeader = function () {
@@ -99,18 +100,24 @@
     var chip = "";
     if (s.access) {
       chip = '<a class="access-chip" href="' + NT.base() + 'dashboard.html" title="Your active access">' +
-        '<span class="dot"></span>' + NT.data.LEVEL_LABEL[s.access] + " access · Active</a>";
+        '<span class="dot"></span>' + NT.esc(NT.packageDetails(s.access).name) + " access · Active</a>";
+    }
+    function navIsActive(item) {
+      if (page !== item.page) return false;
+      if (item.level) return NT.qs("level") === item.level;
+      if (item.defaultCourse) return !NT.qs("level");
+      return true;
     }
     var links = NAV.map(function (n) {
-      return '<a href="' + NT.base() + n.href + '" class="' + (page === n.id ? "active" : "") + '">' + n.label + "</a>";
+      return '<a href="' + NT.base() + n.href + '" class="' + (navIsActive(n) ? "active" : "") + '">' + n.label + "</a>";
     }).join("");
     var sheetLinks = NAV.map(function (n) {
-      return '<a href="' + NT.base() + n.href + '" class="' + (page === n.id ? "active" : "") + '">' +
+      return '<a href="' + NT.base() + n.href + '" class="' + (navIsActive(n) ? "active" : "") + '">' +
         NT.icon(n.icon) + "<span>" + n.label + "</span></a>";
     }).join("");
 
     var statusCard = s.access
-      ? '<div class="sheet-status">' + NT.icon("badge-check") + "<div><b>" + NT.data.LEVEL_LABEL[s.access] + " access is active.</b><br>" + NT.availableFor(s.access) + " of " + NT.counts().total + " videos unlocked.</div></div>"
+      ? '<div class="sheet-status">' + NT.icon("badge-check") + "<div><b>" + NT.esc(NT.packageDetails(s.access).name) + " access is active.</b><br>" + NT.availableFor(s.access) + " of " + NT.counts().total + " videos unlocked.</div></div>"
       : '<div class="sheet-status">' + NT.icon("lock") + "<div><b>No active access yet.</b><br>Choose a package or redeem an access code.</div></div>";
 
     var html =
@@ -128,6 +135,7 @@
       '<button class="modal-x" data-close-sheet aria-label="Close menu">' + NT.icon("x") + "</button></div>" +
       '<nav class="sheet-nav">' + sheetLinks +
       '<a href="' + NT.base() + 'access.html">' + NT.icon("key") + "<span>Unlock Access</span></a>" +
+      '<a href="' + NT.base() + 'control.html">' + NT.icon("shield-check") + "<span>Access control demo</span></a>" +
       '<a href="' + NT.base() + 'admin/index.html">' + NT.icon("settings") + "<span>Admin console</span></a>" +
       "</nav>" +
       '<div class="sheet-foot">' + statusCard +
@@ -165,8 +173,8 @@
       '<div class="footer-grid">' +
       '<div class="footer-brand">' +
       '<a class="brand" href="' + b + 'index.html">' + NT.logoImg("brand-logo") +
-      '<span><span class="brand-name">Nuclear <span>Tutorials</span></span><span class="brand-sub">Tutorial video platform</span></span></a>' +
-      "<p>Paid tutorial videos and learning resources for Zambian students. Pick a package, pay, and unlock exactly the lessons it includes.</p>" +
+      '<span><span class="brand-name">Nuclear <span>Tutorials</span></span><span class="brand-sub">Learning for every next step</span></span></a>' +
+      "<p>Structured tutorial courses for high-school and university students, organised by education level, subject and course.</p>" +
       '<div class="footer-note">' + NT.icon("info") + "Client demo — all payments and codes are simulated.</div>" +
       "</div>" +
       '<div class="footer-col"><h4>Platform</h4>' +

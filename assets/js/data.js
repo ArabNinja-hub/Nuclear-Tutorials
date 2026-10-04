@@ -9,6 +9,41 @@
   var LEVEL_RANK = { basic: 1, standard: 2, premium: 3 };
   var LEVEL_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
 
+  /* Academic catalogue schema. Course records reference these stable IDs so the
+     demo can grow from sample subjects into a much larger academic catalogue. */
+  var EDUCATION_LEVELS = [
+    {
+      id: "high-school", label: "High School",
+      hierarchy: ["Grade / Form / Level", "Subject", "Course", "Lessons"],
+      description: "Syllabus-focused learning organised around school grade and subject."
+    },
+    {
+      id: "university", label: "University",
+      hierarchy: ["University", "Programme / School", "Course", "Lessons"],
+      description: "Coursework organised by institution, programme and school."
+    }
+  ];
+  var HIGH_SCHOOL_LEVELS = [
+    { id: "senior-secondary", label: "Senior Secondary", detail: "Grades 10–12" }
+  ];
+  var SUBJECTS = [
+    { id: "math", title: "Mathematics", icon: "sigma" },
+    { id: "phys", title: "Physics", icon: "atom" },
+    { id: "chem", title: "Chemistry", icon: "flask" },
+    { id: "cs", title: "Computer Science", icon: "cpu" },
+    { id: "bio", title: "Biology", icon: "leaf" }
+  ];
+  var UNIVERSITIES = [
+    { id: "university-sample", name: "University sample", sample: true }
+  ];
+  var PROGRAMMES = [
+    { id: "programme-math", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Mathematical Sciences" },
+    { id: "programme-phys", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Physics" },
+    { id: "programme-chem", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Chemistry" },
+    { id: "programme-cs", universityId: "university-sample", school: "School of Engineering & Technology", name: "BSc Computer Science" },
+    { id: "programme-bio", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Biological Sciences" }
+  ];
+
   var PACKAGES = {
     basic: {
       id: "basic", name: "Basic", price: 50,
@@ -127,6 +162,25 @@
     }
   ];
 
+  /* Each course is a subject record with one or more academic offerings. The
+     included offerings are clearly marked as sample content; new grades,
+     universities and programmes can be added without changing lesson logic. */
+  COURSES.forEach(function (course) {
+    course.subjectId = course.id;
+    course.offerings = [
+      {
+        educationLevel: "high-school",
+        levelId: "senior-secondary",
+        label: "Senior Secondary · Grades 10–12"
+      },
+      {
+        educationLevel: "university",
+        universityId: "university-sample",
+        programmeId: "programme-" + course.id
+      }
+    ];
+  });
+
   var LEVEL_BLURB = {
     basic: "A clear, from-scratch introduction with worked examples you can follow step by step.",
     standard: "Core syllabus coverage with exam-style questions and full solutions.",
@@ -191,6 +245,11 @@
     LEVELS: LEVELS,
     LEVEL_RANK: LEVEL_RANK,
     LEVEL_LABEL: LEVEL_LABEL,
+    EDUCATION_LEVELS: EDUCATION_LEVELS,
+    HIGH_SCHOOL_LEVELS: HIGH_SCHOOL_LEVELS,
+    SUBJECTS: SUBJECTS,
+    UNIVERSITIES: UNIVERSITIES,
+    PROGRAMMES: PROGRAMMES,
     PACKAGES: PACKAGES,
     COURSES: COURSES,
     LESSONS: LESSONS,
@@ -202,6 +261,24 @@
   };
 
   /* ---------- Helpers ---------- */
+  NT.educationLevel = function (id) {
+    return EDUCATION_LEVELS.filter(function (x) { return x.id === id; })[0] || null;
+  };
+  NT.subject = function (id) {
+    return SUBJECTS.filter(function (x) { return x.id === id; })[0] || null;
+  };
+  NT.university = function (id) {
+    return UNIVERSITIES.filter(function (x) { return x.id === id; })[0] || null;
+  };
+  NT.programme = function (id) {
+    return PROGRAMMES.filter(function (x) { return x.id === id; })[0] || null;
+  };
+  NT.coursePathways = function (course) {
+    return (course && course.offerings) || [];
+  };
+  NT.coursePathway = function (course, levelId) {
+    return NT.coursePathways(course).filter(function (x) { return x.educationLevel === levelId; })[0] || null;
+  };
   NT.course = function (id) {
     return NT.data.COURSES.filter(function (c) { return c.id === id; })[0] || null;
   };
@@ -237,6 +314,17 @@
     return all.filter(function (l) { return NT.data.LEVEL_RANK[level] >= NT.data.LEVEL_RANK[NT.levelOf(l)]; }).length;
   };
   NT.packagePrice = function (id) {
-    return NT.store.get().packages[id] != null ? NT.store.get().packages[id] : NT.data.PACKAGES[id].price;
+    var state = NT.store.get();
+    return state.packages[id] != null ? state.packages[id] : NT.data.PACKAGES[id].price;
+  };
+  NT.packageDetails = function (id) {
+    var base = NT.data.PACKAGES[id];
+    if (!base) return null;
+    var overrides = (NT.store.get().packageDetails || {})[id] || {};
+    return Object.assign({}, base, overrides, {
+      id: id,
+      price: NT.packagePrice(id),
+      features: Array.isArray(overrides.features) ? overrides.features : base.features.slice()
+    });
   };
 })();
