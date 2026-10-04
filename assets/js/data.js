@@ -33,15 +33,17 @@
     { id: "cs", title: "Computer Science", icon: "cpu" },
     { id: "bio", title: "Biology", icon: "leaf" }
   ];
-  var UNIVERSITIES = [
-    { id: "university-sample", name: "University sample", sample: true }
-  ];
-  var PROGRAMMES = [
-    { id: "programme-math", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Mathematical Sciences" },
-    { id: "programme-phys", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Physics" },
-    { id: "programme-chem", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Chemistry" },
-    { id: "programme-cs", universityId: "university-sample", school: "School of Engineering & Technology", name: "BSc Computer Science" },
-    { id: "programme-bio", universityId: "university-sample", school: "School of Natural Sciences", name: "BSc Biological Sciences" }
+  /* Institution and programme names are intentionally empty in the demo. The
+     catalogue schema supports them, but no university affiliation is implied. */
+  var UNIVERSITIES = [];
+  var PROGRAMMES = [];
+  var RESOURCE_TYPES = [
+    { id: "tutorial-video", label: "Tutorial videos", available: true, description: "Video lessons in the current sample catalogue." },
+    { id: "notes", label: "Study notes", available: false, description: "Study notes are not included in this demo." },
+    { id: "study-materials", label: "Study materials", available: false, description: "Additional study materials are not included in this demo." },
+    { id: "revision-materials", label: "Revision materials", available: false, description: "Revision materials are not included in this demo." },
+    { id: "past-papers", label: "Past papers", available: false, description: "Past papers are not included in this demo." },
+    { id: "other", label: "Other academic resources", available: false, description: "Other academic resources are not included in this demo." }
   ];
 
   var PACKAGES = {
@@ -175,8 +177,10 @@
       },
       {
         educationLevel: "university",
-        universityId: "university-sample",
-        programmeId: "programme-" + course.id
+        universityId: null,
+        programmeId: null,
+        sample: true,
+        label: "University · institution and programme details not listed"
       }
     ];
   });
@@ -250,6 +254,7 @@
     SUBJECTS: SUBJECTS,
     UNIVERSITIES: UNIVERSITIES,
     PROGRAMMES: PROGRAMMES,
+    RESOURCE_TYPES: RESOURCE_TYPES,
     PACKAGES: PACKAGES,
     COURSES: COURSES,
     LESSONS: LESSONS,

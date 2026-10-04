@@ -24,6 +24,15 @@
       extraLessons: [],             // lessons added via admin "Upload Video"
       extraCourses: [],             // draft courses created in admin
       extraPackages: [],            // draft package options created in admin
+      announcements: [],             // admin-authored notices (local demo only)
+      profile: {
+        name: "",
+        educationLevel: "",
+        levelId: "",
+        university: "",
+        programme: "",
+        subjectId: ""
+      },
       packages: { basic: 50, standard: 100, premium: 200 },
       packageDetails: {},            // optional admin-managed label, tagline and feature overrides
       settings: {
@@ -47,6 +56,8 @@
         cache.settings = Object.assign(defaults().settings, parsed.settings || {});
         cache.packages = Object.assign(defaults().packages, parsed.packages || {});
         cache.packageDetails = Object.assign({}, parsed.packageDetails || {});
+        cache.profile = Object.assign({}, defaults().profile, parsed.profile || {});
+        cache.announcements = Array.isArray(cache.announcements) ? cache.announcements : [];
         cache.completed = Array.isArray(cache.completed) ? cache.completed : [];
         cache.recentLessons = Array.isArray(cache.recentLessons) ? cache.recentLessons : [];
         cache.codes = Array.isArray(cache.codes) ? cache.codes : defaults().codes;
@@ -118,6 +129,26 @@
     },
     addStudent: function (st) {
       NT.store.mutate(function (s) { s.students.unshift(Object.assign({ seeded: false }, st)); });
+    },
+    addAnnouncement: function (announcement) {
+      NT.store.mutate(function (s) {
+        s.announcements.unshift(Object.assign({
+          id: "notice-" + Date.now(),
+          status: "draft",
+          created: new Date().toISOString()
+        }, announcement));
+      });
+    },
+    updateAnnouncement: function (id, updates) {
+      NT.store.mutate(function (s) {
+        var item = s.announcements.filter(function (notice) { return notice.id === id; })[0];
+        if (item) Object.assign(item, updates || {});
+      });
+    },
+    removeAnnouncement: function (id) {
+      NT.store.mutate(function (s) {
+        s.announcements = s.announcements.filter(function (notice) { return notice.id !== id; });
+      });
     },
     genCode: function (pkg) {
       var n = Math.floor(1000 + Math.random() * 9000);
