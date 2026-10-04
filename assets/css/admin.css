@@ -158,3 +158,21 @@ body.side-open .scrim-side { opacity: 1; pointer-events: auto; }
   .adm-stats { grid-template-columns: 1fr; }
   .admin-foot { padding: 16px; }
 }
+
+/* Academic catalogue fields and desktop workspace refinements */
+.admin-main { min-width: 0; }
+.admin-content { width: 100%; max-width: 1600px; margin-inline: auto; }
+.admin-top { padding-inline: clamp(18px, 2vw, 34px); }
+.academic-model-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.academic-model-strip > div { display: flex; flex-direction: column; gap: 3px; padding: 13px 16px; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+.academic-model-strip b { color: var(--brand-700); font-size: 12px; }
+.academic-model-strip span { color: var(--muted); font-size: 11px; }
+.admin-content .nt-table td[data-label="Academic path"] { min-width: 170px; font-size: 12px; line-height: 1.6; }
+.admin-content .nt-table td[data-label="Subject"] { white-space: nowrap; }
+@media (max-width: 700px) {
+  .academic-model-strip { grid-template-columns: 1fr; }
+  .admin-content { padding: 17px 13px; }
+}
+.package-admin-name { display: inline-block; margin-left: 8px; color: var(--muted); font-size: 11px; }
+.package-draft-row .package-admin-name { display: block; max-width: 210px; margin-left: 0; }
+@media (max-width: 560px) { .package-admin-name { margin-left: 0; text-align: right; } .package-draft-row .package-admin-name { text-align: left; } }

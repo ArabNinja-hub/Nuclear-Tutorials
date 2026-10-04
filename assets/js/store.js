@@ -12,6 +12,7 @@
       access: null,                 // 'basic' | 'standard' | 'premium'
       accessMeta: null,             // { code, source, method, ref, since }
       completed: [],                // lesson ids
+      recentLessons: [],            // most recently watched lesson ids
       codes: [
         { code: "NT-BASIC-2026", pkg: "basic", status: "active", created: "2026-01-05", seeded: true },
         { code: "NT-STANDARD-2026", pkg: "standard", status: "active", created: "2026-01-05", seeded: true },
@@ -22,7 +23,9 @@
       videoLevels: {},              // lessonId -> level override (admin)
       extraLessons: [],             // lessons added via admin "Upload Video"
       extraCourses: [],             // draft courses created in admin
+      extraPackages: [],            // draft package options created in admin
       packages: { basic: 50, standard: 100, premium: 200 },
+      packageDetails: {},            // optional admin-managed label, tagline and feature overrides
       settings: {
         name: "Nuclear Tutorials",
         email: "support@nucleartutorials.zm",
@@ -43,6 +46,16 @@
         cache = Object.assign(defaults(), parsed);
         cache.settings = Object.assign(defaults().settings, parsed.settings || {});
         cache.packages = Object.assign(defaults().packages, parsed.packages || {});
+        cache.packageDetails = Object.assign({}, parsed.packageDetails || {});
+        cache.completed = Array.isArray(cache.completed) ? cache.completed : [];
+        cache.recentLessons = Array.isArray(cache.recentLessons) ? cache.recentLessons : [];
+        cache.codes = Array.isArray(cache.codes) ? cache.codes : defaults().codes;
+        cache.payments = Array.isArray(cache.payments) ? cache.payments : defaults().payments;
+        cache.students = Array.isArray(cache.students) ? cache.students : defaults().students;
+        cache.videoLevels = cache.videoLevels || {};
+        cache.extraLessons = Array.isArray(cache.extraLessons) ? cache.extraLessons : [];
+        cache.extraCourses = Array.isArray(cache.extraCourses) ? cache.extraCourses : [];
+        cache.extraPackages = Array.isArray(cache.extraPackages) ? cache.extraPackages : [];
       } else {
         cache = defaults();
       }
@@ -79,6 +92,11 @@
       });
     },
     isComplete: function (lessonId) { return load().completed.indexOf(lessonId) !== -1; },
+    recordLessonVisit: function (lessonId) {
+      NT.store.mutate(function (s) {
+        s.recentLessons = [lessonId].concat((s.recentLessons || []).filter(function (id) { return id !== lessonId; })).slice(0, 10);
+      });
+    },
 
     findCode: function (code) {
       var c = String(code || "").trim().toUpperCase();
