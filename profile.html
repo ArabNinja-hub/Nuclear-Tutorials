@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Profile — Nuclear Tutorials</title>
+<meta name="description" content="Set your local Nuclear Tutorials learning profile and choose course preferences.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="profile">
+
+<main>
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Profile</div>
+      <span class="eyebrow">Your learning profile</span>
+      <h1>A learning space that feels like yours.</h1>
+      <p class="lede">Set a display name and study preferences to make course browsing more relevant.</p>
+    </div>
+  </section>
+
+  <section class="section-body">
+    <div class="container profile-layout">
+      <section class="card profile-form-card">
+        <div class="profile-form-heading"><span class="profile-form-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><div><h2>Study preferences</h2><p>These details stay in this browser for the demo.</p></div></div>
+        <form id="profileForm" class="profile-form">
+          <div class="field"><label for="profileName">Name to use</label><input class="input" id="profileName" type="text" maxlength="60" placeholder="Your name (optional)" autocomplete="name"><span class="field-hint">No sign-in or online account is created.</span></div>
+          <div class="field"><label for="profileEducationLevel">Education level</label><select class="input" id="profileEducationLevel"></select></div>
+          <div class="field hidden" id="profileGradeField"><label for="profileSchoolLevel">Grade, form or level</label><select class="input" id="profileSchoolLevel"></select></div>
+          <div class="profile-university-fields hidden" id="profileUniversityFields">
+            <div class="field"><label for="profileUniversity">University</label><input class="input" id="profileUniversity" maxlength="100" placeholder="Enter your university (optional)"></div>
+            <div class="field"><label for="profileProgramme">Programme or school</label><input class="input" id="profileProgramme" maxlength="100" placeholder="Enter your programme or school (optional)"></div>
+            <p class="field-hint">Institution names are not listed in this demo catalogue, so these details are saved only as your preference.</p>
+          </div>
+          <div class="field"><label for="profileSubject">Subject of interest</label><select class="input" id="profileSubject"></select></div>
+          <div class="profile-form-actions"><button class="btn btn-primary" type="submit"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Save profile</button><span id="profileSaveMessage" class="profile-save-message" aria-live="polite"></span></div>
+        </form>
+      </section>
+
+      <aside class="profile-aside">
+        <section class="card profile-summary-card">
+          <span class="eyebrow">Profile overview</span>
+          <div id="profileSummary" class="profile-summary"></div>
+          <a class="btn btn-secondary btn-block" id="profileBrowseCourses" href="courses.html">Browse matching courses</a>
+        </section>
+        <section class="card profile-note-card">
+          <span class="profile-note-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <h3>Demo privacy note</h3>
+          <p>This is a front-end demonstration, not an authenticated student account. Your profile and learning progress are stored in local browser storage and are not sent to a server.</p>
+        </section>
+        <a class="profile-dashboard-link" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>Go to your dashboard</a>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

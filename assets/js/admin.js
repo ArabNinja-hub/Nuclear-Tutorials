@@ -9,6 +9,7 @@
     { id: "home", label: "Dashboard", href: "index.html", icon: "layout-dashboard" },
     { id: "videos", label: "Videos", href: "videos.html", icon: "video" },
     { id: "courses", label: "Courses", href: "courses.html", icon: "book-open" },
+    { id: "announcements", label: "Announcements", href: "announcements.html", icon: "bell" },
     { id: "packages", label: "Access Packages", href: "packages.html", icon: "layers" },
     { id: "codes", label: "Access Codes", href: "codes.html", icon: "key" },
     { id: "students", label: "Students", href: "students.html", icon: "users" },
@@ -20,6 +21,7 @@
     home: ["Admin Dashboard", "Simulated platform overview"],
     videos: ["Videos", "Manage lesson videos and their access levels"],
     courses: ["Courses", "Course catalogue and academic pathways"],
+    announcements: ["Announcements", "Publish student-facing platform updates"],
     packages: ["Access Packages", "Pricing and what each package includes"],
     codes: ["Access Codes", "Generate and track redemption codes"],
     students: ["Students", "Enrolled students and their packages"],
@@ -100,10 +102,10 @@
 
     root.innerHTML =
       '<div class="adm-stats">' +
-      '<div class="card adm-stat"><span class="lab">' + NT.icon("users") + "Total Students</span><span class=\"val\">" + fig.students.toLocaleString() + '</span><span class="delta up">' + NT.icon("trending-up") + "+38 this month</span></div>" +
-      '<div class="card adm-stat"><span class="lab">' + NT.icon("badge-check") + "Active Access</span><span class=\"val\">" + fig.active.toLocaleString() + '</span><span class="delta flat">' + NT.icon("info") + Math.round((fig.active / fig.students) * 100) + "% of students</span></div>" +
-      '<div class="card adm-stat"><span class="lab">' + NT.icon("video") + "Total Videos</span><span class=\"val\">" + counts.total + '</span><span class="delta flat">' + NT.icon("library") + D.COURSES.length + " courses</span></div>" +
-      '<div class="card adm-stat"><span class="lab">' + NT.icon("banknote") + "Revenue</span><span class=\"val\">" + NT.kwacha(fig.total) + '</span><span class="delta up">' + NT.icon("trending-up") + "All packages</span></div>" +
+      '<div class="card adm-stat"><span class="lab">' + NT.icon("users") + "Demo student records</span><span class=\"val\">" + fig.students.toLocaleString() + '</span><span class="delta flat">' + NT.icon("info") + "Simulated overview figure</span></div>" +
+      '<div class="card adm-stat"><span class="lab">' + NT.icon("badge-check") + "Simulated active access</span><span class=\"val\">" + fig.active.toLocaleString() + '</span><span class="delta flat">' + NT.icon("info") + "Illustrative demo figure</span></div>" +
+      '<div class="card adm-stat"><span class="lab">' + NT.icon("video") + "Sample video lessons</span><span class=\"val\">" + counts.total + '</span><span class="delta flat">' + NT.icon("library") + D.COURSES.length + " sample courses</span></div>" +
+      '<div class="card adm-stat"><span class="lab">' + NT.icon("banknote") + "Simulated revenue</span><span class=\"val\">" + NT.kwacha(fig.total) + '</span><span class="delta flat">' + NT.icon("info") + "Not business reporting</span></div>" +
       "</div>" +
 
       '<div class="adm-grid">' +
@@ -230,8 +232,10 @@
           var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
           return "High School" + (grade ? " · " + grade.label : "");
         }
+        var university = NT.university(path.universityId);
         var programme = NT.programme(path.programmeId);
-        return "University" + (programme ? " · " + programme.name : "");
+        return "University" + (university ? " · " + university.name : " · institution not specified") +
+          (programme ? " · " + programme.name + (programme.school ? " · " + programme.school : "") : " · programme / school not specified");
       }).join("<br>");
     }
 
@@ -254,8 +258,10 @@
         var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === course.levelId; })[0];
         var university = NT.university(course.universityId);
         var programme = NT.programme(course.programmeId);
+        var universityName = course.universityName || (university && university.name) || "Institution not specified";
+        var programmeName = course.programmeName || (programme && programme.name) || "Programme / school not specified";
         var path = course.educationLevel === "university"
-          ? levelLabel + (university ? " · " + university.name : "") + (programme ? " · " + programme.name : "")
+          ? levelLabel + " · " + universityName + " · " + programmeName
           : levelLabel + (grade ? " · " + grade.label : "");
         return '<tr><td class="td-strong" data-label="Course">' + NT.esc(course.title) + '</td><td data-label="Subject">' + NT.esc(subject.title) +
           '</td><td data-label="Academic path">' + NT.esc(path) + '</td><td data-label="Lessons">0</td><td data-label="Basic">0</td><td data-label="Standard">0</td><td data-label="Premium">0</td>' +
@@ -286,20 +292,9 @@
         var pathFields = m.querySelector("#cPathwayFields");
         function renderPathwayFields() {
           if (levelInput.value === "university") {
-            pathFields.innerHTML = '<div class="input-row"><div class="field"><label for="cUniversity">University</label><select class="input" id="cUniversity">' +
-              D.UNIVERSITIES.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.name) + "</option>"; }).join("") +
-              '</select></div><div class="field"><label for="cProgramme">Programme / School</label><select class="input" id="cProgramme"></select></div></div>';
-            var universityInput = pathFields.querySelector("#cUniversity");
-            var programmeInput = pathFields.querySelector("#cProgramme");
-            function updateProgrammes() {
-              var available = D.PROGRAMMES.filter(function (item) { return item.universityId === universityInput.value; });
-              programmeInput.innerHTML = available.length ? available.map(function (item) {
-                return '<option value="' + item.id + '">' + NT.esc(item.name + " · " + item.school) + "</option>";
-              }).join("") : '<option value="">No programmes available</option>';
-              programmeInput.disabled = !available.length;
-            }
-            universityInput.addEventListener("change", updateProgrammes);
-            updateProgrammes();
+            pathFields.innerHTML = '<div class="input-row"><div class="field"><label for="cUniversity">University (optional)</label><input class="input" id="cUniversity" maxlength="100" placeholder="Verified institution name"></div>' +
+              '<div class="field"><label for="cProgramme">Programme / School (optional)</label><input class="input" id="cProgramme" maxlength="100" placeholder="Verified programme or school"></div></div>' +
+              '<p class="field-hint">Use verified academic names. University affiliations are not pre-filled in this demo.</p>';
           } else {
             pathFields.innerHTML = '<div class="field"><label for="cGrade">Grade / Form / Level</label><select class="input" id="cGrade">' +
               D.HIGH_SCHOOL_LEVELS.map(function (item) { return '<option value="' + item.id + '">' + NT.esc(item.label + " · " + item.detail) + "</option>"; }).join("") + "</select></div>";
@@ -318,8 +313,8 @@
             status: "draft"
           };
           if (course.educationLevel === "university") {
-            course.universityId = m.querySelector("#cUniversity").value;
-            course.programmeId = m.querySelector("#cProgramme").value;
+            course.universityName = m.querySelector("#cUniversity").value.trim();
+            course.programmeName = m.querySelector("#cProgramme").value.trim();
           } else {
             course.levelId = m.querySelector("#cGrade").value;
           }
@@ -508,6 +503,101 @@
       "</tbody></table></div>";
   }
 
+  /* ---------------- announcements ---------------- */
+  function pageAnnouncements(root) {
+    function render() {
+      var notices = (NT.store.get().announcements || []).slice().sort(function (a, b) {
+        return new Date(b.updated || b.created || 0) - new Date(a.updated || a.created || 0);
+      });
+      root.innerHTML =
+        '<div class="adm-toolbar"><p class="muted small">Write a notice for students. Only published updates appear on the public Announcements page.</p><span class="spacer"></span><span class="badge badge-warn">Local demo content</span></div>' +
+        '<section class="adm-card announcement-admin-compose"><div class="adm-card-head"><h3>New announcement</h3><span class="sub">Saved in this browser only</span></div>' +
+        '<div class="adm-card-body"><form id="announcementForm" class="settings-form">' +
+        '<div class="field"><label for="announcementTitle">Title</label><input class="input" id="announcementTitle" maxlength="120" placeholder="e.g. A course update" required></div>' +
+        '<div class="field"><label for="announcementBody">Message</label><textarea class="input" id="announcementBody" rows="4" maxlength="1200" placeholder="Write a clear update for students" required></textarea></div>' +
+        '<div class="input-row"><div class="field"><label for="announcementStatus">Status</label><select class="input" id="announcementStatus"><option value="draft">Save as draft</option><option value="published">Publish now</option></select></div>' +
+        '<div class="field announcement-publish-note"><span class="announcement-field-label">Student visibility</span><span class="field-hint">Drafts stay in Admin. Published notices appear in Announcements and Search.</span></div></div>' +
+        '<div><button class="btn btn-primary" type="submit">' + NT.icon("plus") + "Save announcement</button></div></form></div></section>" +
+        '<div class="adm-card"><div class="adm-card-head"><div><h3>All announcements</h3><span class="sub">' + notices.length + " saved · published notices show to students</span></div></div>" +
+        '<div class="adm-card-body"><div class="announcement-admin-list">' + (notices.length ? notices.map(function (notice) {
+          var excerpt = String(notice.body || "");
+          if (excerpt.length > 180) excerpt = excerpt.slice(0, 177) + "…";
+          return '<article class="announcement-admin-item"><div><div class="announcement-admin-meta">' + statusBadge(notice.status || "draft") + "<span>" + NT.fmtDate(notice.updated || notice.created) + "</span></div>" +
+            '<h3>' + NT.esc(notice.title) + '</h3><p>' + NT.esc(excerpt) + "</p></div>" +
+            '<div class="announcement-admin-actions"><label class="sr-only" for="announcementStatus-' + NT.esc(String(notice.id)) + '">Status for ' + NT.esc(notice.title) + "</label>" +
+            '<select class="input" id="announcementStatus-' + NT.esc(String(notice.id)) + '" data-ann-status="' + NT.esc(String(notice.id)) + '"><option value="draft"' + (notice.status === "published" ? "" : " selected") + '>Draft</option><option value="published"' + (notice.status === "published" ? " selected" : "") + '>Published</option></select>' +
+            '<button class="btn btn-sm btn-secondary" type="button" data-ann-edit="' + NT.esc(String(notice.id)) + '" aria-label="Edit ' + NT.esc(notice.title) + '">' + NT.icon("pencil", "icon-sm") + "Edit</button>" +
+            '<button class="btn btn-sm btn-danger-soft" type="button" data-ann-delete="' + NT.esc(String(notice.id)) + '" aria-label="Delete ' + NT.esc(notice.title) + '">' + NT.icon("trash", "icon-sm") + "Delete</button></div></article>";
+        }).join("") : '<div class="announcement-admin-empty">No announcements have been created yet. Save a draft or publish an update for students.</div>') + "</div></div></div>";
+
+      root.querySelector("#announcementForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var title = root.querySelector("#announcementTitle").value.trim();
+        var body = root.querySelector("#announcementBody").value.trim();
+        if (!title || !body) {
+          NT.toast("Add both a title and a message", "error");
+          return;
+        }
+        var status = root.querySelector("#announcementStatus").value;
+        NT.store.addAnnouncement({ title: title, body: body, status: status, updated: new Date().toISOString() });
+        NT.toast(status === "published" ? "Announcement published for students" : "Announcement saved as a draft", "success");
+        render();
+      });
+      root.querySelectorAll("[data-ann-status]").forEach(function (select) {
+        select.addEventListener("change", function () {
+          NT.store.updateAnnouncement(select.dataset.annStatus, { status: select.value, updated: new Date().toISOString() });
+          NT.toast(select.value === "published" ? "Announcement published" : "Announcement moved to drafts", "success");
+          render();
+        });
+      });
+      root.querySelectorAll("[data-ann-edit]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var id = button.dataset.annEdit;
+          var notice = (NT.store.get().announcements || []).filter(function (item) { return String(item.id) === id; })[0];
+          if (!notice) return;
+          var isPublished = notice.status === "published";
+          var modal = NT.modal({
+            title: "Edit announcement",
+            body: '<div class="settings-form"><div class="field"><label for="editAnnouncementTitle">Title</label><input class="input" id="editAnnouncementTitle" maxlength="120" value="' + NT.esc(notice.title) + '" required></div>' +
+              '<div class="field"><label for="editAnnouncementBody">Message</label><textarea class="input" id="editAnnouncementBody" rows="5" maxlength="1200" required>' + NT.esc(notice.body) + '</textarea></div>' +
+              '<div class="field"><label for="editAnnouncementStatus">Status</label><select class="input" id="editAnnouncementStatus"><option value="draft"' + (isPublished ? "" : " selected") + '>Draft</option><option value="published"' + (isPublished ? " selected" : "") + '>Published</option></select></div></div>',
+            footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="saveAnnouncementEdit">Save changes</button>'
+          });
+          modal.querySelector("#saveAnnouncementEdit").addEventListener("click", function () {
+            var title = modal.querySelector("#editAnnouncementTitle").value.trim();
+            var body = modal.querySelector("#editAnnouncementBody").value.trim();
+            if (!title || !body) {
+              NT.toast("Add both a title and a message", "error");
+              return;
+            }
+            var status = modal.querySelector("#editAnnouncementStatus").value;
+            NT.store.updateAnnouncement(id, { title: title, body: body, status: status, updated: new Date().toISOString() });
+            modal.close();
+            NT.toast("Announcement updated", "success");
+            render();
+          });
+        });
+      });
+      root.querySelectorAll("[data-ann-delete]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var id = button.dataset.annDelete;
+          var modal = NT.modal({
+            title: "Delete announcement?",
+            body: "<p class=\"muted\">This removes the announcement from the local demo. This action cannot be undone.</p>",
+            footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-danger-soft" id="deleteAnnouncement">Delete announcement</button>'
+          });
+          modal.querySelector("#deleteAnnouncement").addEventListener("click", function () {
+            NT.store.removeAnnouncement(id);
+            modal.close();
+            NT.toast("Announcement deleted", "success");
+            render();
+          });
+        });
+      });
+    }
+    render();
+  }
+
   /* ---------------- settings ---------------- */
   function pageSettings(root) {
     var s = NT.store.get();
@@ -522,7 +612,7 @@
       '<div><button class="btn btn-primary" type="submit">' + NT.icon("check") + "Save Changes</button></div>" +
       "</form></div></div>" +
       '<div class="adm-card" style="margin-top:20px;border-color:#f0d3d0"><div class="adm-card-head"><h3>Demo data</h3><span class="badge badge-danger">' + NT.icon("circle-alert") + "Careful</span></div>" +
-      '<div class="adm-card-body"><p class="muted small" style="margin-bottom:14px">Reset returns the demo to its factory state: clears active access, completions, generated codes, payments and admin edits.</p>' +
+      '<div class="adm-card-body"><p class="muted small" style="margin-bottom:14px">Reset returns the demo to its factory state: clears active access, progress, local profile details, announcements, generated codes, payments and admin edits.</p>' +
       '<button class="btn btn-danger-soft" id="resetDemo">' + NT.icon("rotate") + "Reset demo data</button></div></div>";
 
     root.querySelector("#setForm").addEventListener("submit", function (e) {
@@ -548,7 +638,7 @@
     });
   }
 
-  var routes = { home: pageHome, videos: pageVideos, courses: pageCourses, packages: pagePackages, codes: pageCodes, students: pageStudents, payments: pagePayments, settings: pageSettings };
+  var routes = { home: pageHome, videos: pageVideos, courses: pageCourses, announcements: pageAnnouncements, packages: pagePackages, codes: pageCodes, students: pageStudents, payments: pagePayments, settings: pageSettings };
 
   document.addEventListener("DOMContentLoaded", function () {
     var root = renderShell();
