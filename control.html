@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Access Control — Nuclear Tutorials</title>
+<meta name="description" content="Interactive demonstration of how payment controls access on Nuclear Tutorials.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="control">
+
+<div class="page-head">
+  <div class="container">
+    <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Access Control</div>
+    <div class="page-head-row">
+      <div>
+        <h1>Payment controls access</h1>
+        <p class="lede">A student can watch a lesson when their package level is at least the lesson's access level. Switch between student tiers below — the whole demo platform changes with you.</p>
+      </div>
+      <button class="btn btn-secondary hidden" id="resetView">Reset demo view</button>
+    </div>
+  </div>
+</div>
+
+<section class="section-body">
+  <div class="container stack">
+    <div class="persona-grid" id="personaGrid"></div>
+
+    <div class="card card-pad">
+      <div class="row-between" style="margin-bottom:18px">
+        <div>
+          <h3>Live library state</h3>
+          <p class="muted small" style="margin-top:4px">Exactly what the current student sees across the platform.</p>
+        </div>
+        <span id="viewState"></span>
+      </div>
+      <div class="split">
+        <div>
+          <div class="table-wrap" style="box-shadow:none">
+            <table class="matrix">
+              <thead><tr><th>Lesson tier</th><th>Basic student</th><th>Standard student</th><th>Premium student</th></tr></thead>
+              <tbody id="matrixBody"></tbody>
+            </table>
+          </div>
+          <p class="tiny muted" style="margin-top:12px">The highlighted experience above is the one currently active in this demo session.</p>
+        </div>
+        <div>
+          <p class="tiny muted" style="margin-bottom:10px">Sample of the video library right now:</p>
+          <div class="lesson-grid" id="previewGrid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))"></div>
+        </div>
+      </div>
+      <div class="row-between" style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+        <p class="small muted">Want the full picture? Open the library with the current student's eyes.</p>
+        <a class="btn btn-primary" href="library.html">Open full library</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
