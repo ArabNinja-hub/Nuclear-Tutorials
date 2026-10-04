@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Video Library — Nuclear Tutorials</title>
+<meta name="description" content="Every Nuclear Tutorials lesson video, locked or unlocked according to your access package.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="library">
+
+<div class="page-head">
+  <div class="container">
+    <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Library</div>
+    <div class="page-head-row">
+      <div>
+        <h1>Video library</h1>
+        <p class="lede">Tutorial videos across all five courses. Locked lessons show what your next upgrade brings — the streams themselves stay private until you pay.</p>
+      </div>
+      <a class="btn btn-secondary" href="control.html">Access control demo</a>
+    </div>
+  </div>
+</div>
+
+<section class="section-body">
+  <div class="container">
+    <div class="alert alert-info hidden" id="libGate" style="margin-bottom:20px">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div style="flex:1"><b>You're browsing as a visitor.</b> Every video is locked right now. Redeem an access code or pick a package to start watching.</div>
+      <a class="btn btn-primary btn-sm" href="pricing.html">Get Access</a>
+    </div>
+
+    <div class="card lib-toolbar">
+      <div class="search">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input class="input" id="fSearch" placeholder="Search lessons…" aria-label="Search lessons">
+      </div>
+      <select class="input" id="fCourse" aria-label="Filter by course">
+        <option value="">All courses</option>
+        <option value="math">Mathematics</option>
+        <option value="phys">Physics</option>
+        <option value="chem">Chemistry</option>
+        <option value="cs">Computer Science</option>
+        <option value="bio">Biology</option>
+      </select>
+      <select class="input" id="fLevel" aria-label="Filter by access level">
+        <option value="">All levels</option>
+        <option value="basic">Basic</option>
+        <option value="standard">Standard</option>
+        <option value="premium">Premium</option>
+      </select>
+      <select class="input" id="fStatus" aria-label="Filter by availability">
+        <option value="">Locked &amp; unlocked</option>
+        <option value="unlocked">Unlocked only</option>
+        <option value="locked">Locked only</option>
+      </select>
+    </div>
+
+    <div class="row-between" id="libSummary" style="margin-bottom:18px;gap:10px"></div>
+    <div class="lesson-grid" id="lessonGrid"></div>
+  </div>
+</section>
+
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
