@@ -138,9 +138,9 @@
   ];
 
   function brandHtml(showSub) {
-    return '<a class="brand" href="' + NT.base() + 'index.html">' +
+    return '<a class="brand" href="' + NT.base() + 'index.html" aria-label="Nuclear Tutorials — home">' +
       NT.logoImg("brand-logo") +
-      '<span><span class="brand-name">Nuclear <span>Tutorials</span></span>' +
+      '<span class="brand-copy"><span class="brand-name">Nuclear <span>Tutorials</span></span>' +
       (showSub === false ? "" : '<span class="brand-sub">High School &amp; University</span>') + "</span></a>";
   }
 
@@ -183,7 +183,9 @@
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
       '<div class="header-actions">' +
       accountLink(s, "") +
-      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'pricing.html">Get Access</a>' +
+      '<a class="btn-icon header-search-btn" href="' + NT.base() + 'search.html" aria-label="Search the catalogue">' + NT.icon("search") + "</a>" +
+      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'pricing.html">' +
+      '<span class="header-access-label">Get Access</span>' + NT.icon("arrow-right", "icon-sm header-access-ico") + "</a>" +
       '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>" +
       "</div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
@@ -353,6 +355,51 @@
     return scrim;
   };
 
+  /* ---------- shared catalogue helpers ---------- */
+  /* Total runtime of a course, formatted like "2h 31m". */
+  NT.courseDuration = function (courseId) {
+    var secs = NT.courseLessons(courseId).reduce(function (sum, l) { return sum + NT.parseDur(l.duration); }, 0);
+    var h = Math.floor(secs / 3600), m = Math.round((secs % 3600) / 60);
+    return (h ? h + "h " : "") + m + "m";
+  };
+  /* Which lesson numbers each package opens for one course, e.g. Basic 1–3. */
+  NT.tierRange = function (courseId) {
+    var lessons = NT.courseLessons(courseId);
+    var out = {};
+    NT.data.LEVELS.forEach(function (level) {
+      var idx = [];
+      lessons.forEach(function (l) {
+        if (NT.data.LEVEL_RANK[level] >= NT.data.LEVEL_RANK[NT.levelOf(l)]) idx.push(l.index);
+      });
+      out[level] = idx.length ? { from: idx[0], to: idx[idx.length - 1], count: idx.length } : null;
+    });
+    return out;
+  };
+
+  /* ---------- restrained scroll entrances ----------
+     Sections and cards fade/rise once as they enter the viewport. Elements opt
+     in with class="reveal"; the observer never blocks rendering and is skipped
+     entirely when the visitor prefers reduced motion. */
+  NT.initReveal = function () {
+    var els = Array.prototype.slice.call(document.querySelectorAll(".reveal"))
+      .filter(function (el) { return !el.hasAttribute("data-reveal-bound"); });
+    if (!els.length) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || !("IntersectionObserver" in window)) {
+      els.forEach(function (el) { el.classList.add("is-in"); el.setAttribute("data-reveal-bound", "1"); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-in");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+    els.forEach(function (el) { el.setAttribute("data-reveal-bound", "1"); io.observe(el); });
+  };
+
   NT.copy = function (text) {
     function done() { NT.toast("Copied to clipboard: " + text, "success"); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -366,39 +413,57 @@
     }
   };
 
-  /* ---------- thumbnail art (SVG per course, deterministic) ---------- */
+  /* ---------- thumbnail art (SVG per course, deterministic) ----------
+     Each subject gets its own composed scene: a soft light source, a faint
+     study grid, the subject motif and one orbital accent drawn from the brand
+     mark. Purely decorative — always aria-hidden. */
   NT.thumbArt = function (course) {
     var c = course || NT.data.COURSES[0];
     var id = c.id || "course";
+    var glow = {
+      math: "rgba(69,198,230,.34)", phys: "rgba(120,170,220,.30)", chem: "rgba(224,33,138,.26)",
+      cs: "rgba(64,200,130,.24)", bio: "rgba(244,160,60,.26)"
+    }[id] || "rgba(69,198,230,.28)";
     var motif = {
-      math: '<path d="M16 128 C 70 70, 130 150, 210 78 S 300 36, 336 62" stroke="#ffffff" stroke-opacity=".4" fill="none" stroke-width="2"/>' +
-        '<g stroke="#ffffff" stroke-opacity=".14" stroke-width="1">' +
-        '<path d="M0 60h320M0 90h320M0 120h320M40 0v180M80 0v180M120 0v180M160 0v180M200 0v180M240 0v180M280 0v180"/></g>',
-      phys: '<g fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="1.5">' +
-        '<ellipse cx="246" cy="64" rx="72" ry="26"/>' +
-        '<ellipse cx="246" cy="64" rx="72" ry="26" transform="rotate(60 246 64)"/>' +
-        '<ellipse cx="246" cy="64" rx="72" ry="26" transform="rotate(120 246 64)"/></g>' +
-        '<circle cx="246" cy="64" r="6" fill="#ffffff" fill-opacity=".85"/>',
-      chem: '<g fill="none" stroke="#ffffff" stroke-opacity=".34" stroke-width="1.4">' +
-        '<circle cx="238" cy="52" r="18"/><circle cx="278" cy="78" r="14"/><circle cx="214" cy="90" r="12"/>' +
-        '<path d="M252 62l18 12M226 66l-8 16"/></g>' +
-        '<circle cx="238" cy="52" r="5" fill="#ffffff" fill-opacity=".7"/>' +
-        '<circle cx="278" cy="78" r="4" fill="#ffffff" fill-opacity=".55"/>',
-      cs: '<g fill="none" stroke="#ffffff" stroke-opacity=".32" stroke-width="1.3">' +
-        '<rect x="208" y="28" width="36" height="24" rx="4"/><rect x="258" y="62" width="36" height="24" rx="4"/>' +
-        '<rect x="208" y="96" width="36" height="24" rx="4"/><path d="M226 52v44M244 40h32l0 22"/></g>' +
-        '<circle cx="226" cy="74" r="3.5" fill="#ffffff" fill-opacity=".7"/>',
-      bio: '<g fill="none" stroke="#ffffff" stroke-opacity=".34" stroke-width="1.4">' +
-        '<ellipse cx="244" cy="70" rx="54" ry="38"/><ellipse cx="244" cy="70" rx="22" ry="16"/>' +
-        '<path d="M244 32c18 18 8 40 0 76"/></g>' +
-        '<circle cx="258" cy="62" r="5" fill="#ffffff" fill-opacity=".65"/>'
+      math: '<g stroke="#ffffff" stroke-opacity=".16" stroke-width="1"><path d="M0 44h320M0 76h320M0 108h320M0 140h320M48 0v180M96 0v180M144 0v180M192 0v180M240 0v180M288 0v180"/></g>' +
+        '<path d="M-8 132 C 52 64, 116 152, 186 76 S 288 30, 330 58" stroke="#ffffff" stroke-opacity=".5" fill="none" stroke-width="2.2" stroke-linecap="round"/>' +
+        '<path d="M-8 150 C 60 96, 128 168, 200 104 S 296 66, 330 88" stroke="#7fd0ea" stroke-opacity=".42" fill="none" stroke-width="1.6" stroke-linecap="round"/>' +
+        '<circle cx="186" cy="76" r="4" fill="#ffffff" fill-opacity=".85"/>',
+      phys: '<g fill="none" stroke="#ffffff" stroke-opacity=".4" stroke-width="1.6">' +
+        '<ellipse cx="238" cy="70" rx="82" ry="30"/>' +
+        '<ellipse cx="238" cy="70" rx="82" ry="30" transform="rotate(60 238 70)"/>' +
+        '<ellipse cx="238" cy="70" rx="82" ry="30" transform="rotate(120 238 70)"/></g>' +
+        '<circle cx="238" cy="70" r="7" fill="#ffffff" fill-opacity=".9"/>' +
+        '<circle cx="238" cy="70" r="14" fill="none" stroke="#ffffff" stroke-opacity=".35" stroke-width="1.2"/>' +
+        '<circle cx="320" cy="40" r="4" fill="#7fd0ea" fill-opacity=".8"/>' +
+        '<circle cx="156" cy="100" r="3.4" fill="#e0218a" fill-opacity=".7"/>',
+      chem: '<g fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="1.5">' +
+        '<circle cx="228" cy="52" r="20"/><circle cx="272" cy="82" r="15"/><circle cx="204" cy="96" r="13"/><circle cx="252" cy="120" r="10"/>' +
+        '<path d="M244 64l16 11M214 66l-6 18M262 96l-5 15"/></g>' +
+        '<circle cx="228" cy="52" r="6" fill="#ffffff" fill-opacity=".75"/>' +
+        '<circle cx="272" cy="82" r="4.5" fill="#e0218a" fill-opacity=".6"/>' +
+        '<circle cx="204" cy="96" r="4" fill="#7fd0ea" fill-opacity=".6"/>',
+      cs: '<g fill="none" stroke="#ffffff" stroke-opacity=".36" stroke-width="1.4">' +
+        '<rect x="196" y="26" width="42" height="28" rx="6"/><rect x="254" y="66" width="42" height="28" rx="6"/>' +
+        '<rect x="196" y="106" width="42" height="28" rx="6"/><path d="M217 54v52M238 40h58l0 26"/></g>' +
+        '<circle cx="217" cy="80" r="4" fill="#7fd0ea" fill-opacity=".75"/>' +
+        '<g stroke="#7fd0ea" stroke-opacity=".5" stroke-width="1.4"><path d="M262 80h14M268 74v12"/></g>',
+      bio: '<g fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="1.5">' +
+        '<ellipse cx="238" cy="76" rx="60" ry="42"/><ellipse cx="238" cy="76" rx="25" ry="18"/>' +
+        '<path d="M238 34c20 20 9 46 0 84"/><path d="M238 34c-20 20-9 46 0 84"/></g>' +
+        '<circle cx="254" cy="64" r="5.5" fill="#ffffff" fill-opacity=".7"/>' +
+        '<circle cx="222" cy="90" r="4" fill="#f4a03c" fill-opacity=".65"/>'
     };
     return '<svg class="thumb-art" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
-      '<defs><linearGradient id="g-' + id + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="#ffffff" stop-opacity=".14"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>' +
-      '<rect width="320" height="180" fill="url(#g-' + id + ')"/>' +
+      '<defs>' +
+      '<radialGradient id="gl-' + id + '" cx="0.74" cy="0.24" r="0.85">' +
+      '<stop offset="0" stop-color="' + glow + '"/><stop offset="1" stop-color="' + glow + '" stop-opacity="0"/></radialGradient>' +
+      '<linearGradient id="vg-' + id + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0.55" stop-color="#04101a" stop-opacity="0"/><stop offset="1" stop-color="#04101a" stop-opacity=".5"/></linearGradient>' +
+      "</defs>" +
+      '<rect width="320" height="180" fill="url(#gl-' + id + ')"/>' +
       (motif[id] || '<circle cx="262" cy="34" r="72" fill="none" stroke="#ffffff" stroke-opacity=".16"/>') +
-      '<g stroke="#ffffff" stroke-opacity=".2" stroke-width="1"><path d="M22 24h50M22 38h34M22 52h42"/></g>' +
+      '<rect width="320" height="180" fill="url(#vg-' + id + ')"/>' +
       "</svg>";
   };
 })();

@@ -21,7 +21,7 @@
         return "<li>" + NT.icon("check") + "<span>" + NT.esc(f) + "</span></li>";
       }).join("");
       var actionClass = p.popular ? "btn-primary" : (id === "premium" ? "btn-dark" : "btn-secondary");
-      return '<article class="price-card price-' + id + (p.popular ? " popular" : "") + '">' +
+      return '<article class="price-card price-' + id + (p.popular ? " popular" : "") + ' reveal" data-delay="' + D.LEVELS.indexOf(id) + '">' +
         (p.popular ? '<span class="popular-tag">Most popular</span>' : "") +
         '<span class="price-name t-' + id + '">' + NT.esc(p.name) + "</span>" +
         '<div class="price-amount"><b>' + NT.kwacha(NT.packagePrice(id)) + "</b><span>/ " + s.settings.days + " days</span></div>" +
@@ -51,26 +51,40 @@
   /* Wording for education pathways lives in ui.js so every page cannot drift apart. */
   function coursePathwayLabel(path) { return NT.pathwayLabel(path); }
 
-  /* One course card: name, pathway, short description, lesson count, CTA. */
+  /* One course card: visual, name, pathway, short description, lesson count,
+     and a single action that opens the course's own page. */
   NT.renderCourseCard = function (course) {
     var lessons = NT.courseLessons(course.id);
     var state = NT.store.get();
     var unlocked = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); });
-    var meta = lessons.length + (lessons.length === 1 ? " lesson" : " lessons");
+    var meta = lessons.length + (lessons.length === 1 ? " lesson" : " lessons") + " · " + NT.courseDuration(course.id);
+    var stateHtml = "";
     if (state.access && unlocked.length) {
       var done = unlocked.filter(function (lesson) { return NT.store.isComplete(lesson.id); }).length;
-      meta += " · " + done + " of " + unlocked.length + " complete";
+      var pct = Math.round((done / unlocked.length) * 100);
+      var cls = done === unlocked.length ? "is-done" : done > 0 ? "is-progress" : "is-open";
+      var ico = done === unlocked.length ? "circle-check" : done > 0 ? "trending-up" : "unlock";
+      var label = done === unlocked.length ? "Completed" : done > 0 ? done + " of " + unlocked.length + " complete" : unlocked.length + " unlocked";
+      stateHtml = '<span class="course-card-state ' + cls + '">' + NT.icon(ico) + NT.esc(label) + "</span>";
+      meta = lessons.length + (lessons.length === 1 ? " lesson" : " lessons") + " · " + pct + "%";
+    } else if (state.access) {
+      stateHtml = '<span class="course-card-state is-locked">' + NT.icon("lock") + "Upgrade needed</span>";
     }
-    var href = NT.base() + "library.html?course=" + encodeURIComponent(course.id);
-    return '<article class="course-card" id="' + NT.esc(course.id) + '">' +
-      '<div class="course-card-media" style="--thumb-bg:' + course.thumb + '">' + NT.thumbArt(course) +
-      '<span class="course-icon" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' + NT.icon(course.icon) + "</span></div>" +
+    var href = NT.base() + "course.html?id=" + encodeURIComponent(course.id);
+    return '<article class="course-card reveal" data-delay="' + (D.COURSES.indexOf(course) % 3) + '" id="' + NT.esc(course.id) + '">' +
+      '<a class="course-card-media" href="' + href + '" tabindex="-1" aria-hidden="true" style="--thumb-bg:' + course.thumb + '">' + NT.thumbArt(course) +
+      '<span class="course-media-tag">' + NT.esc(NT.coursePathwayNames(course, "high-school") || "High School") + "</span>" +
+      '<span class="course-play">' + NT.icon("play") + "</span>" +
+      '<span class="course-icon" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' + NT.icon(course.icon) + "</span></a>" +
       '<div class="course-card-body">' +
+      '<div class="course-card-top"><span class="course-subject">' + NT.esc((NT.subject(course.subjectId) || {}).title || course.title) + "</span>" +
+      stateHtml + "</div>" +
       "<h3>" + '<a href="' + href + '">' + NT.esc(course.title) + "</a></h3>" +
       '<p class="course-path">' + NT.icon(NT.pathwayIcon("high-school"), "icon-sm") + NT.esc(NT.coursePathwayNames(course)) + "</p>" +
       '<p class="desc">' + NT.esc(course.desc) + "</p>" +
       '<div class="course-card-foot"><span class="course-card-meta">' + NT.icon("play-circle", "icon-sm") + NT.esc(meta) + "</span>" +
-      '<a class="btn btn-secondary btn-sm" href="' + href + '">View course' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
+      '<a class="btn btn-secondary btn-sm" href="' + href + '">View course' + NT.icon("arrow-right", "icon-sm") + "</a>" +
+      "</div>" +
       "</div></article>";
   };
 
@@ -96,6 +110,7 @@
   function pageHome() {
     var popular = document.getElementById("courseGrid");
     if (popular) popular.innerHTML = D.COURSES.slice(0, 3).map(NT.renderCourseCard).join("");
+    NT.initReveal();
 
     var days = document.getElementById("accessDays");
     if (days) days.textContent = NT.store.get().settings.days;
@@ -182,8 +197,11 @@
         : '<div class="card course-empty"><h2>No courses match</h2><p>Try another pathway, subject or search term.</p>' +
           '<button class="btn btn-secondary" type="button" id="emptyClear">Clear search</button></div>';
       var activeLevel = level ? NT.educationLevel(level) : null;
+      var lessonCount = list.reduce(function (sum, course) { return sum + NT.courseLessons(course.id).length; }, 0);
       summary.innerHTML = "<span><b>" + list.length + "</b> " + (list.length === 1 ? "course" : "courses") +
-        (activeLevel ? " · " + NT.esc(activeLevel.label) + " pathway" : "") + "</span>";
+        " · <b>" + lessonCount + "</b> lessons" +
+        (activeLevel ? " · " + NT.esc(activeLevel.label) + " pathway" : "") + "</span>" +
+        "<span class='muted'>Open a course to see its full lesson list</span>";
       var emptyClear = document.getElementById("emptyClear");
       if (emptyClear) emptyClear.addEventListener("click", function () {
         subject = "";
@@ -193,10 +211,146 @@
       renderTabs();
       renderChips();
       syncUrl();
+      NT.initReveal();
     }
 
     search.addEventListener("input", render);
     render();
+  }
+
+  /* ============================ INDIVIDUAL COURSE ============================
+     A course is its own learning environment: identity band with progress and
+     the next action, what you'll learn, the full lesson list with live access
+     states, and exactly what each package opens here. */
+  function pageCourse() {
+    var id = NT.qs("id") || NT.qs("course") || "";
+    var course = NT.course(id) || D.COURSES[0];
+    var root = document.getElementById("courseRoot");
+    var lessons = NT.courseLessons(course.id);
+    var state = NT.store.get();
+    var unlocked = lessons.filter(function (l) { return NT.isUnlocked(l); });
+    var done = unlocked.filter(function (l) { return NT.store.isComplete(l.id); }).length;
+    var started = done > 0 || (state.recentLessons || []).some(function (rid) {
+      return lessons.some(function (l) { return l.id === rid; });
+    });
+    var pct = unlocked.length ? Math.round((done / unlocked.length) * 100) : 0;
+    var next = unlocked.filter(function (l) { return !NT.store.isComplete(l.id); })[0] || unlocked[0];
+    var first = lessons[0];
+    var ranges = NT.tierRange(course.id);
+
+    document.title = course.title + " — Nuclear Tutorials";
+
+    var primaryCta = state.access && next
+      ? '<a class="btn btn-primary btn-lg" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(next.id) + '">' +
+        NT.icon("play") + (started ? "Continue learning" : "Start learning") + "</a>"
+      : '<a class="btn btn-primary btn-lg" href="' + NT.base() + 'pricing.html">' + NT.icon("unlock") + "Get access</a>";
+    var secondaryCta = state.access
+      ? '<a class="btn btn-outline-light btn-lg" href="' + NT.base() + "library.html?course=" + encodeURIComponent(course.id) + '">' + NT.icon("library") + "Open in library</a>"
+      : '<a class="btn btn-outline-light btn-lg" href="' + NT.base() + 'access.html">' + NT.icon("key") + "Redeem a code</a>";
+
+    var progressHtml = state.access && unlocked.length && started
+      ? '<div class="course-hero-progress"><div class="progress-row"><span style="white-space:nowrap">Your progress</span>' +
+        '<div class="progress"><i style="width:' + pct + '%"></i></div><span>' + pct + "%</span></div></div>"
+      : "";
+
+    var hero =
+      '<section class="course-hero"><div class="container">' +
+      '<div class="crumbs"><a href="' + NT.base() + 'index.html">Home</a>' + NT.icon("chevron-right", "icon-sm") +
+      '<a href="' + NT.base() + 'courses.html">Courses</a>' + NT.icon("chevron-right", "icon-sm") +
+      "<span>" + NT.esc(course.title) + "</span></div>" +
+      '<div class="course-hero-grid">' +
+      "<div>" +
+      '<div class="course-hero-ident"><span class="course-hero-icon">' + NT.icon(course.icon) + "</span>" +
+      '<span class="course-hero-path">' + NT.esc(NT.coursePathwayNames(course)) + "</span></div>" +
+      "<h1>" + NT.esc(course.title) + "</h1>" +
+      '<p class="course-hero-desc">' + NT.esc(course.desc) + "</p>" +
+      '<div class="course-meta-row">' +
+      "<span>" + NT.icon("play-circle") + "<span class='mono'>" + lessons.length + "</span> lessons</span>" +
+      "<span>" + NT.icon("clock") + NT.esc(NT.courseDuration(course.id)) + " of video</span>" +
+      "<span>" + NT.icon(NT.pathwayIcon("high-school")) + NT.esc(NT.pathwayShort(NT.coursePathway(course, "high-school")) || "High School") + "</span>" +
+      (state.access ? "<span>" + NT.icon("unlock") + "<span class='mono'>" + unlocked.length + "</span> unlocked for you</span>" : "") +
+      "</div>" +
+      '<div class="course-hero-actions">' + primaryCta + secondaryCta + "</div>" +
+      progressHtml +
+      "</div>" +
+      '<aside class="course-hero-card" aria-hidden="true">' +
+      '<div class="course-hero-art" style="--thumb-bg:' + course.thumb + '">' + NT.thumbArt(course) +
+      '<span class="play">' + NT.icon("play", "icon-lg") + "</span></div>" +
+      '<div class="course-hero-card-body"><b>' + NT.esc(first.title) + "</b>" +
+      "<small>Lesson 1 of " + lessons.length + " · " + NT.esc(first.duration) + " · " + D.LEVEL_LABEL[NT.levelOf(first)] + "</small></div>" +
+      "</aside>" +
+      "</div></div></section>";
+
+    /* What you'll learn — the three honest outcomes this course delivers. */
+    var learn =
+      '<section class="section section-tight"><div class="container">' +
+      '<div class="section-head"><span class="eyebrow eyebrow-orbit">What you\'ll learn</span>' +
+      "<h2>Three levels of depth in one course</h2>" +
+      "<p>Every course is taught from the ground up, then taken to exam depth and beyond. Your package decides how far you go.</p></div>" +
+      '<div class="learn-points">' +
+      D.LEVELS.map(function (level, i) {
+        return '<article class="learn-point t-' + level + ' reveal" data-delay="' + i + '">' +
+          '<span class="tier">' + NT.icon(level === "premium" ? "sparkles" : level === "standard" ? "trending-up" : "book-open") + D.LEVEL_LABEL[level] + "</span>" +
+          "<p>" + NT.esc(NT.LEVEL_BLURB[level]) + "</p></article>";
+      }).join("") +
+      "</div></div></section>";
+
+    /* The lesson list, with live access + completion states. */
+    function lessonRow(l) {
+      var un = NT.isUnlocked(l);
+      var isDone = NT.store.isComplete(l.id);
+      var cls = isDone ? "is-complete" : un ? "is-open" : "is-locked";
+      var ico = isDone ? "circle-check" : un ? "play-circle" : "lock";
+      var num = String(l.index).padStart(2, "0");
+      return '<li class="lib-lesson ' + cls + '">' +
+        '<span class="lib-index" aria-hidden="true">' + num + "</span>" +
+        '<span class="lib-state" aria-hidden="true">' + NT.icon(ico) + "</span>" +
+        '<span class="lib-lesson-title"><b>' + NT.esc(l.title) + "</b><small>" + NT.esc(l.duration) + " · " + D.LEVEL_LABEL[NT.levelOf(l)] + " lesson" + (isDone ? " · Completed" : "") + "</small></span>" +
+        '<span class="lib-lesson-action">' +
+        (un
+          ? '<a class="btn btn-secondary btn-sm" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(l.id) + '">' + (isDone ? "Review" : "Watch") + "</a>"
+          : '<span class="requires">' + D.LEVEL_LABEL[NT.levelOf(l)] + " required</span>") +
+        "</span></li>";
+    }
+    var list =
+      '<section class="section section-alt"><div class="container">' +
+      '<div class="section-head section-head-row"><div>' +
+      '<span class="eyebrow eyebrow-orbit">Course contents</span>' +
+      "<h2>Every lesson, in order</h2>" +
+      "<p>Lessons build on each other from the first principle to the hardest paper.</p></div>" +
+      (next ? '<a class="link-arrow" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(next.id) + '">' +
+        (started ? "Continue where you left off" : "Start with lesson 1") + NT.icon("arrow-right", "icon-sm") + "</a>" : "") +
+      "</div>" +
+      '<ul class="lib-lessons course-lessons">' + lessons.map(lessonRow).join("") + "</ul>" +
+      "</div></section>";
+
+    /* Access requirement for this specific course. */
+    var access =
+      '<section class="section"><div class="container">' +
+      '<div class="section-head"><span class="eyebrow eyebrow-orbit">Access requirement</span>' +
+      "<h2>What each package opens here</h2>" +
+      "<p>The same three packages apply to every course. This is exactly how much of " + NT.esc(course.title) + " each one unlocks.</p></div>" +
+      '<div class="tier-strip">' +
+      D.LEVELS.map(function (level) {
+        var r = ranges[level];
+        var current = state.access === level;
+        return '<div class="tier-cell tc-' + level + (current ? " is-current" : "") + '">' +
+          '<span class="name"><span class="dot"></span>' + D.LEVEL_LABEL[level] + (current ? " · your package" : "") + "</span>" +
+          '<span class="what">' + (r ? "Lessons <span class='mono'>" + r.from + "–" + r.to + "</span>" : "No lessons") + "</span>" +
+          "<small>" + (r ? r.count + " of " + lessons.length + " lessons · " + NT.kwacha(NT.packagePrice(level)) : "") + "</small>" +
+          "</div>";
+      }).join("") +
+      "</div>" +
+      '<p class="muted small" style="margin-top:16px">' +
+      (state.access
+        ? "You're on " + NT.esc(NT.packageDetails(state.access).name) + ". " +
+          (unlocked.length < lessons.length
+            ? '<a href="' + NT.base() + 'pricing.html">Compare packages to unlock the rest.</a>'
+            : "This course is fully unlocked for you.")
+        : 'Choose a package or redeem an access code to start watching. <a href="' + NT.base() + 'pricing.html">Compare packages</a>.') +
+      "</p></div></section>";
+
+    root.innerHTML = hero + learn + list + access;
   }
 
   /* ============================ PRICING ============================ */
@@ -405,10 +559,10 @@
       var next = lessons.filter(function (l) { return NT.isUnlocked(l) && !NT.store.isComplete(l.id); })[0] ||
         lessons.filter(function (l) { return NT.isUnlocked(l); })[0];
       var access = NT.store.get().access;
-      return '<section class="lib-course">' +
+      return '<section class="lib-course reveal">' +
         '<header class="lib-course-head">' +
         '<span class="course-icon" style="--tint:' + courseRecord.tint + ";--tint-fg:" + courseRecord.tintFg + '">' + NT.icon(courseRecord.icon) + "</span>" +
-        "<div><h2>" + NT.esc(courseRecord.title) + "</h2><p>" + all.length + " lessons" +
+        "<div><h2><a href=\"" + NT.base() + "course.html?id=" + encodeURIComponent(courseRecord.id) + "\">" + NT.esc(courseRecord.title) + "</a></h2><p>" + all.length + " lessons" +
         (access ? " · " + included.length + " included with your " + NT.esc(NT.packageDetails(access).name) + " access" : "") + "</p></div>" +
         (next ? '<a class="link-arrow" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(next.id) + '">' +
           (NT.store.isComplete(next.id) ? "Review course" : "Continue") + NT.icon("arrow-right", "icon-sm") + "</a>" : "") +
@@ -474,6 +628,7 @@
       renderStatus();
       renderChips();
       gate.classList.toggle("hidden", !!access);
+      NT.initReveal();
     }
 
     search.addEventListener("input", render);
@@ -556,7 +711,7 @@
         '<div class="search-result-copy"><div class="search-result-meta"><span>Course</span></div>' +
         "<h3>" + NT.esc(course.title) + "</h3><p>" + NT.esc(course.desc) + "</p>" +
         "<small>" + lessons.length + " lessons · " + NT.esc(NT.coursePathwayNames(course)) + "</small></div>" +
-        '<a class="btn btn-secondary btn-sm" href="' + NT.base() + "library.html?course=" + encodeURIComponent(course.id) + '">View course</a></article>';
+        '<a class="btn btn-secondary btn-sm" href="' + NT.base() + "course.html?id=" + encodeURIComponent(course.id) + '">View course</a></article>';
     }
     function lessonResult(lesson) {
       var course = NT.course(lesson.courseId) || { tint: "var(--bg-soft)", tintFg: "var(--ink-2)" };
@@ -801,7 +956,7 @@
       var courseUnlocked = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); });
       var done = courseUnlocked.filter(function (lesson) { return NT.store.isComplete(lesson.id); }).length;
       var coursePct = courseUnlocked.length ? Math.round((done / courseUnlocked.length) * 100) : 0;
-      return '<a class="dashboard-course-row" href="' + NT.base() + "library.html?course=" + encodeURIComponent(course.id) + '">' +
+      return '<a class="dashboard-course-row" href="' + NT.base() + "course.html?id=" + encodeURIComponent(course.id) + '">' +
         '<span class="dashboard-course-icon" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' + NT.icon(course.icon) + "</span>" +
         '<span class="dashboard-course-info"><b>' + NT.esc(course.title) + "</b><small>" + courseUnlocked.length + " of " + lessons.length +
         " lessons included · " + done + " completed</small>" +
@@ -822,11 +977,11 @@
 
       continueHtml +
 
-      '<section class="dashboard-section"><div class="dashboard-section-head"><h2>Recently accessed</h2>' +
+      '<section class="dashboard-section reveal"><div class="dashboard-section-head"><h2>Recently accessed</h2>' +
       '<a class="link-arrow" href="' + NT.base() + 'library.html">Full library ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
       '<div class="list-rows dashboard-recent-list">' + recentHtml + "</div></section>" +
 
-      '<section class="dashboard-section"><div class="dashboard-section-head"><h2>My courses</h2>' +
+      '<section class="dashboard-section reveal" data-delay="1"><div class="dashboard-section-head"><h2>My courses</h2>' +
       '<a class="link-arrow" href="' + NT.base() + 'courses.html">Browse all courses ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
       '<div class="dash-progress"><div class="nums"><b>' + pct + '%</b> complete across your ' + NT.esc(packageInfo.name) + " package · " +
       '<span class="stat-denom">' + completed.length + " of " + unlocked.length + " lessons</span></div>" +
@@ -862,8 +1017,9 @@
     var coursePct = courseUnlocked ? Math.round((courseDone / courseUnlocked) * 100) : 0;
 
     var crumbs = '<div class="crumbs"><a href="' + NT.base() + 'index.html">Home</a> ' + NT.icon("chevron-right", "icon-sm") +
-      ' <a href="' + NT.base() + 'library.html">Library</a> ' + NT.icon("chevron-right", "icon-sm") +
-      " <span>" + NT.esc(course.title) + "</span></div>";
+      ' <a href="' + NT.base() + 'courses.html">Courses</a> ' + NT.icon("chevron-right", "icon-sm") +
+      ' <a href="' + NT.base() + "course.html?id=" + encodeURIComponent(course.id) + '">' + NT.esc(course.title) + "</a> " +
+      NT.icon("chevron-right", "icon-sm") + " <span>Lesson " + lesson.index + "</span></div>";
 
     var contents = '<aside class="lesson-side"><div class="card"><div class="card-head"><h2 style="font-size:1rem">Course contents</h2>' +
       '<span class="muted small">' + courseDone + "/" + courseUnlocked + " done</span></div>" +
@@ -1232,7 +1388,7 @@
 
   /* ============================ router ============================ */
   var routes = {
-    home: pageHome, courses: pageCourses, pricing: pagePricing, access: pageAccess,
+    home: pageHome, courses: pageCourses, course: pageCourse, pricing: pagePricing, access: pageAccess,
     control: pageControl, library: pageLibrary, resources: pageResources, search: pageSearch,
     announcements: pageAnnouncements, profile: pageProfile, dashboard: pageDashboard,
     lesson: pageLesson, checkout: pageCheckout
@@ -1244,5 +1400,6 @@
     NT.renderDemoBanner();
     var page = document.body.dataset.page;
     if (routes[page]) routes[page]();
+    NT.initReveal();
   });
 })();
