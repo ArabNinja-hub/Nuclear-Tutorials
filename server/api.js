@@ -13,9 +13,13 @@ var db = require("./db");
 var SEMESTERS = [1, 2];
 var LEVELS = ["basic", "standard", "premium"];
 var LEVEL_RANK = { basic: 1, standard: 2, premium: 3 };
+var LEVEL_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
 var EDUCATION_LEVELS = ["high-school", "university"];
 var PROVIDERS = ["youtube", "vimeo", "direct", "other"];
 var ADMIN_COOKIE = "nt_admin";
+/* The password shipped with earlier releases. It is never created by this
+   version and is refused even if an old database still carries it. */
+var DEFAULT_FIRST_RUN_PASSWORD = "nuclear-admin";
 
 /* ------------------------------------------------------------
    Small utilities
@@ -285,7 +289,8 @@ function send(res, status, payload) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
+    "Vary": "X-NT-Code, Cookie"
   });
   res.end(body);
 }
@@ -339,6 +344,94 @@ function studentCode(req, body) {
   var header = text(req.headers["x-nt-code"], 64).toUpperCase();
   var candidate = header || text(body && body.code, 64).toUpperCase();
   return candidate;
+}
+
+/* ------------------------------------------------------------
+   Package access
+
+   The server is the only authority on which lessons a student may
+   watch. The browser sends its access code with every request; the
+   code's package, its status and its expiry are read from the
+   database, so editing localStorage or calling the API directly
+   cannot unlock a higher tier.
+
+     basic    → basic
+     standard → basic + standard
+     premium  → basic + standard + premium
+   ------------------------------------------------------------ */
+
+function codeRow(code) {
+  if (!code) return null;
+  return db.db().prepare("SELECT * FROM codes WHERE code = ?").get(String(code).toUpperCase().trim()) || null;
+}
+
+function accessFor(row) {
+  if (!row || LEVELS.indexOf(row.package) === -1) return null;
+  if (row.status !== "redeemed") return null;
+  var settings = db.getSettings();
+  var since = row.redeemed_at ? new Date(row.redeemed_at) : null;
+  var expires = since ? new Date(since.getTime() + settings.accessDays * 86400000) : null;
+  var active = !!expires && expires.getTime() > Date.now();
+  return {
+    code: row.code,
+    package: row.package,
+    level: LEVEL_RANK[row.package] || 0,
+    status: row.status,
+    since: row.redeemed_at || null,
+    expiresAt: expires ? expires.toISOString() : null,
+    active: active
+  };
+}
+
+/* Resolve the access grant behind a request: a valid code that has been
+   redeemed and has not expired. Anything else is a visitor. */
+function requestAccess(req, body) {
+  return accessFor(codeRow(studentCode(req, body)));
+}
+
+function tierOf(level) { return LEVEL_RANK[level] || 0; }
+
+/* Admins reviewing the public pages see every lesson. */
+var FULL_ACCESS = { active: true, level: 99, package: "premium", code: null, expiresAt: null, since: null };
+
+function canWatch(video, access) {
+  if (!video || !video.published) return false;
+  var rank = access && access.active ? access.level : 0;
+  return rank >= tierOf(video.level);
+}
+
+/* A lesson is only sent to a client that is allowed to watch it: the
+   source URL and the provider thumbnail are removed for everyone else,
+   so a protected video cannot be scraped from a catalogue response. */
+function protectVideo(video, access) {
+  if (!video) return video;
+  var allowed = canWatch(video, access);
+  return Object.assign({}, video, {
+    locked: !allowed,
+    sourceUrl: allowed ? video.sourceUrl : null,
+    provider: allowed ? video.provider : null,
+    thumbnailUrl: allowed ? video.thumbnailUrl : null
+  });
+}
+
+function protectVideos(videos, access) {
+  return videos.map(function (video) { return protectVideo(video, access); });
+}
+
+function protectCatalogue(data, access) {
+  return Object.assign({}, data, { videos: protectVideos(data.videos, access) });
+}
+
+function publicAccess(access) {
+  if (!access) return { active: false, package: null, level: 0, code: null, expiresAt: null };
+  return {
+    active: access.active,
+    package: access.package,
+    level: access.level,
+    code: access.code,
+    expiresAt: access.expiresAt,
+    since: access.since
+  };
 }
 
 /* ------------------------------------------------------------
@@ -462,7 +555,12 @@ route("GET", "/api/health", function (req, res) {
 });
 
 route("GET", "/api/catalogue", function (req, res) {
-  ok(res, { catalogue: catalogue(), settings: publicSettings() });
+  var access = requestAccess(req, null);
+  ok(res, {
+    catalogue: protectCatalogue(catalogue(), access),
+    settings: publicSettings(),
+    access: publicAccess(access)
+  });
 });
 
 route("GET", "/api/universities", function (req, res) {
@@ -476,34 +574,50 @@ route("GET", "/api/courses", function (req, res, params, ctx) {
 });
 
 route("GET", "/api/videos", function (req, res, params, ctx) {
+  /* Draft lessons are for administrators only; a student asking for
+     status=all still receives published lessons. */
+  var admin = !!ctxAdmin(req);
   var filter = {
     universityId: ctx.query.get("university") || "",
     semester: int(ctx.query.get("semester"), 0) || 0,
     courseId: ctx.query.get("course") || "",
     q: text(ctx.query.get("q"), 80),
-    publishedOnly: ctx.query.get("status") !== "all"
+    publishedOnly: !(admin && ctx.query.get("status") === "all")
   };
-  ok(res, { videos: allVideos(filter) });
+  var access = admin ? FULL_ACCESS : requestAccess(req, null);
+  ok(res, { videos: protectVideos(allVideos(filter), access) });
 });
 
 route("GET", "/api/videos/:id", function (req, res, params) {
+  var admin = !!ctxAdmin(req);
+  var access = admin ? FULL_ACCESS : requestAccess(req, null);
   var found = videoById(params.id);
-  if (!found || (!found.published && !ctxAdmin(req))) return fail(res, 404, "That video lesson could not be found.");
-  var siblings = allVideos({ courseId: found.courseId, publishedOnly: !ctxAdmin(req) });
+  if (!found || (!found.published && !admin)) return fail(res, 404, "That video lesson could not be found.");
+  /* Requesting a protected lesson directly does not return its source URL. */
+  if (!admin && !canWatch(found, access)) {
+    return fail(res, 403, "This lesson is included with the " + (LEVEL_LABEL[found.level] || found.level) +
+      " package. Redeem a matching access code to watch it.", {
+      locked: true,
+      video: { id: found.id, title: found.title, level: found.level, courseId: found.courseId, semester: found.semester }
+    });
+  }
+  var siblings = allVideos({ courseId: found.courseId, publishedOnly: !admin });
   var index = siblings.map(function (item) { return item.id; }).indexOf(found.id);
   ok(res, {
-    video: found,
+    video: protectVideo(found, access),
+    access: publicAccess(access),
     course: courseById(found.courseId),
     university: universityById(found.universityId),
-    lessons: siblings,
-    previous: index > 0 ? siblings[index - 1] : null,
-    next: index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null
+    lessons: protectVideos(siblings, access),
+    previous: index > 0 ? protectVideo(siblings[index - 1], access) : null,
+    next: index >= 0 && index < siblings.length - 1 ? protectVideo(siblings[index + 1], access) : null
   });
 });
 
 function ctxAdmin(req) { return !!adminSession(req); }
 
 route("GET", "/api/search", function (req, res, params, ctx) {
+  var access = requestAccess(req, null);
   var query = text(ctx.query.get("q"), 80).toLowerCase();
   if (!query) return ok(res, { query: "", universities: [], courses: [], videos: [], announcements: [] });
   var universities = allUniversities().filter(function (item) {
@@ -516,7 +630,7 @@ route("GET", "/api/search", function (req, res, params, ctx) {
   var announcements = publishedAnnouncements().filter(function (item) {
     return (item.title + " " + item.body).toLowerCase().indexOf(query) !== -1;
   });
-  ok(res, { query: query, universities: universities, courses: courses, videos: videos, announcements: announcements });
+  ok(res, { query: query, universities: universities, courses: courses, videos: protectVideos(videos, access), announcements: announcements });
 });
 
 route("GET", "/api/announcements", function (req, res) {
@@ -586,16 +700,17 @@ route("POST", "/api/access/redeem", async function (req, res) {
 });
 
 route("GET", "/api/progress", function (req, res, params, ctx) {
-  var code = studentCode(req, { code: ctx.query.get("code") });
-  if (!code || !validCode(code)) return fail(res, 400, "An active access code is required to load progress.");
-  ok(res, { progress: progressFor(code) });
+  var access = requestAccess(req, { code: ctx.query.get("code") });
+  if (!access || !access.active) return fail(res, 401, "An active access code is required to load progress.");
+  ok(res, { progress: progressFor(access.code), access: publicAccess(access) });
 });
 
 route("POST", "/api/progress", async function (req, res) {
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
-  var code = studentCode(req, body);
-  if (!code || !validCode(code)) return fail(res, 400, "An active access code is required to save progress.");
+  var access = requestAccess(req, body);
+  if (!access || !access.active) return fail(res, 401, "An active access code is required to save progress.");
+  var code = access.code;
   var found = videoById(text(body.videoId, 80));
   if (!found) return fail(res, 404, "That video lesson could not be found.");
   var seconds = body.seconds == null ? null : int(body.seconds, 0);
@@ -608,8 +723,9 @@ route("POST", "/api/progress", async function (req, res) {
 
 route("DELETE", "/api/progress", async function (req, res) {
   var body = await readBody(req);
-  var code = studentCode(req, body || {});
-  if (!code || !validCode(code)) return fail(res, 400, "An active access code is required.");
+  var access = requestAccess(req, body || {});
+  if (!access || !access.active) return fail(res, 401, "An active access code is required.");
+  var code = access.code;
   if (body && body.videoId) {
     db.db().prepare("DELETE FROM progress WHERE code = ? AND video_id = ?").run(code, text(body.videoId, 80));
   } else {
@@ -628,9 +744,12 @@ route("POST", "/api/admin/login", async function (req, res) {
   var password = String(body.password || "");
   if (!password) return fail(res, 400, "Enter the administrator password.");
   if (!db.verifyAdminPassword(password)) return fail(res, 401, "That password is not correct.");
+  if (db.adminMustChangePassword() && password === DEFAULT_FIRST_RUN_PASSWORD) {
+    return fail(res, 403, "The first-run administrator password cannot be used for normal use. Sign in with the password you chose and change it in Settings.");
+  }
   var session = db.createSession();
   res.setHeader("Set-Cookie", ADMIN_COOKIE + "=" + session.token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" + (db.SESSION_DAYS * 86400));
-  ok(res, { authenticated: true, expiresAt: session.expiresAt });
+  ok(res, { authenticated: true, expiresAt: session.expiresAt, mustChangePassword: db.adminMustChangePassword() });
 });
 
 route("POST", "/api/admin/logout", async function (req, res) {
@@ -642,7 +761,11 @@ route("POST", "/api/admin/logout", async function (req, res) {
 
 route("GET", "/api/admin/session", function (req, res) {
   var session = adminSession(req);
-  ok(res, { authenticated: !!session, expiresAt: session ? session.expires_at : null });
+  ok(res, {
+    authenticated: !!session,
+    expiresAt: session ? session.expires_at : null,
+    mustChangePassword: !!session && db.adminMustChangePassword()
+  });
 });
 
 /* ------------------------------------------------------------
@@ -1026,7 +1149,8 @@ route("POST", "/api/admin/password", async function (req, res) {
   var next = String(body.newPassword || "");
   if (!db.verifyAdminPassword(current)) return fail(res, 401, "The current password is not correct.");
   if (next.length < 8) return fail(res, 400, "Choose a password with at least 8 characters.");
-  db.setAdminPassword(next);
+  if (next === DEFAULT_FIRST_RUN_PASSWORD) return fail(res, 400, "Choose a password other than the shipped default.");
+  db.setAdminPassword(next, { mustChange: false });
   db.db().prepare("DELETE FROM sessions").run();
   ok(res, { changed: true });
 });
@@ -1040,9 +1164,17 @@ function handle(req, res, pathname, query) {
     /* Everything under /api/admin except sign-in helpers needs a session,
        so student pages can never reach administration endpoints. */
     var openAdminPaths = ["/api/admin/login", "/api/admin/logout", "/api/admin/session"];
-    if (pathname.indexOf("/api/admin/") === 0 && openAdminPaths.indexOf(pathname) === -1 && !adminSession(req)) {
-      fail(res, 401, "Administrator sign-in required.");
-      return resolve(true);
+    if (pathname.indexOf("/api/admin/") === 0 && openAdminPaths.indexOf(pathname) === -1) {
+      if (!adminSession(req)) {
+        fail(res, 401, "Administrator sign-in required.");
+        return resolve(true);
+      }
+      /* Until the first-run password is replaced, only the session probe and
+         the password change are served — no catalogue management. */
+      if (db.adminMustChangePassword() && pathname !== "/api/admin/password") {
+        fail(res, 403, "Change the first-run administrator password before managing the catalogue. Open Admin → Settings.");
+        return resolve(true);
+      }
     }
     for (var index = 0; index < routes.length; index++) {
       var entry = routes[index];

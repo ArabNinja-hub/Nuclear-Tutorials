@@ -6,12 +6,19 @@
 
      node server/index.js        →  http://localhost:8000
 
+   The catalogue starts empty: administrators add universities, courses
+   and video lessons through the admin area, or load the development
+   sample with `npm run seed:demo`.
+
    Configuration (environment variables):
      PORT                port to listen on (default 8000)
      HOST                interface to bind (default 0.0.0.0)
-     NT_ADMIN_PASSWORD   first-run administrator password
-     NT_DATA_DIR         folder for the database file
-     NT_SEED             "off" to skip first-run content seeding
+     NT_DATA_DIR         persistent folder for the database (required in
+                         production — see render.yaml)
+     NT_ADMIN_PASSWORD   first-run administrator password (a random one is
+                         printed once if this is not set)
+     NT_REQUIRE_PERSISTENT_STORAGE  "1" to refuse to start when the database
+                         would live inside the deploy directory
    ============================================================ */
 "use strict";
 
@@ -137,20 +144,53 @@ var server = http.createServer(function (req, res) {
   serveStatic(req, res, pathname);
 });
 
+/* A database inside the deploy directory is wiped by redeploys, so the
+   platform refuses to start in that situation when asked to be strict. */
+function storageWarning() {
+  if (process.env.NT_DATA_DIR || process.env.NT_DB_FILE) return null;
+  var deployed = !!(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.DYNO || process.env.FLY_APP_NAME);
+  if (!deployed) return null;
+  var message = "The database is inside the deploy directory (" + db.DB_FILE + "), so it is erased on every " +
+    "redeploy. Mount a persistent disk and set NT_DATA_DIR to its mount path (see render.yaml).";
+  if (process.env.NT_REQUIRE_PERSISTENT_STORAGE === "1") return message;
+  return "warning: " + message;
+}
+
 function start() {
   db.connect();
   db.ensureDefaultSettings();
-  var admin = db.ensureAdmin();
-  if (admin.created) {
-    console.log("[setup] Administrator account created. Password: " + admin.password);
-    console.log("[setup] Change it from Admin → Settings, or set NT_ADMIN_PASSWORD before first start.");
-  }
-  if (process.env.NT_SEED !== "off") {
-    var result = seed.seed();
-    if (result.seeded) {
-      console.log("[seed] Added " + result.universities + " institutions, " + result.courses + " courses and " + result.videos + " video lessons.");
+
+  var warning = storageWarning();
+  if (warning) {
+    if (warning.indexOf("warning:") === 0) {
+      console.warn("[storage] " + warning.replace(/^warning:\s*/, ""));
+    } else {
+      console.error("[storage] " + warning);
+      process.exit(1);
+      return;
     }
   }
+
+  var admin = db.ensureAdmin();
+  if (admin.created) {
+    console.log("[setup] Administrator account created. First-run password: " + admin.password);
+    if (admin.generated) {
+      console.log("[setup] This password is shown once and was not chosen by a human — it is stored in memory only.");
+    }
+    console.log("[setup] The administrator password must be changed in Admin → Settings before the admin " +
+      "API accepts any other request.");
+  } else if (db.adminMustChangePassword()) {
+    console.log("[setup] The administrator password still has to be changed in Admin → Settings.");
+  }
+
+  var catalogue = seed.summary();
+  if (catalogue.universities === 0) {
+    console.log("[catalogue] The catalogue is empty. Add universities, courses and video lessons at /admin/login.html.");
+  } else if (catalogue.catalogueSource === "sample") {
+    console.log("[catalogue] Development sample content is loaded (" + catalogue.universities + " institutions, " +
+      catalogue.courses + " courses, " + catalogue.videos + " lessons). Run `npm run seed:clear` before going live.");
+  }
+
   server.listen(PORT, HOST, function () {
     console.log("Nuclear Tutorials running at http://localhost:" + PORT);
     console.log("Database: " + db.DB_FILE);

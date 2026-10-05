@@ -125,6 +125,14 @@ body.admin { background: var(--bg); }
 .adm-check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
 .adm-check input { width: 18px; height: 18px; accent-color: var(--brand-600); }
 
+.adm-notice {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; border: 1px solid #f0d9a8; border-radius: var(--r);
+  background: var(--warn-bg); color: var(--warn); font-size: 13.5px; line-height: 1.55;
+}
+.adm-notice .icon { margin-top: 2px; flex: none; }
+.adm-notice b { color: #6d480c; }
+
 /* ---------- Lists ---------- */
 .adm-list { display: flex; flex-direction: column; gap: 6px; }
 .adm-list-row {

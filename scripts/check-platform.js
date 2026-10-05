@@ -41,12 +41,14 @@ var SCRIPT_FILES = [
   "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js",
   "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js",
-  "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js"
+  "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
+  "scripts/check-access.js", "scripts/test-db.js"
 ];
 var ASSETS = [
   "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
   "assets/fonts/inter-latin-400.woff2", "assets/fonts/manrope-latin-800.woff2"
 ];
+var OPS_FILES = ["render.yaml", ".env.example", ".gitignore", "server/seed/content.json"];
 
 function balancedCss(source) {
   var depth = 0;
@@ -74,7 +76,7 @@ function balancedCss(source) {
 /* ---------------- files and page shells ---------------- */
 
 group("Files and page shells");
-ASSETS.concat(SCRIPT_FILES).forEach(function (file) { check(exists(file), file + " exists"); });
+ASSETS.concat(SCRIPT_FILES).concat(OPS_FILES).forEach(function (file) { check(exists(file), file + " exists"); });
 check(exists("package.json") && exists("README.md") && exists("server/seed/content.json"), "project metadata and content seed exist");
 
 PUBLIC_PAGES.concat(ADMIN_PAGES).forEach(function (file) {
@@ -189,6 +191,63 @@ check(adminCss.indexOf(".adm-stats") === -1 && adminCss.indexOf(".rev-bars") ===
 check(adminCss.indexOf(".adm-context") !== -1 && adminCss.indexOf(".adm-nav-link") !== -1,
   "the administration shell shows editing context and navigation");
 
+/* ---------------- production readiness ---------------- */
+
+group("Production readiness");
+var serverIndex = read("server/index.js");
+var serverSeed = read("server/seed.js");
+var serverDb = read("server/db.js");
+var serverApi = read("server/api.js");
+var envExample = read(".env.example");
+var gitignore = read(".gitignore");
+var renderYaml = read("render.yaml");
+
+check(serverIndex.indexOf("seed.loadDemo") === -1 && serverIndex.indexOf("seed.seed") === -1,
+  "the server never loads sample content while starting");
+check(/seeded: false, reason: "no content file"/.test(serverSeed) &&
+  serverSeed.indexOf("production") !== -1 && serverSeed.indexOf("NT_ALLOW_DEMO_SEED") !== -1,
+  "sample content is a development helper that production refuses");
+check(serverSeed.indexOf("--clear") !== -1 && serverSeed.indexOf('catalogue_source') !== -1,
+  "the catalogue can be emptied and its content source is recorded");
+check(serverDb.indexOf("crypto.randomBytes(18)") !== -1 && serverDb.indexOf('"nuclear-admin"') === -1,
+  "the first-run administrator password is randomly generated, never a shipped default");
+check(/must_change/.test(serverDb) && /adminMustChangePassword/.test(serverDb),
+  "the database stores whether the administrator password still has to be changed");
+check((serverApi.match(/adminMustChangePassword/g) || []).length >= 3 && serverApi.indexOf("mustChangePassword") !== -1,
+  "the API enforces the rotation flag and reports it to the admin UI");
+check(serverApi.indexOf("DEFAULT_FIRST_RUN_PASSWORD") !== -1 && /cannot be used for normal use/.test(serverApi),
+  "the shipped default password is refused as a production credential");
+
+check(/localStorage/.test(gitignore) === false && /^\/\.env/m.test(gitignore) === false && /\.env\b/.test(gitignore),
+  "local environment files are git-ignored");
+check(gitignore.indexOf("server/data/") !== -1 && gitignore.indexOf("*.db") !== -1,
+  "database files are git-ignored");
+check(renderYaml.indexOf("NT_DATA_DIR") !== -1 && renderYaml.indexOf("/var/data") !== -1 && /disk:/.test(renderYaml) &&
+  renderYaml.indexOf("mountPath: /var/data") !== -1,
+  "render.yaml mounts a persistent disk and points the database at it");
+check(renderYaml.indexOf("NT_REQUIRE_PERSISTENT_STORAGE") !== -1 && serverIndex.indexOf("NT_REQUIRE_PERSISTENT_STORAGE") !== -1 &&
+  /process\.exit\(1\)/.test(serverIndex),
+  "the server refuses to boot on a host without persistent storage");
+check(envExample.indexOf("NT_DATA_DIR") !== -1 && envExample.indexOf("NT_ADMIN_PASSWORD") !== -1 &&
+  envExample.indexOf("NT_ALLOW_DEMO_SEED") !== -1,
+  ".env.example documents the production variables");
+check(renderYaml.indexOf("sync: false") !== -1 && !/NT_ADMIN_PASSWORD\s*\n\s*value: \S/.test(renderYaml),
+  "the administrator password is not stored in the deployment file");
+
+var secretLeaks = [];
+PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/ui.js", "assets/js/admin.js", "assets/js/api.js"])
+  .forEach(function (file) {
+    var source = read(file);
+    if (read(file).indexOf("nuclear-admin") !== -1) secretLeaks.push(file);
+  });
+check(secretLeaks.length === 0, "no page or script mentions the shipped default password" +
+  (secretLeaks.length ? ": " + secretLeaks.join(", ") : ""));
+check(read("README.md").indexOf("nuclear-admin") === -1, "the README does not publish an administrator password");
+check(serverApi.indexOf("password_hash") === -1 && serverApi.indexOf("salt") === -1,
+  "the API never returns password hashes or salts");
+check(!/"password"\s*:/.test(serverApi.replace(/currentPassword|newPassword|body\.password|password\)/g, "")),
+  "the API does not echo passwords back to callers");
+
 /* ---------------- content rules ---------------- */
 
 group("Content and access model");
@@ -197,7 +256,6 @@ var api = read("assets/js/api.js");
 var store = read("assets/js/store.js");
 var data = read("assets/js/data.js");
 var adminJs = read("assets/js/admin.js");
-var serverApi = read("server/api.js");
 var home = read("index.html");
 
 check(!/localStorage\s*\.\s*(get|set|remove)Item/.test(api), "the catalogue client never reads or writes localStorage");
@@ -231,7 +289,17 @@ check(accessHtml.indexOf("id=\"codeInput\"") > accessHtml.indexOf("Choose your l
   "level selection comes before code entry and Continue");
 check(app.indexOf("NT.api.redeem") !== -1 && app.indexOf("NT.store.setAccess(access.package") !== -1,
   "the access flow redeems codes through the server and keeps the existing package behaviour");
-check(data.indexOf("LEVEL_RANK") !== -1 && data.indexOf("NT.isUnlocked") !== -1, "package levels still control lesson access");
+check(data.indexOf("NT.isUnlocked") !== -1 && data.indexOf("video.locked") !== -1,
+  "the browser mirrors the server's locked/unlocked verdict instead of deciding access");
+check(data.indexOf("LEVEL_RANK[state.access] >= LEVEL_RANK[NT.levelOf(video)]") === -1,
+  "local package ranks are no longer used to unlock lessons");
+check(serverApi.indexOf("function requestAccess") !== -1 && serverApi.indexOf("protectVideos") !== -1 &&
+  serverApi.indexOf("function canWatch") !== -1,
+  "the server resolves the access code and redacts protected lesson sources");
+check(serverApi.indexOf("sourceUrl: allowed ? video.sourceUrl : null") !== -1,
+  "protected video URLs are withheld from unauthorised responses");
+check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.test(serverApi),
+  "direct requests to a protected lesson are refused with 403");
 
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1,
   "home has no floating card or invented social proof");
@@ -249,12 +317,15 @@ var missingRoutes = adminRoutes.filter(function (entry) { return adminJs.indexOf
 check(missingRoutes.length === 0, "every admin page maps to an implemented route" + (missingRoutes.length ? ": " + missingRoutes.join(", ") : ""));
 
 var pkg = JSON.parse(read("package.json"));
-check(pkg.scripts && pkg.scripts.start && pkg.scripts.check && pkg.scripts["check:flows"], "package scripts cover start, check and flow checks");
+["start", "check", "check:flows", "check:access", "test:setup", "seed:demo", "seed:clear"].forEach(function (name) {
+  check(pkg.scripts && !!pkg.scripts[name], "package script exists: " + name);
+});
 check(!pkg.dependencies || Object.keys(pkg.dependencies).length === 0, "the platform runs without third-party dependencies");
 
 var readme = read("README.md").replace(/\s+/g, " ").toLowerCase();
-["npm start", "university", "semester", "video lesson", "does not process a payment", "nuclear-admin",
-  "no document or material uploads", "does not re-host video files"]
+["npm start", "university", "semester", "video lesson", "does not process a payment",
+  "no document or material uploads", "does not re-host video files", "starts empty",
+  "persistent disk", "must be changed", "npm run check:access", "npm run test:setup"]
   .forEach(function (phrase) {
     check(readme.indexOf(phrase.toLowerCase()) !== -1, "README documents: " + phrase);
   });
@@ -312,8 +383,14 @@ function runHttp(base) {
     check(catalogue && catalogue.universities.length > 0 && catalogue.courses.length > 0 && catalogue.videos.length > 0,
       "the catalogue holds universities, courses and video lessons");
     check(catalogue && catalogue.videos.every(function (video) {
-      return video.universityId && video.semester && video.courseTitle && video.sourceUrl;
-    }), "every lesson is linked to a university, semester and course and has a video source");
+      return video.universityId && video.semester && video.courseTitle;
+    }), "every lesson is linked to a university, semester and course");
+    check(catalogue && catalogue.videos.every(function (video) {
+      return video.locked === true && video.sourceUrl === null;
+    }), "a visitor to the running server receives no video source URLs");
+    return fetchJson(root + "/api/videos/" + encodeURIComponent(catalogue.videos[0].id));
+  }).then(function (response) {
+    check(response.status === 403, "a protected lesson is refused when requested directly by a visitor");
     return fetchJson(root + "/api/admin/overview");
   }).then(function (response) {
     check(response.status === 401, "admin endpoints reject unauthenticated requests");
@@ -329,7 +406,9 @@ function runHttp(base) {
       env: Object.assign({}, process.env, { BASE: root })
     });
     var output = (result.stdout || "").trim().split("\n");
-    output.slice(-1).forEach(function (line) { console.log("  " + line.trim()); });
+    output.forEach(function (line) {
+      if (/FAIL|passed,/.test(line)) console.log("  " + line.trim());
+    });
     check(result.status === 0, "student and admin journeys pass against the running server");
   });
 }

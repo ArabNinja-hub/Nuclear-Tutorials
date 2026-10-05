@@ -1,18 +1,25 @@
 /* ============================================================
-   NUCLEAR TUTORIALS — Content seeding
+   NUCLEAR TUTORIALS — Demo content helper
 
-   Reads server/seed/content.json and writes the catalogue into the
-   database:
+   The MIT OpenCourseWare / Crash Course catalogue in
+   server/seed/content.json is SAMPLE DATA. It is used only for
+   local development and automated checks — the production database
+   starts empty and is filled by administrators through the admin
+   area.
 
-     universities (and schools) → courses (semester 1 | 2) → videos
+   Commands:
 
-   Seeding runs only when the database has no universities yet, unless
-   it is called with { force: true }, which replaces the catalogue
-   (administrator edits to the catalogue are overwritten, access codes
-   and student progress are kept).
+     node server/seed.js --demo     load the sample catalogue into the
+                                    database used by NT_DATA_DIR
+                                    (refused when NODE_ENV=production
+                                    unless NT_ALLOW_DEMO_SEED=1)
 
-     node server/seed.js           seed if empty
-     node server/seed.js --force   replace the catalogue
+     node server/seed.js --clear    empty the catalogue (universities,
+                                    courses and video lessons). Access
+                                    codes, student progress, announcements
+                                    and settings are kept.
+
+   Nothing here runs automatically: the server never seeds on start.
    ============================================================ */
 "use strict";
 
@@ -90,21 +97,45 @@ function insertVideo(record, courseId, stamp, position) {
   return id;
 }
 
-function seed(options) {
-  var options = options || {};
-  var content = readContent();
-  if (!content) {
-    return { seeded: false, reason: "no content file", universities: 0, courses: 0, videos: 0 };
-  }
+function isEmpty() {
   db.connect();
-  var existing = db.db().prepare("SELECT COUNT(*) AS count FROM universities").get();
-  if (Number(existing.count) > 0 && !options.force) {
-    return { seeded: false, reason: "database already has content", universities: 0, courses: 0, videos: 0 };
+  return Number(db.db().prepare("SELECT COUNT(*) AS count FROM universities").get().count) === 0;
+}
+
+function clearCatalogue() {
+  db.connect();
+  var before = {
+    universities: Number(db.db().prepare("SELECT COUNT(*) AS count FROM universities").get().count),
+    courses: Number(db.db().prepare("SELECT COUNT(*) AS count FROM courses").get().count),
+    videos: Number(db.db().prepare("SELECT COUNT(*) AS count FROM videos").get().count)
+  };
+  db.db().exec("DELETE FROM videos; DELETE FROM courses; DELETE FROM universities;");
+  db.writeSetting("catalogue_source", "empty");
+  db.db().prepare("DELETE FROM progress").run();
+  return Object.assign({ cleared: true }, before);
+}
+
+function demoAllowed() {
+  if (process.env.NT_ALLOW_DEMO_SEED === "1") return true;
+  return String(process.env.NODE_ENV || "").toLowerCase() !== "production";
+}
+
+function loadDemo(options) {
+  var opts = options || {};
+  var content = readContent();
+  if (!content) return { seeded: false, reason: "no content file", universities: 0, courses: 0, videos: 0 };
+  if (!opts.force && !isEmpty()) {
+    return { seeded: false, reason: "the database already has a catalogue", universities: 0, courses: 0, videos: 0 };
+  }
+  if (!demoAllowed()) {
+    return {
+      seeded: false,
+      reason: "sample content is disabled when NODE_ENV=production (set NT_ALLOW_DEMO_SEED=1 to override for a staging check)",
+      universities: 0, courses: 0, videos: 0
+    };
   }
   var stamp = db.now();
-  if (options.force) {
-    db.db().exec("DELETE FROM videos; DELETE FROM courses; DELETE FROM universities;");
-  }
+  if (opts.force) db.db().exec("DELETE FROM videos; DELETE FROM courses; DELETE FROM universities;");
   var counts = { universities: 0, courses: 0, videos: 0 };
   (content.institutions || []).forEach(function (institution, institutionIndex) {
     var universityId = insertUniversity(institution, stamp, (institutionIndex + 1) * 10);
@@ -118,12 +149,44 @@ function seed(options) {
       });
     });
   });
+  db.writeSetting("catalogue_source", "sample");
   return Object.assign({ seeded: true }, counts);
 }
 
-if (require.main === module) {
-  var result = seed({ force: process.argv.indexOf("--force") !== -1 });
-  console.log(JSON.stringify(result, null, 2));
+function summary() {
+  db.connect();
+  var source = db.readSetting("catalogue_source", null);
+  return {
+    database: db.DB_FILE,
+    universities: Number(db.db().prepare("SELECT COUNT(*) AS count FROM universities").get().count),
+    courses: Number(db.db().prepare("SELECT COUNT(*) AS count FROM courses").get().count),
+    videos: Number(db.db().prepare("SELECT COUNT(*) AS count FROM videos").get().count),
+    catalogueSource: source || (isEmpty() ? "empty" : "manual"),
+    codes: Number(db.db().prepare("SELECT COUNT(*) AS count FROM codes").get().count)
+  };
 }
 
-module.exports = { seed: seed, CONTENT_FILE: CONTENT_FILE };
+if (require.main === module) {
+  var args = process.argv.slice(2);
+  if (args.indexOf("--clear") !== -1) {
+    console.log(JSON.stringify(clearCatalogue(), null, 2));
+    console.log("The catalogue is empty. Add universities, courses and video lessons in the admin area.");
+  } else if (args.indexOf("--demo") !== -1) {
+    var loaded = loadDemo({ force: args.indexOf("--force") !== -1 });
+    console.log(JSON.stringify(loaded, null, 2));
+    if (loaded.seeded) console.log("Sample catalogue loaded for development. Do not ship this in production.");
+    else console.log("Sample catalogue not loaded: " + loaded.reason);
+  } else {
+    console.log(JSON.stringify(summary(), null, 2));
+    console.log("\nUsage: node server/seed.js --demo [--force] | --clear");
+  }
+}
+
+module.exports = {
+  loadDemo: loadDemo,
+  clearCatalogue: clearCatalogue,
+  summary: summary,
+  isEmpty: isEmpty,
+  demoAllowed: demoAllowed,
+  CONTENT_FILE: CONTENT_FILE
+};

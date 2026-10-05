@@ -135,14 +135,22 @@
      Catalogue store — one request per page view, shared by every
      renderer on that page.
      ------------------------------------------------------------ */
-  var CATALOGUE = { status: "idle", error: null, data: null, promise: null };
+  var CATALOGUE = { status: "idle", error: null, data: null, promise: null, access: null };
 
   function applyCatalogue(payload) {
     CATALOGUE.data = payload.catalogue;
     CATALOGUE.status = "ready";
     CATALOGUE.error = null;
+    CATALOGUE.access = payload.access || null;
     NT.content.settings = payload.settings || null;
     if (payload.settings && NT.store.applyServerSettings) NT.store.applyServerSettings(payload.settings);
+    /* The server decides what the browser may watch. If it reports that the
+       stored code is no longer valid (unredeemed, expired or unknown), the
+       local grant is dropped instead of quietly keeping access. */
+    if (CATALOGUE.access && payload.access && payload.access.active === false && NT.store.get().access) {
+      NT.store.mutate(function (state) { state.access = null; state.accessMeta = null; });
+      NT.progress && NT.progress.reset();
+    }
     return CATALOGUE.data;
   }
 
@@ -156,6 +164,8 @@
     status: function () { return CATALOGUE.status; },
     error: function () { return CATALOGUE.error; },
     data: function () { return CATALOGUE.data; },
+    /* The access verdict that came with the catalogue. */
+    access: function () { return CATALOGUE.access; },
 
     load: function (force) {
       if (CATALOGUE.promise && !force) return CATALOGUE.promise;
@@ -282,6 +292,12 @@
     /* Which course a lesson belongs to, for lesson-side navigation. */
     lessonsOf: function (courseId) {
       return NT.content.videos({ courseId: courseId });
+    },
+
+    /* A single lesson, asked for by ID. The server only answers with a
+       playable lesson when the caller's access code covers its tier. */
+    lesson: function (id) {
+      return NT.api.get("/api/videos/" + encodeURIComponent(id));
     },
 
     upNext: function (video) {

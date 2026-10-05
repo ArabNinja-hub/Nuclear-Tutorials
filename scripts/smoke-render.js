@@ -182,6 +182,25 @@ var ADMIN_UNIVERSITY = Object.assign({}, UNZA);
 var ADMIN_COURSE = Object.assign({}, MTH101);
 var ADMIN_VIDEO = Object.assign({}, VIDEOS[0]);
 
+/* Package tiers exactly like the server: a code's package limits which
+   lessons are returned with their source URL. */
+var TIER = { basic: 1, standard: 2, premium: 3 };
+function codeLevel(init) {
+  var header = ((init && init.headers) || {})["X-NT-Code"] || "";
+  var match = /^NT-(BASIC|STANDARD|PREMIUM)-/i.exec(header);
+  return match ? TIER[match[1].toLowerCase()] : 0;
+}
+function protect(video, level) {
+  var allowed = level >= (TIER[video.level] || 1);
+  return Object.assign({}, video, {
+    locked: !allowed,
+    sourceUrl: allowed ? video.sourceUrl : null,
+    provider: allowed ? video.provider : null,
+    thumbnailUrl: allowed ? video.thumbnailUrl : null
+  });
+}
+function protectAll(videos, level) { return videos.map(function (video) { return protect(video, level); }); }
+
 function jsonResponse(payload, status) {
   return {
     ok: (status || 200) < 400,
@@ -196,7 +215,40 @@ global.fetch = function (url, init) {
   var target = resolved.pathname;
   fetchLog.push(method + " " + target + resolved.search);
 
-  if (target === "/api/catalogue") return Promise.resolve(jsonResponse({ ok: true, catalogue: CATALOGUE, settings: SETTINGS }));
+  if (target === "/api/catalogue") {
+    var level = codeLevel(init);
+    return Promise.resolve(jsonResponse({
+      ok: true,
+      catalogue: Object.assign({}, CATALOGUE, { videos: protectAll(CATALOGUE.videos, level) }),
+      settings: SETTINGS,
+      access: level ? { active: true, package: ["", "basic", "standard", "premium"][level], level: level } : { active: false, package: null, level: 0 }
+    }));
+  }
+  if (/^\/api\/videos\/[^/]+$/.test(target)) {
+    var wanted = decodeURIComponent(target.split("/").pop());
+    var found = VIDEOS.filter(function (video) { return video.id === wanted; })[0];
+    if (!found) return Promise.resolve(jsonResponse({ ok: false, error: "That video lesson could not be found." }, 404));
+    var tier = codeLevel(init);
+    if (tier < (TIER[found.level] || 1)) {
+      return Promise.resolve(jsonResponse({
+        ok: false,
+        error: "This lesson is included with the " + found.level + " package.",
+        details: { locked: true, video: { id: found.id, title: found.title, level: found.level, courseId: found.courseId, semester: found.semester } }
+      }, 403));
+    }
+    var siblings = VIDEOS.filter(function (video) { return video.courseId === found.courseId; });
+    var position = siblings.map(function (video) { return video.id; }).indexOf(found.id);
+    return Promise.resolve(jsonResponse({
+      ok: true,
+      video: protect(found, tier),
+      access: { active: true, package: ["", "basic", "standard", "premium"][tier], level: tier },
+      course: MTH101.id === found.courseId ? MTH101 : PHY102,
+      university: UNZA,
+      lessons: protectAll(siblings, tier),
+      previous: position > 0 ? protect(siblings[position - 1], tier) : null,
+      next: position < siblings.length - 1 ? protect(siblings[position + 1], tier) : null
+    }));
+  }
   if (target === "/api/announcements") return Promise.resolve(jsonResponse({ ok: true, announcements: ANNOUNCEMENTS }));
   if (target === "/api/search") return Promise.resolve(jsonResponse({ ok: true, universities: [UNZA], courses: [MTH101], videos: [VIDEOS[0]], announcements: [] }));
   if (target === "/api/codes/issue") return Promise.resolve(jsonResponse({ ok: true, code: "NT-STANDARD-4826", package: "standard" }, 201));

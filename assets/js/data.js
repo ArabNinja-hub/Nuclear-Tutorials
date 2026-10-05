@@ -82,11 +82,14 @@
     return LEVELS.indexOf(level) !== -1 ? level : "standard";
   };
 
+  /* Lesson access always mirrors what the server sent for the current
+     access code. `video.locked` is computed server-side, so editing
+     localStorage or calling the API by hand cannot unlock a higher tier. */
   NT.isUnlocked = function (video) {
-    var state = NT.store.get();
-    if (!state.access) return false;
-    if (!NT.store.isActive()) return false;
-    return LEVEL_RANK[state.access] >= LEVEL_RANK[NT.levelOf(video)];
+    if (!video) return false;
+    if (video.locked === true) return false;
+    if (video.locked === false) return true;
+    return false;
   };
 
   NT.counts = function () {

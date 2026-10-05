@@ -21,6 +21,9 @@ var https = require("https");
 
 var BASE = (process.env.BASE || "http://127.0.0.1:" + (process.env.PORT || 8000)).replace(/\/$/, "");
 var PASSWORD = process.env.NT_ADMIN_PASSWORD || "nuclear-admin";
+/* The shipped default is never a valid credential; a fresh install must be
+   given one through NT_ADMIN_PASSWORD, then rotated once by this script. */
+var ROTATED = "Flow-check-Password-2026";
 var passed = 0;
 var failed = 0;
 
@@ -81,8 +84,26 @@ request("GET", "/api/health").then(function (response) {
   group("Service (" + BASE + ")");
   check(response.status === 200 && response.json && response.json.ok, "GET /api/health responds");
   return request("GET", "/api/catalogue");
+}).then(function (visitorResponse) {
+  check(visitorResponse.status === 200, "GET /api/catalogue responds");
+  /* No access code means no video sources at all: the tier rules are the
+     server's, not the browser's. */
+  var visitorVideos = visitorResponse.json.catalogue.videos;
+  check(visitorVideos.length > 0 && visitorVideos.every(function (video) {
+    return video.locked === true && video.sourceUrl === null;
+  }), "a visitor receives every lesson locked and without a source URL");
+  check(!/"sourceUrl"\s*:\s*"https?:/.test(visitorResponse.raw), "a visitor response contains no video source URL");
+
+  /* Issue and redeem a premium code so the student flow below is signed in. */
+  return request("POST", "/api/codes/issue", { package: "premium" });
 }).then(function (response) {
-  check(response.status === 200, "GET /api/catalogue responds");
+  check(response.status === 201 && response.json.code, "a code can be issued for the student flow");
+  state.flowCode = response.json.code;
+  return request("POST", "/api/access/redeem", { code: state.flowCode, educationLevel: "university" });
+}).then(function (response) {
+  check(response.status === 200 && response.json.access, "the student flow code redeems");
+  return request("GET", "/api/catalogue", null, { code: state.flowCode });
+}).then(function (response) {
   var catalogue = response.json.catalogue;
   state.catalogue = catalogue;
   check(catalogue.universities.length > 0, "catalogue lists universities");
@@ -95,7 +116,8 @@ request("GET", "/api/health").then(function (response) {
     "every institution has courses (" + universities.length + " institutions)");
   var withDuration = catalogue.videos.filter(function (video) { return video.durationSeconds > 0; }).length;
   check(withDuration > 0, "lessons carry durations (" + withDuration + " of " + catalogue.videos.length + ")");
-  check(catalogue.videos.every(function (video) { return /^https?:\/\//.test(video.sourceUrl); }), "every lesson has a source URL");
+  check(catalogue.videos.every(function (video) { return /^https?:\/\//.test(video.sourceUrl) && video.locked === false; }),
+    "a premium student receives every lesson unlocked with its source URL");
   check(catalogue.videos.every(function (video) { return video.universityId && video.semester && video.courseTitle; }),
     "every lesson carries its university, semester and course");
 
@@ -109,12 +131,15 @@ request("GET", "/api/health").then(function (response) {
   check(lessonsOne.length > 0, "Semester 1 course has video lessons (" + lessonsOne.length + ")");
   state.lessonOne = lessonsOne[0];
   check(!!state.lessonOne.sourceUrl && !!state.lessonOne.courseId, "lesson payload is playable and linked to its course");
-  return request("GET", "/api/videos/" + encodeURIComponent(state.lessonOne.id));
+  return request("GET", "/api/videos/" + encodeURIComponent(state.lessonOne.id), null, { code: state.flowCode });
 }).then(function (response) {
   check(response.status === 200, "GET /api/videos/:id responds for the chosen lesson");
   var video = response.json.video;
   check(video && video.courseId === state.semesterOneCourse.id && Number(video.semester) === 1,
     "lesson detail keeps university, semester and course context");
+  check(!!video.sourceUrl && video.locked === false, "the lesson detail carries the playable source for its package");
+  check(Array.isArray(response.json.lessons) && response.json.lessons.length > 0,
+    "the lesson detail lists the other lessons of the course");
 
   /* ---- student flow, semester 2 ---- */
   group("Student flow — University → Semester 2 → Course → Video");
@@ -161,6 +186,36 @@ request("GET", "/api/health").then(function (response) {
   check(response.status === 200, "administrator sign-in succeeds");
   state.cookie = cookieFrom(response);
   check(!!state.cookie, "sign-in sets a session cookie");
+  if (response.json && response.json.mustChangePassword) {
+    /* First run: the platform requires the password to be replaced before
+       the admin API serves anything else. */
+    return request("GET", "/api/admin/overview", null, { cookie: state.cookie }).then(function (blocked) {
+      check(blocked.status === 403, "catalogue management is locked until the first-run password is changed");
+      var replacement = PASSWORD === "nuclear-admin" ? ROTATED : PASSWORD;
+      return request("POST", "/api/admin/password", { currentPassword: PASSWORD, newPassword: replacement },
+        { cookie: state.cookie }).then(function (changed) {
+        check(changed.status === 200, "the first-run password can be replaced");
+        return request("POST", "/api/admin/login", { password: replacement });
+      }).then(function (relogin) {
+        check(relogin.status === 200 && relogin.json.mustChangePassword === false,
+          "the replaced password signs in and unlocks administration");
+        state.cookie = cookieFrom(relogin);
+      });
+    });
+  }
+}).then(function () {
+  /* A normal student (valid access code, no admin session) must not reach
+     any administration endpoint. */
+  var attempts = [["GET", "/api/admin/overview"], ["POST", "/api/admin/videos"], ["DELETE", "/api/admin/codes/NT-X-0000"]];
+  return attempts.reduce(function (chain, entry) {
+    return chain.then(function () {
+      return request(entry[0], entry[1], entry[0] === "GET" ? null : {}, { code: state.code }).then(function (blocked) {
+        check(blocked.status === 401 || blocked.status === 403,
+          "a student calling " + entry[0] + " " + entry[1] + " is refused (" + blocked.status + ")");
+      });
+    });
+  }, Promise.resolve());
+}).then(function () {
   return request("GET", "/api/admin/session", null, { cookie: state.cookie });
 }).then(function (response) {
   check(response.status === 200 && response.json.authenticated === true, "the session is recognised");

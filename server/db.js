@@ -101,6 +101,7 @@ var SCHEMA = [
      id            INTEGER PRIMARY KEY CHECK (id = 1),
      password_hash TEXT NOT NULL,
      salt          TEXT NOT NULL,
+     must_change   INTEGER NOT NULL DEFAULT 0,
      updated_at    TEXT NOT NULL
    )`,
   `CREATE TABLE IF NOT EXISTS sessions (
@@ -146,7 +147,17 @@ function connect() {
   fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
   db = new DatabaseSync(DB_FILE);
   SCHEMA.forEach(function (statement) { db.exec(statement); });
+  migrate();
   return db;
+}
+
+/* Adds columns introduced after the first release. An existing installation
+   may still be using a first-run password, so it must be rotated too. */
+function migrate() {
+  var columns = db.prepare("PRAGMA table_info(admins)").all().map(function (row) { return row.name; });
+  if (columns.indexOf("must_change") === -1) {
+    db.exec("ALTER TABLE admins ADD COLUMN must_change INTEGER NOT NULL DEFAULT 1");
+  }
 }
 
 function getDatabase() { return db || connect(); }
@@ -209,15 +220,24 @@ function getSettings() {
 
 /* ---------- first-run setup ---------- */
 
+/* The first-run password comes from NT_ADMIN_PASSWORD, or a random value that
+   is printed once in the server log. It must be changed before the admin API
+   accepts any other request. */
 function ensureAdmin() {
   var existing = getDatabase().prepare("SELECT id FROM admins WHERE id = 1").get();
-  var password = process.env.NT_ADMIN_PASSWORD || "nuclear-admin";
-  if (existing) return { created: false, password: null };
+  if (existing) return { created: false, password: null, generated: false };
+  var generated = !process.env.NT_ADMIN_PASSWORD;
+  var password = process.env.NT_ADMIN_PASSWORD || crypto.randomBytes(18).toString("base64url");
   var salt = crypto.randomBytes(16).toString("hex");
   getDatabase()
-    .prepare("INSERT INTO admins (id, password_hash, salt, updated_at) VALUES (1, ?, ?, ?)")
+    .prepare("INSERT INTO admins (id, password_hash, salt, must_change, updated_at) VALUES (1, ?, ?, 1, ?)")
     .run(hashPassword(password, salt), salt, now());
-  return { created: true, password: password };
+  return { created: true, password: password, generated: generated };
+}
+
+function adminMustChangePassword() {
+  var row = getDatabase().prepare("SELECT must_change FROM admins WHERE id = 1").get();
+  return !row || row.must_change === 1;
 }
 
 function verifyAdminPassword(password) {
@@ -226,13 +246,16 @@ function verifyAdminPassword(password) {
   return safeEqual(hashPassword(password, row.salt), row.password_hash);
 }
 
-function setAdminPassword(password, saltOverride) {
-  var salt = saltOverride || crypto.randomBytes(16).toString("hex");
+function setAdminPassword(password, options) {
+  var opts = options || {};
+  var salt = opts.salt || crypto.randomBytes(16).toString("hex");
+  var mustChange = opts.mustChange ? 1 : 0;
   var hash = hashPassword(password, salt);
   getDatabase()
-    .prepare(`INSERT INTO admins (id, password_hash, salt, updated_at) VALUES (1, ?, ?, ?)
-              ON CONFLICT(id) DO UPDATE SET password_hash = excluded.password_hash, salt = excluded.salt, updated_at = excluded.updated_at`)
-    .run(hash, salt, now());
+    .prepare(`INSERT INTO admins (id, password_hash, salt, must_change, updated_at) VALUES (1, ?, ?, ?, ?)
+              ON CONFLICT(id) DO UPDATE SET password_hash = excluded.password_hash, salt = excluded.salt,
+                                            must_change = excluded.must_change, updated_at = excluded.updated_at`)
+    .run(hash, salt, mustChange, now());
 }
 
 function ensureDefaultSettings() {
@@ -288,6 +311,7 @@ module.exports = {
   hashPassword: hashPassword,
   safeEqual: safeEqual,
   ensureAdmin: ensureAdmin,
+  adminMustChangePassword: adminMustChangePassword,
   verifyAdminPassword: verifyAdminPassword,
   setAdminPassword: setAdminPassword,
   ensureDefaultSettings: ensureDefaultSettings,

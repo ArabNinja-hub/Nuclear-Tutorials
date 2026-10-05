@@ -136,7 +136,8 @@
       '<div class="field"><label for="admPassword">Administrator password</label>' +
       '<input class="input" id="admPassword" name="password" type="password" autocomplete="current-password" ' +
       'placeholder="Enter your password" required aria-describedby="admLoginHelp"></div>' +
-      '<p class="field-hint" id="admLoginHelp">On a fresh install the first password is printed in the server log as <b>nuclear-admin</b>.</p>' +
+      '<p class="field-hint" id="admLoginHelp">On a fresh install the first-run password is printed once in the server log. ' +
+      "It must be changed before the catalogue can be managed.</p>" +
       '<div class="adm-login-message" id="admLoginMessage" aria-live="polite"></div>' +
       '<button class="btn btn-primary btn-block btn-lg" type="submit" id="admLoginSubmit">' + NT.icon("log-in") + "Sign in</button>" +
       "</form>" +
@@ -161,7 +162,11 @@
         return;
       }
       submit.disabled = true;
-      NT.api.admin.login(password).then(function () {
+      NT.api.admin.login(password).then(function (payload) {
+        if (payload && payload.mustChangePassword) {
+          location.href = "settings.html?first-run=1";
+          return;
+        }
         location.href = NT.qs("next") || "index.html";
       }, function (error) {
         submit.disabled = false;
@@ -1000,12 +1005,14 @@
         "</form></section>" +
         '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Administrator password</h2>' +
         "<p>Changing the password signs out every other administrator session.</p></div></div>" +
+        '<div id="passwordBanner"></div>' +
         '<form class="adm-form" id="passwordForm">' +
         '<div class="field"><label for="pwCurrent">Current password</label>' +
         '<input class="input" id="pwCurrent" type="password" autocomplete="current-password"></div>' +
         '<div class="field"><label for="pwNext">New password</label>' +
         '<input class="input" id="pwNext" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>' +
-        '<div class="adm-form-actions"><button class="btn btn-secondary" type="submit">' + NT.icon("key") + "Change password</button></div>" +
+        '<div class="adm-form-actions"><button class="btn btn-secondary" type="submit" id="pwSubmit">' + NT.icon("key") + "Change password</button>" +
+        '<span class="field-hint" id="pwNote"></span></div>' +
         "</form></section></div>" +
         '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Data model</h2>' +
         "<p>Everything students see comes from the server database.</p></div></div>" +
@@ -1033,6 +1040,24 @@
         });
       });
 
+      /* A first-run password must be replaced before the admin API accepts
+         catalogue management, so say so plainly on this page. */
+      function showRotationNotice() {
+        var banner = document.getElementById("passwordBanner");
+        var note = document.getElementById("pwNote");
+        var submit = document.getElementById("pwSubmit");
+        if (!banner) return;
+        banner.innerHTML = '<div class="adm-notice">' + NT.icon("circle-alert") +
+          "<div><b>Change the first-run password.</b> Until you do, catalogue management stays disabled for every " +
+          "administrator session. The password you received from the server log is temporary" +
+          (NT.qs("first-run") ? " — you are here because of it." : ".") + "</div></div>";
+        if (note) note.textContent = "Required before the admin area unlocks.";
+        if (submit) submit.className = "btn btn-primary";
+      }
+      NT.api.admin.session().then(function (payload) {
+        if (payload && payload.mustChangePassword) showRotationNotice();
+      }, function () { /* the page already reported the failure */ });
+
       document.getElementById("passwordForm").addEventListener("submit", function (event) {
         event.preventDefault();
         var current = document.getElementById("pwCurrent").value;
@@ -1042,7 +1067,7 @@
         button.disabled = true;
         NT.api.admin.changePassword(current, next).then(function () {
           NT.toast("Password changed. Sign in again.", "success");
-          window.setTimeout(function () { location.href = "login.html"; }, 900);
+          window.setTimeout(function () { location.href = NT.qs("first-run") ? "login.html" : "settings.html"; }, 900);
         }, function (error) {
           button.disabled = false;
           NT.toast(error.message, "error");

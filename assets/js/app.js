@@ -430,23 +430,18 @@
   function pageLesson() {
     var root = document.getElementById("lessonRoot");
     var id = NT.qs("id") || "";
-    loadFor(root, function () {
-      var video = NT.content.video(id);
-      if (!video || !video.published) {
-        root.innerHTML = NT.empty({
-          icon: "video",
-          title: "Lesson not found",
-          message: "This video lesson is not published, or the link is out of date.",
-          action: '<a class="btn btn-primary" href="' + NT.base() + 'library.html">Open the video library</a>'
-        });
-        return;
-      }
-      var course = NT.content.course(video.courseId);
-      var university = NT.content.university(video.universityId);
-      var lessons = NT.content.lessonsOf(video.courseId);
+    if (!root) return;
+
+    root.innerHTML = NT.skeletonCards(1, "wide");
+
+    function paint(payload) {
+      var video = payload.video;
+      var course = payload.course || NT.content.course(video.courseId);
+      var university = payload.university || NT.content.university(video.universityId);
+      var lessons = payload.lessons || NT.content.lessonsOf(video.courseId);
+      var previous = payload.previous || null;
+      var next = payload.next || null;
       var index = lessons.map(function (item) { return item.id; }).indexOf(video.id);
-      var previous = index > 0 ? lessons[index - 1] : null;
-      var next = index >= 0 && index < lessons.length - 1 ? lessons[index + 1] : null;
       var unlocked = NT.isUnlocked(video);
       var entry = NT.progress.entry(video.id);
       var watched = !!(entry && entry.completed);
@@ -500,7 +495,7 @@
       var meta = '<div class="lesson-meta">' +
         NT.levelBadge(NT.levelOf(video), !unlocked) +
         (video.durationSeconds ? "<span>" + NT.icon("clock", "icon-sm") + NT.duration(video.durationSeconds) + "</span>" : "") +
-        "<span>" + NT.icon("video", "icon-sm") + NT.esc(NT.providerLabel(video.provider)) + "</span>" +
+        "<span>" + NT.icon("video", "icon-sm") + NT.esc(NT.providerLabel(video.provider || "other")) + "</span>" +
         (started ? "<span class=\"lesson-meta-state\">" + NT.icon("check-circle", "icon-sm") + (watched ? "Watched" : "In progress") + "</span>" : "") +
         "</div>";
 
@@ -521,8 +516,8 @@
         player +
         (video.description ? '<div class="lesson-description"><h2>About this lesson</h2><p>' + NT.esc(video.description) + "</p></div>" : "") +
         '<p class="lesson-source">Lesson ' + (index + 1) + " of " + lessons.length + " in " + NT.esc(video.courseTitle) +
-        ". Video hosted by " + NT.esc(NT.providerLabel(video.provider)) + ".</p>" +
-        "</article>";
+        (unlocked ? ". Video hosted by " + NT.esc(NT.providerLabel(video.provider)) + "." : ". Source hidden until your package includes it.") +
+        "</p></article>";
 
       var navigation = '<nav class="lesson-pager" aria-label="Lesson navigation">' +
         (previous
@@ -547,9 +542,7 @@
 
       root.innerHTML = '<div class="container lesson-shell">' + main + navigation + "</div>" + more;
 
-      if (unlocked && !started && NT.store.isActive()) {
-        NT.markWatched(video.id, { completed: false });
-      }
+      if (unlocked && !started && NT.store.isActive()) NT.markWatched(video.id, { completed: false });
 
       var toggle = document.getElementById("toggleWatched");
       if (toggle) {
@@ -569,7 +562,73 @@
         });
       }
       NT.initReveal();
+    }
+
+    /* The lesson itself is requested from the server with the student's
+       access code, so a protected lesson cannot be opened by editing the
+       page or by requesting the URL directly. */
+    var preload = [NT.content.load().catch(function () { /* the lesson request still works */ })];
+    if (NT.store.isActive()) preload.push(NT.progress.load().catch(function () { /* progress is optional */ }));
+    Promise.all(preload).then(function () {
+      return NT.content.lesson(id);
+    }).then(function (payload) {
+      paint(payload);
+    }, function (error) {
+      if (error && error.status === 403) return paintLocked(error.details);
+      if (error && error.status === 404) return paintMissing();
+      var local = NT.content.video(id);
+      if (local && NT.isUnlocked(local)) return paint({ video: local });
+      root.innerHTML = NT.offlinePanel("retryLesson");
+      var retry = document.getElementById("retryLesson");
+      if (retry) retry.addEventListener("click", function () { location.reload(); });
     });
+
+    function paintLocked(details) {
+      /* The lock response carries only identification fields, so the public
+         catalogue summary supplies the title, description and context. */
+      var summary = NT.content.video(id) || {};
+      var locked = (details && details.video) || {};
+      var video = Object.assign({}, summary, locked, {
+        id: locked.id || summary.id,
+        courseId: locked.courseId || summary.courseId,
+        semester: locked.semester || summary.semester,
+        level: locked.level || summary.level
+      });
+      if (!video || !video.title) return paintMissing();
+      var course = NT.content.course(video.courseId) || {};
+      document.title = video.title + " — Nuclear Tutorials";
+      root.innerHTML = '<div class="container lesson-shell"><article class="lesson-page">' +
+        NT.crumbs([
+          { label: "Home", href: NT.base() + "index.html" },
+          { label: course.universityShort || "Courses", href: NT.base() + "courses.html?university=" + encodeURIComponent(course.universityId || "") },
+          { label: course.title || "Course", href: NT.base() + "course.html?id=" + encodeURIComponent(video.courseId) },
+          { label: video.title }
+        ]) +
+        '<header class="lesson-head"><div class="lesson-context">' +
+        '<span>' + NT.icon("lock", "icon-sm") + D.LEVEL_LABEL[NT.levelOf(video)] + " lesson</span>" +
+        "</div><h1>" + NT.esc(video.title) + "</h1></header>" +
+        '<div class="player player-locked">' + NT.thumb(video, "xl") +
+        '<div class="player-lock-overlay"><span class="lock-badge">' + NT.icon("lock") + "Package required</span>" +
+        "<h2>This lesson is not included in your package</h2>" +
+        "<p>The video source is only sent to students whose access code covers the " + D.LEVEL_LABEL[NT.levelOf(video)] +
+        " tier. Choose a package that includes it, or redeem a matching code.</p>" +
+        '<div class="player-lock-actions">' +
+        '<a class="btn btn-primary" href="' + NT.base() + 'pricing.html">' + NT.icon("layers") + "Compare packages</a>" +
+        '<a class="btn btn-outline-light" href="' + NT.base() + 'access.html">' + NT.icon("key") + "Log in with a code</a>" +
+        "</div></div></div>" +
+        (video.description ? '<div class="lesson-description"><h2>About this lesson</h2><p>' + NT.esc(video.description) + "</p></div>" : "") +
+        '<p class="lesson-source">The protected video URL is not visible on this page or in this response.</p>' +
+        "</article></div>";
+    }
+
+    function paintMissing() {
+      root.innerHTML = NT.empty({
+        icon: "video",
+        title: "Lesson not found",
+        message: "This video lesson is not published, or the link is out of date.",
+        action: '<a class="btn btn-primary" href="' + NT.base() + 'library.html">Open the video library</a>'
+      });
+    }
   }
 
   /* ============================ LIBRARY ============================ */

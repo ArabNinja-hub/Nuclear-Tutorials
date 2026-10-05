@@ -14,6 +14,17 @@ student sees the change on their own device.
 npm start                 # http://localhost:8000
 ```
 
+The production database **starts empty**. Nothing is preloaded: you add
+universities, courses and video lessons yourself through the admin area. A
+sample catalogue (MIT OpenCourseWare and Crash Course lectures) exists only for
+local development and automated checks:
+
+```bash
+npm run seed:demo         # load the development sample (never in production)
+npm run seed:status       # what is in the database right now
+npm run seed:clear        # empty the catalogue again
+```
+
 No build step and no third-party dependencies: the server is plain Node.js
 (`node:http` + `node:sqlite`, Node 22.5 or newer) and the front end is HTML, CSS
 and vanilla JavaScript.
@@ -22,21 +33,37 @@ and vanilla JavaScript.
 | --- | --- |
 | `npm start` | Starts the platform (static pages + JSON API) on `PORT` (default `8000`) |
 | `npm run dev` | Same, with `node --watch` |
-| `npm run seed` | Replaces the catalogue with the shipped seed content |
+| `npm run seed:demo` | Loads the development sample catalogue (refused when `NODE_ENV=production`) |
+| `npm run seed:clear` | Empties the catalogue (keeps codes, progress, announcements, settings) |
+| `npm run seed:status` | Prints the database path, catalogue counts and content source |
 | `npm run check` | Structural, accessibility and render checks (no server required) |
 | `npm run check:flows` | Student and admin journeys against a running server |
+| `npm run check:access` | Package access control: the Basic/Standard/Premium matrix and bypass attempts |
+| `npm run test:setup` | First-run admin, empty database, restart persistence and expired codes |
 | `BASE=http://127.0.0.1:8000 npm run check` | Adds HTTP, API and live-flow checks |
+| `npm run check:production` | Everything above against a running server: structure, render, first-run/empty database, package access control and the live flows |
 
-Environment: `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`, `NT_SEED=off`,
-`NT_ADMIN_PASSWORD` (used only on the very first run).
+Environment (see `.env.example`): `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`,
+`NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`, `NT_ALLOW_DEMO_SEED`.
 
 ### Administrator sign-in
 
-Open `/admin/login.html`. On a fresh install the first password is printed in the
-server log and defaults to `nuclear-admin`; change it immediately in **Admin →
-Settings → Administrator password**. Administration pages are marked `noindex`,
-never appear in the student navigation, and every `/api/admin/*` route answers
-`401` without a valid session cookie.
+Open `/admin/login.html`.
+
+- Set `NT_ADMIN_PASSWORD` before the first start, or read the strong password the
+  server generates and prints **once** in its log. The password shipped in early
+  builds is never created by this version and is refused if an old database
+  still carries it.
+- **The first-run password must be changed.** Until it is, a signed-in
+  administrator can only reach the session probe and the password change: every
+  other `/api/admin/*` route answers `403`, so a temporary password is never a
+  production credential.
+- Administration pages are marked `noindex`, never appear in the student
+  navigation, and every `/api/admin/*` route answers `401` without a valid
+  session cookie. Students signed in with an access code are refused too.
+
+Never treat a first-run or sample password as a production credential, and never
+commit `.env` or `NT_ADMIN_PASSWORD` to the repository.
 
 ## What students do
 
@@ -58,9 +85,18 @@ never appear in the student navigation, and every `/api/admin/*` route answers
    last watched lesson, recently viewed lessons, the courses of the current
    university and semester, and lesson counts.
 
-Packages are **Basic**, **Standard** and **Premium**; a package unlocks the
-lessons at its level and below. Package names, prices, features and the access
-period are editable under **Admin → Packages**.
+Packages are **Basic**, **Standard** and **Premium**: basic covers basic lessons,
+standard adds standard lessons, premium covers everything. Package names, prices,
+features and the access period are editable under **Admin → Packages**.
+
+Lesson access is enforced by the server, not by the browser. The catalogue,
+lesson, list and search responses only contain a video URL when the caller's
+access code (sent as `X-NT-Code`) covers that lesson's tier; everything else
+comes back as `locked: true` with `sourceUrl: null`, and asking for a protected
+lesson by ID returns `403`. Editing the front-end JavaScript or localStorage,
+calling the API by hand, requesting a protected lesson directly, or scraping the
+catalogue all fail — see `npm run check:access`, which tests the full package
+matrix and each of those bypass attempts.
 
 ## What administrators do
 
@@ -82,13 +118,34 @@ as it is published.
 
 ## Where data lives
 
-- **Server database** (`server/data/`, git-ignored): universities, courses,
-  video lessons, access codes, progress, announcements, settings and the
-  administrator password hash. This is the single source of truth.
+Data flows in one direction only:
+
+```
+Admin  →  Server API  →  SQLite database  →  Student API request  →  Student sees it
+```
+
+- **Server database**: universities, courses, video lessons, access codes,
+  progress, announcements, settings and the administrator password hash. This is
+  the single source of truth.
 - **localStorage** (per device): the student's access grant (`code`, package,
   expiry), learning preferences (name, level, university, semester) and a mirror
   of public settings. Catalogue content is never cached there — each page loads
-  it from the API and keeps it in memory for that page view.
+  it from the API and keeps it in memory for that page view. Editing this
+  storage cannot unlock anything: the server re-reads the code from the database
+  on every request and drops a local grant it no longer recognises.
+
+### Persistent storage in production
+
+The SQLite file must sit on a persistent disk, or it is erased on every deploy:
+
+1. Create a disk in your host (Render: **Disks** → mount path `/var/data`).
+2. Set `NT_DATA_DIR` to that mount path (`render.yaml` already does this).
+3. Keep `NT_REQUIRE_PERSISTENT_STORAGE=1` so the server refuses to boot if the
+   database would fall back inside the deploy directory.
+
+With that in place the catalogue, access codes and student progress survive
+application restarts, redeploys and new releases. Without it, `npm start` still
+works locally but the data lives in `server/data/` and is disposable.
 
 ## Honest limitations
 
@@ -97,9 +154,15 @@ as it is published.
   re-host video files, and lesson playback depends on that source being online.
 - Checkout issues an access code directly; it **does not process a payment** and
   contacts no payment provider. Prices are set by the platform team.
-- Access codes are a simple redemption system with no password accounts, and
-  video URLs are not DRM-protected.
+- Access codes are a simple redemption system with no password accounts. The
+  server withholds protected URLs from unauthorised clients, but a student who is
+  legitimately allowed to watch a lesson can still share that link onward — there
+  is no DRM.
 - The platform is **video lessons only**: there are **no document or material
   uploads** (no PDFs, notes or file sharing) and no quiz or certificate system.
 - Thumbnails are fetched from the video source; when an image cannot load, the
   card falls back to a designed placeholder instead of a broken image.
+- Sample content in `server/seed/content.json` is development data. It is never
+  loaded automatically and `npm run seed:demo` refuses to run when
+  `NODE_ENV=production` (override only for a deliberate staging check with
+  `NT_ALLOW_DEMO_SEED=1`).
