@@ -1,5 +1,10 @@
 /* ============================================================
-   NUCLEAR TUTORIALS — Course catalogue and access package data
+   NUCLEAR TUTORIALS — Access levels, packages and catalogue helpers
+
+   Content itself (universities, semesters, courses, video lessons)
+   comes from the server through NT.content. This file describes the
+   access system that decides which lessons a package opens, and keeps
+   the copy for the packages that the administrator can edit.
    ============================================================ */
 (function () {
   window.NT = window.NT || {};
@@ -9,208 +14,146 @@
   var LEVEL_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
 
   var EDUCATION_LEVELS = [
-    { id: "high-school", label: "High School" },
-    { id: "university", label: "University" }
+    { id: "high-school", label: "High School", icon: "book-open" },
+    { id: "university", label: "University", icon: "graduation-cap" }
   ];
-  var SUBJECTS = [
-    { id: "math", title: "Mathematics", icon: "sigma" },
-    { id: "phys", title: "Physics", icon: "atom" },
-    { id: "chem", title: "Chemistry", icon: "flask" },
-    { id: "cs", title: "Computer Science", icon: "cpu" },
-    { id: "bio", title: "Biology", icon: "leaf" }
-  ];
+
+  /* Defaults are used only when the server settings have not loaded yet. */
   var PACKAGES = {
     basic: {
       id: "basic", name: "Basic", price: 50,
-      tagline: "Basic lessons across the course catalogue.",
-      features: ["Basic lessons in every course"]
+      tagline: "Basic video lessons across the catalogue.",
+      features: ["Basic video lessons in every course"]
     },
     standard: {
       id: "standard", name: "Standard", price: 100,
-      tagline: "Basic and Standard lessons across the course catalogue.",
-      features: ["Basic and Standard lessons in every course"]
+      tagline: "Basic and Standard video lessons across the catalogue.",
+      features: ["Basic and Standard video lessons in every course"]
     },
     premium: {
       id: "premium", name: "Premium", price: 200,
-      tagline: "All listed lessons across the course catalogue.",
-      features: ["All lessons in every course"]
+      tagline: "Every published video lesson across the catalogue.",
+      features: ["All video lessons in every course"]
     }
   };
-
-  /* Lesson level pattern per course: 3 basic, 3 standard, 2 premium */
-  var PATTERN = ["basic", "basic", "basic", "standard", "standard", "standard", "premium", "premium"];
-
-  var COURSES = [
-    {
-      id: "math", title: "Mathematics", icon: "sigma",
-      tint: "#e8f4f9", tintFg: "#0e7fa2",
-      desc: "Number systems, algebra, functions, calculus, sequences, probability and statistics.",
-      lessons: [
-        "Number Systems",
-        "Algebra Essentials",
-        "Functions and Graphs",
-        "Limits",
-        "Differentiation",
-        "Integration",
-        "Series and Sequences",
-        "Probability and Statistics"
-      ]
-    },
-    {
-      id: "phys", title: "Physics", icon: "atom",
-      tint: "#eef2f6", tintFg: "#40566d",
-      desc: "Units, motion, forces, energy, waves, circuits, magnetism and nuclear physics.",
-      lessons: [
-        "Units and Measurement",
-        "Motion in a Line",
-        "Forces and Newton Laws",
-        "Work and Energy",
-        "Waves",
-        "Electric Circuits",
-        "Magnetism",
-        "Intro to Nuclear Physics"
-      ]
-    },
-    {
-      id: "chem", title: "Chemistry", icon: "flask",
-      tint: "#f9ecf4", tintFg: "#9c2b70",
-      desc: "Atomic structure, the periodic table, bonding, the mole, acids and bases, redox, organic chemistry and kinetics.",
-      lessons: [
-        "Atomic Structure",
-        "The Periodic Table",
-        "Chemical Bonding",
-        "The Mole Concept",
-        "Acids and Bases",
-        "Redox Reactions",
-        "Organic Basics",
-        "Reaction Kinetics"
-      ]
-    },
-    {
-      id: "cs", title: "Computer Science", icon: "cpu",
-      tint: "#e7f4ec", tintFg: "#177245",
-      desc: "Computer fundamentals, programming, logic, data structures, algorithms, databases and networks.",
-      lessons: [
-        "How Computers Work",
-        "Intro to Programming",
-        "Variables and Logic",
-        "Loops and Functions",
-        "Data Structures",
-        "Algorithms",
-        "Databases",
-        "Networks and the Web"
-      ]
-    },
-    {
-      id: "bio", title: "Biology", icon: "leaf",
-      tint: "#fbf3e2", tintFg: "#96660f",
-      desc: "Cell biology, cell division, genetics, inheritance, human body systems and evolution.",
-      lessons: [
-        "The Cell",
-        "Cell Division",
-        "Genetics Basics",
-        "Inheritance",
-        "Human Digestion",
-        "Circulation",
-        "Nervous System",
-        "Evolution"
-      ]
-    }
-  ];
-
-  /* Course pages are available in the two education-level views. */
-  COURSES.forEach(function (course) {
-    course.subjectId = course.id;
-    course.offerings = EDUCATION_LEVELS.map(function (level) {
-      return { educationLevel: level.id };
-    });
-  });
-
-  /* Build lesson access tiers from the ordered catalogue entries. */
-  var LESSONS = [];
-  COURSES.forEach(function (course) {
-    course.lessons.forEach(function (title, i) {
-      LESSONS.push({
-        id: course.id + "-" + (i + 1),
-        courseId: course.id,
-        courseTitle: course.title,
-        index: i + 1,
-        title: title,
-        level: PATTERN[i],
-        status: "published",
-        description: course.title + " · " + title
-      });
-    });
-  });
 
   NT.data = {
     LEVELS: LEVELS,
     LEVEL_RANK: LEVEL_RANK,
     LEVEL_LABEL: LEVEL_LABEL,
     EDUCATION_LEVELS: EDUCATION_LEVELS,
-    SUBJECTS: SUBJECTS,
-    PACKAGES: PACKAGES,
-    COURSES: COURSES,
-    LESSONS: LESSONS
+    PACKAGES: PACKAGES
   };
 
-  /* ---------- Helpers ---------- */
-  NT.educationLevel = function (id) {
-    return EDUCATION_LEVELS.filter(function (x) { return x.id === id; })[0] || null;
-  };
-  NT.subject = function (id) {
-    return SUBJECTS.filter(function (x) { return x.id === id; })[0] || null;
-  };
-  NT.coursePathways = function (course) {
-    return (course && course.offerings) || [];
-  };
-  NT.coursePathway = function (course, levelId) {
-    return NT.coursePathways(course).filter(function (x) { return x.educationLevel === levelId; })[0] || null;
-  };
-  NT.course = function (id) {
-    return NT.data.COURSES.filter(function (c) { return c.id === id; })[0] || null;
-  };
-  NT.lesson = function (id) {
-    return NT.allLessons().filter(function (l) { return l.id === id; })[0] || null;
-  };
-  NT.allLessons = function () {
-    return NT.data.LESSONS;
-  };
-  NT.courseLessons = function (courseId) {
-    return NT.allLessons().filter(function (l) { return l.courseId === courseId; });
-  };
-  NT.levelOf = function (lesson) {
-    var ov = NT.store.get().lessonLevels[lesson.id];
-    return ov || lesson.level;
-  };
-  NT.isUnlocked = function (lesson) {
-    var a = NT.store.get().access;
-    if (!a) return false;
-    return NT.data.LEVEL_RANK[a] >= NT.data.LEVEL_RANK[NT.levelOf(lesson)];
-  };
-  NT.counts = function () {
-    var all = NT.allLessons();
-    var c = { total: all.length, basic: 0, standard: 0, premium: 0 };
-    all.forEach(function (l) { c[NT.levelOf(l)]++; });
-    return c;
-  };
-  NT.availableFor = function (level) {
-    if (!level) return 0;
-    var all = NT.allLessons();
-    return all.filter(function (l) { return NT.data.LEVEL_RANK[level] >= NT.data.LEVEL_RANK[NT.levelOf(l)]; }).length;
-  };
-  NT.packagePrice = function (id) {
-    var state = NT.store.get();
-    return state.packages[id] != null ? state.packages[id] : NT.data.PACKAGES[id].price;
-  };
+  /* ---------- packages ---------- */
+
+  function serverPackages() {
+    var settings = NT.store.settings();
+    return settings && settings.packages ? settings.packages : null;
+  }
+
   NT.packageDetails = function (id) {
-    var base = NT.data.PACKAGES[id];
+    var base = PACKAGES[id];
     if (!base) return null;
-    var overrides = (NT.store.get().packageDetails || {})[id] || {};
-    return Object.assign({}, base, overrides, {
+    var overrides = (serverPackages() || {})[id] || {};
+    return {
       id: id,
-      price: NT.packagePrice(id),
-      features: Array.isArray(overrides.features) ? overrides.features : base.features.slice()
+      name: overrides.name || base.name,
+      price: Number.isFinite(Number(overrides.price)) ? Number(overrides.price) : base.price,
+      tagline: overrides.tagline || base.tagline,
+      features: Array.isArray(overrides.features) && overrides.features.length ? overrides.features : base.features.slice()
+    };
+  };
+
+  NT.packagePrice = function (id) {
+    var details = NT.packageDetails(id);
+    return details ? details.price : 0;
+  };
+
+  NT.accessDays = function () {
+    var days = parseInt(NT.store.settings().accessDays, 10);
+    return Number.isFinite(days) && days > 0 ? days : 180;
+  };
+
+  /* ---------- levels and access ---------- */
+
+  NT.levelOf = function (video) {
+    var level = video && video.level;
+    return LEVELS.indexOf(level) !== -1 ? level : "standard";
+  };
+
+  /* Lesson access always mirrors what the server sent for the current
+     access code. `video.locked` is computed server-side, so editing
+     localStorage or calling the API by hand cannot unlock a higher tier. */
+  NT.isUnlocked = function (video) {
+    if (!video) return false;
+    if (video.locked === true) return false;
+    if (video.locked === false) return true;
+    return false;
+  };
+
+  NT.counts = function () {
+    var videos = NT.content.data() ? NT.content.data().videos : [];
+    var counts = { total: videos.length, basic: 0, standard: 0, premium: 0 };
+    videos.forEach(function (video) { counts[NT.levelOf(video)] += 1; });
+    return counts;
+  };
+
+  NT.availableFor = function (level) {
+    if (!level || !LEVEL_RANK[level]) return 0;
+    var videos = NT.content.data() ? NT.content.data().videos : [];
+    return videos.filter(function (video) {
+      return LEVEL_RANK[level] >= LEVEL_RANK[NT.levelOf(video)];
+    }).length;
+  };
+
+  /* Lesson numbers a package opens inside one course, e.g. Basic 1-2. */
+  NT.tierRange = function (courseId) {
+    var lessons = NT.content.lessonsOf(courseId);
+    var out = {};
+    LEVELS.forEach(function (level) {
+      var indexes = [];
+      lessons.forEach(function (lesson, index) {
+        if (LEVEL_RANK[level] >= LEVEL_RANK[NT.levelOf(lesson)]) indexes.push(index + 1);
+      });
+      out[level] = indexes.length
+        ? { from: indexes[0], to: indexes[indexes.length - 1], count: indexes.length }
+        : null;
     });
+    return out;
+  };
+
+  /* ---------- academic phrasing ---------- */
+
+  NT.educationLevel = function (id) {
+    var match = EDUCATION_LEVELS.filter(function (item) { return item.id === id; })[0];
+    return match || null;
+  };
+
+  NT.semesterLabel = function (semester) {
+    return Number(semester) === 2 ? "Semester 2" : "Semester 1";
+  };
+
+  NT.semesterShort = function (semester) {
+    return Number(semester) === 2 ? "S2" : "S1";
+  };
+
+  NT.pathwayIcon = function (educationLevelId) {
+    return educationLevelId === "high-school" ? "book-open" : "graduation-cap";
+  };
+
+  /* One-line context used across cards, crumbs and the admin forms. */
+  NT.contextLine = function (parts) {
+    return (parts || []).filter(Boolean).join(" · ");
+  };
+
+  NT.courseContext = function (course) {
+    if (!course) return "";
+    return NT.contextLine([course.universityName, NT.semesterLabel(course.semester), course.code]);
+  };
+
+  NT.videoContext = function (video) {
+    if (!video) return "";
+    return NT.contextLine([video.universityShort || video.universityName, NT.semesterLabel(video.semester), video.courseTitle]);
   };
 })();

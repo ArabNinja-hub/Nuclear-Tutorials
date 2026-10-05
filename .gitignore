@@ -1,0 +1,20 @@
+# Runtime database (created and seeded on first run)
+server/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Local environment (never commit credentials or host settings)
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

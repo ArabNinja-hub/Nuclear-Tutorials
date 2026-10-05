@@ -1,337 +1,1118 @@
 /* ============================================================
-   NUCLEAR TUTORIALS — Local preview configuration
-   This page has no authentication or backend; edits stay in this browser.
+   NUCLEAR TUTORIALS — Administration
+   Sign-in gate + catalogue management (universities, semesters,
+   courses, video lessons, codes, announcements, settings).
+
+   Every change goes to the server API, so students on other
+   devices see it immediately.
    ============================================================ */
 (function () {
   var D = NT.data;
+  var root = document.getElementById("adminRoot");
+
   var NAV = [
-    { id: "home", label: "Overview", href: "index.html", icon: "layout-dashboard", group: "Overview" },
-    { id: "courses", label: "Courses", href: "courses.html", icon: "book-open", group: "Catalogue" },
-    { id: "lessons", label: "Lesson access", href: "lessons.html", icon: "lock", group: "Catalogue" },
-    { id: "announcements", label: "Announcements", href: "announcements.html", icon: "bell", group: "Catalogue" },
-    { id: "packages", label: "Access packages", href: "packages.html", icon: "layers", group: "Access" },
-    { id: "codes", label: "Access codes", href: "codes.html", icon: "key", group: "Access" },
-    { id: "settings", label: "Settings", href: "settings.html", icon: "settings", group: "System" }
+    { route: "home", href: "index.html", label: "Overview", icon: "layout-dashboard" },
+    { route: "courses", href: "courses.html", label: "Universities & courses", icon: "building" },
+    { route: "lessons", href: "lessons.html", label: "Video lessons", icon: "video" },
+    { route: "codes", href: "codes.html", label: "Access codes", icon: "key" },
+    { route: "announcements", href: "announcements.html", label: "Announcements", icon: "bell" },
+    { route: "packages", href: "packages.html", label: "Packages", icon: "layers" },
+    { route: "settings", href: "settings.html", label: "Settings", icon: "settings" }
   ];
+
+  /* Icons offered when creating a course. Kept next to the icon set so the
+     library check can confirm every option exists. */
+  var ICON_CHOICES = ["book-open", "calculator", "atom", "code", "sigma", "flask-conical", "microscope", "chart-line", "cpu", "leaf"];
+
   var TITLES = {
-    home: "Overview",
-    courses: "Courses",
-    lessons: "Lesson access",
-    announcements: "Announcements",
-    packages: "Access packages",
-    codes: "Access codes",
-    settings: "Settings"
+    home: { title: "Overview", sub: "Catalogue activity and quick actions" },
+    courses: { title: "Universities & courses", sub: "Organise the catalogue by institution and semester" },
+    lessons: { title: "Video lessons", sub: "Add, order, publish and edit lessons inside a course" },
+    codes: { title: "Access codes", sub: "Issue and manage student access" },
+    announcements: { title: "Announcements", sub: "Short updates shown to students" },
+    packages: { title: "Access packages", sub: "Names, prices and what each package includes" },
+    settings: { title: "Settings", sub: "Support contact, access period and administrator password" }
   };
 
-  function renderShell() {
-    var page = document.body.dataset.admin || "home";
-    var sidebar = document.createElement("aside");
-    sidebar.className = "admin-side";
-    sidebar.id = "adminSide";
-    sidebar.innerHTML =
-      '<div class="side-brand"><a class="brand" href="index.html">' + NT.logoImg("brand-logo") +
-      '<span><span class="brand-name">Nuclear <span>Tutorials</span></span><span class="brand-sub">Preview settings</span></span></a></div>' +
-      '<nav class="side-nav">' + NAV.map(function (item, index) {
-        var heading = index === 0 || NAV[index - 1].group !== item.group
-          ? '<span class="side-label">' + NT.esc(item.group) + "</span>" : "";
-        return heading + '<a href="' + item.href + '" class="' + (page === item.id ? "active" : "") + '"' +
-          (page === item.id ? ' aria-current="page"' : "") + ">" + NT.icon(item.icon) + NT.esc(item.label) + "</a>";
-      }).join("") +
-      '<span class="side-label">Public site</span><a href="../index.html">' + NT.icon("external") + "View public site</a></nav>";
-    document.body.prepend(sidebar);
+  /* ------------------------------------------------------------ shell */
 
-    var main = document.createElement("div");
-    main.className = "admin-main";
-    main.innerHTML =
-      '<a class="skip-link" href="#adminContent">Skip to preview settings</a>' +
-      '<div class="admin-top"><button class="admin-burger" id="admBurger" type="button" aria-label="Open settings menu" aria-controls="adminSide" aria-expanded="false">' + NT.icon("menu") + "</button>" +
-      '<div><div class="crumb">Preview settings</div><h1>' + NT.esc(TITLES[page] || "Overview") + "</h1></div>" +
-      '<div class="spacer"></div><span class="badge badge-warn">' + NT.icon("info") + "Local preview</span>" +
-      '<a class="btn btn-sm btn-secondary" href="../index.html">' + NT.icon("external", "icon-sm") + "Public site</a></div>" +
-      '<main class="admin-content" id="adminContent" tabindex="-1"></main>' +
-      '<div class="admin-foot"><span>Nuclear Tutorials</span><span>Changes are stored in this browser only. This page is not protected by sign-in.</span></div>';
-    document.body.appendChild(main);
-
-    var scrim = document.createElement("div");
-    scrim.className = "scrim-side";
-    document.body.appendChild(scrim);
-    var burger = document.getElementById("admBurger");
-    function setSideOpen(open) {
-      document.body.classList.toggle("side-open", open);
-      burger.setAttribute("aria-expanded", String(open));
-    }
-    burger.addEventListener("click", function () { setSideOpen(!document.body.classList.contains("side-open")); });
-    scrim.addEventListener("click", function () { setSideOpen(false); });
-    document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && document.body.classList.contains("side-open")) setSideOpen(false);
-    });
-    return document.getElementById("adminContent");
-  }
-
-  function badge(status) {
-    var classes = { unused: "badge-outline", redeemed: "badge-warn", published: "badge-success", draft: "badge-warn" };
-    var icons = { unused: "key", redeemed: "check", published: "check-circle", draft: "pencil" };
-    return '<span class="badge ' + (classes[status] || "badge-outline") + '">' + NT.icon(icons[status] || "info") + NT.esc(NT.cap(status || "draft")) + "</span>";
-  }
-
-  function pageHome(root) {
-    root.innerHTML =
-      '<div class="adm-card"><div class="adm-card-head"><h2>Local preview configuration</h2></div>' +
-      '<div class="adm-card-body"><p class="muted">Use these tools to review the catalogue, adjust lesson access and package copy, manage browser-local announcements, or create a preview code. Changes stay on this device; there is no account service, shared database, payment processor, or admin sign-in.</p></div></div>' +
-      '<div class="adm-grid preview-admin-grid">' +
-      '<a class="adm-card admin-action-card" href="courses.html"><span class="admin-action-icon">' + NT.icon("book-open") + "</span><h3>Courses</h3><p>Review the course catalogue.</p></a>" +
-      '<a class="adm-card admin-action-card" href="lessons.html"><span class="admin-action-icon">' + NT.icon("lock") + "</span><h3>Lesson access</h3><p>Set the package level for each lesson.</p></a>" +
-      '<a class="adm-card admin-action-card" href="packages.html"><span class="admin-action-icon">' + NT.icon("layers") + "</span><h3>Access packages</h3><p>Adjust local package labels, copy and preview prices.</p></a>" +
-      '<a class="adm-card admin-action-card" href="codes.html"><span class="admin-action-icon">' + NT.icon("key") + "</span><h3>Access codes</h3><p>Generate codes for this browser preview.</p></a>" +
-      '<a class="adm-card admin-action-card" href="announcements.html"><span class="admin-action-icon">' + NT.icon("bell") + "</span><h3>Announcements</h3><p>Draft or publish a local preview notice.</p></a>" +
-      "</div>";
-  }
-
-  function pageCourses(root) {
-    var rows = D.COURSES.map(function (course) {
-      var lessons = NT.courseLessons(course.id);
-      var counts = { basic: 0, standard: 0, premium: 0 };
-      lessons.forEach(function (lesson) { counts[NT.levelOf(lesson)]++; });
-      var pathways = NT.coursePathways(course).map(function (path) {
-        return NT.pathwayLabel(path);
-      }).filter(Boolean).join(", ") || "Not specified";
-      return '<tr><td class="td-strong" data-label="Course"><a href="../course.html?id=' + encodeURIComponent(course.id) + '">' + NT.esc(course.title) + "</a></td>" +
-        '<td data-label="Education level">' + NT.esc(pathways) + "</td>" +
-        '<td data-label="Lessons">' + lessons.length + '</td>' +
-        '<td data-label="Basic">' + counts.basic + '</td><td data-label="Standard">' + counts.standard + '</td>' +
-        '<td data-label="Premium">' + counts.premium + "</td></tr>";
+  function shell(route, content, actions) {
+    var meta = TITLES[route] || TITLES.home;
+    var navMarkup = NAV.map(function (item) {
+      var active = item.route === route;
+      return '<a class="adm-nav-link' + (active ? " active" : "") + '" href="' + item.href + '"' +
+        (active ? ' aria-current="page"' : "") + ">" + NT.icon(item.icon) + "<span>" + item.label + "</span></a>";
     }).join("");
-    root.innerHTML = '<div class="adm-toolbar"><p class="muted small">Course descriptions and lesson titles are configured in the catalogue.</p></div>' +
-      '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Course</th><th>Education level</th><th>Lessons</th><th>Basic</th><th>Standard</th><th>Premium</th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+
+    root.innerHTML =
+      '<div class="adm-shell">' +
+      '<div class="adm-scrim" id="admScrim" hidden></div>' +
+      '<aside class="adm-side" id="admSide" aria-label="Administration">' +
+      '<a class="adm-brand" href="../index.html">' +
+      '<img src="../assets/img/logo.jpg" alt="" width="34" height="34">' +
+      '<span><b>Nuclear Tutorials</b><small>Administration</small></span></a>' +
+      '<nav class="adm-nav">' + navMarkup + "</nav>" +
+      '<div class="adm-side-foot">' +
+      '<a class="adm-nav-link" href="../index.html" target="_blank" rel="noopener">' + NT.icon("external") + "<span>View student site</span></a>" +
+      '<button class="adm-nav-link" type="button" id="admLogout">' + NT.icon("log-out") + "<span>Sign out</span></button>" +
+      "</div></aside>" +
+      '<div class="adm-main">' +
+      '<header class="adm-topbar">' +
+      '<button class="adm-burger" type="button" id="admBurger" aria-label="Open administration menu" aria-expanded="false">' +
+      NT.icon("menu") + "</button>" +
+      "<div><h1>" + meta.title + "</h1><p>" + meta.sub + "</p></div>" +
+      '<div class="adm-topbar-actions">' + (actions || "") + "</div>" +
+      "</header>" +
+      '<div class="adm-content" id="admContent">' + content + "</div></div></div>";
+
+    var burger = document.getElementById("admBurger");
+    var side = document.getElementById("admSide");
+    var scrim = document.getElementById("admScrim");
+    function close() { document.body.classList.remove("side-open"); scrim.hidden = true; burger.setAttribute("aria-expanded", "false"); }
+    burger.addEventListener("click", function () {
+      var open = document.body.classList.toggle("side-open");
+      scrim.hidden = !open;
+      burger.setAttribute("aria-expanded", String(open));
+    });
+    scrim.addEventListener("click", close);
+    side.querySelectorAll("a").forEach(function (link) { link.addEventListener("click", close); });
+
+    document.getElementById("admLogout").addEventListener("click", function () {
+      NT.api.admin.logout().then(function () {
+        location.href = "login.html";
+      }, function () {
+        location.href = "login.html";
+      });
+    });
   }
 
-  function pageLessons(root) {
-    function render() {
-      var query = (root.querySelector("#lessonSearch") || {}).value || "";
-      var courseId = (root.querySelector("#lessonCourse") || {}).value || "";
-      query = query.trim().toLowerCase();
-      var lessons = NT.allLessons().filter(function (lesson) {
-        if (courseId && lesson.courseId !== courseId) return false;
-        return !query || (lesson.title + " " + lesson.courseTitle).toLowerCase().indexOf(query) !== -1;
-      });
-      root.innerHTML =
-        '<div class="adm-toolbar"><div class="search">' + NT.icon("search") + '<input class="input" id="lessonSearch" type="search" aria-label="Search lessons" placeholder="Search lessons" value="' + NT.esc(query) + '"></div>' +
-        '<select class="input" id="lessonCourse" aria-label="Filter by course"><option value="">All courses</option>' +
-        D.COURSES.map(function (course) { return '<option value="' + course.id + '"' + (courseId === course.id ? " selected" : "") + ">" + NT.esc(course.title) + "</option>"; }).join("") +
-        "</select><span class='spacer'></span><span class='badge badge-brand'>" + lessons.length + " lessons</span></div>" +
-        '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Lesson</th><th>Course</th><th>Package level</th></tr></thead><tbody>' +
-        (lessons.length ? lessons.map(function (lesson) {
-          return '<tr><td class="td-strong" data-label="Lesson">' + NT.esc(lesson.title) + "</td>" +
-            '<td data-label="Course">' + NT.esc(lesson.courseTitle) + "</td>" +
-            '<td data-label="Package level"><label class="sr-only" for="level-' + NT.esc(lesson.id) + '">Package level for ' + NT.esc(lesson.title) + "</label>" +
-            '<select class="lvl-select" id="level-' + NT.esc(lesson.id) + '" data-lesson="' + NT.esc(lesson.id) + '">' +
-            D.LEVELS.map(function (level) { return '<option value="' + level + '"' + (NT.levelOf(lesson) === level ? " selected" : "") + ">" + D.LEVEL_LABEL[level] + "</option>"; }).join("") +
-            "</select></td></tr>";
-        }).join("") : '<tr><td colspan="3" class="muted">No lessons match this search.</td></tr>') +
-        "</tbody></table></div>";
-      root.querySelector("#lessonSearch").addEventListener("input", render);
-      root.querySelector("#lessonCourse").addEventListener("change", render);
-      root.querySelectorAll("[data-lesson]").forEach(function (select) {
-        select.addEventListener("change", function () {
-          var id = select.dataset.lesson;
-          NT.store.mutate(function (state) { state.lessonLevels[id] = select.value; });
-          NT.toast("Lesson access updated", "success");
-          render();
-        });
-      });
-    }
-    render();
+  function loading(label) {
+    return '<div class="adm-loading"><span class="adm-spin" aria-hidden="true"></span><p>' +
+      NT.esc(label || "Loading from the server…") + "</p></div>";
   }
 
-  function pagePackages(root) {
-    function render() {
-      var counts = NT.counts();
-      root.innerHTML = '<div class="adm-toolbar"><p class="muted small">Preview prices only. No payment provider is connected.</p></div>' +
-        '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Package</th><th>Preview price</th><th>Lessons included</th><th>Summary</th><th></th></tr></thead><tbody>' +
-        D.LEVELS.map(function (level) {
-          var details = NT.packageDetails(level);
-          return '<tr><td data-label="Package">' + NT.levelBadge(level) + '<small class="package-admin-name">' + NT.esc(details.name) + "</small></td>" +
-            '<td data-label="Preview price"><b>' + NT.kwacha(NT.packagePrice(level)) + "</b></td>" +
-            '<td data-label="Lessons included">' + NT.availableFor(level) + " of " + counts.total + "</td>" +
-            '<td data-label="Summary"><span class="small muted">' + NT.esc(details.features.join(" · ")) + "</span></td>" +
-            '<td data-label="Edit"><button class="btn btn-sm btn-secondary" type="button" data-edit="' + level + '">' + NT.icon("pencil", "icon-sm") + "Edit</button></td></tr>";
-        }).join("") +
-        "</tbody></table></div>";
-      root.querySelectorAll("[data-edit]").forEach(function (button) {
-        button.addEventListener("click", function () { editPackage(button.dataset.edit); });
-      });
-    }
-
-    function editPackage(level) {
-      var details = NT.packageDetails(level);
-      var modal = NT.modal({
-        title: "Edit " + details.name + " package",
-        body: '<div class="settings-form"><div class="field"><label for="packageName">Package name</label><input class="input" id="packageName" maxlength="40" value="' + NT.esc(details.name) + '"></div>' +
-          '<div class="field"><label for="packagePrice">Preview price (K)</label><input class="input" id="packagePrice" type="number" min="0" value="' + NT.packagePrice(level) + '"></div>' +
-          '<div class="field"><label for="packageFeatures">What is included</label><textarea class="input" id="packageFeatures" rows="3">' + NT.esc(details.features.join("\n")) + '</textarea><span class="field-hint">Enter one concise item per line.</span></div>' +
-          '<p class="field-hint">Changes apply to this browser preview only.</p></div>',
-        footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="savePackage">Save changes</button>'
-      });
-      modal.querySelector("#savePackage").addEventListener("click", function () {
-        var name = modal.querySelector("#packageName").value.trim();
-        var price = Number(modal.querySelector("#packagePrice").value);
-        if (!name || !Number.isFinite(price) || price < 0) {
-          NT.toast("Enter a package name and valid preview price", "error");
-          return;
-        }
-        var features = modal.querySelector("#packageFeatures").value.split("\n").map(function (item) { return item.trim(); }).filter(Boolean);
-        NT.store.mutate(function (state) {
-          state.packages[level] = price;
-          state.packageDetails[level] = Object.assign({}, state.packageDetails[level] || {}, { name: name, features: features });
-        });
-        modal.close();
-        NT.toast("Package preview updated", "success");
-        render();
-      });
-    }
-    render();
+  function fail(host, error, retry) {
+    var message = error && error.status === 401
+      ? "Your administrator session expired. Sign in again."
+      : (error && error.message) || "Something went wrong.";
+    host.innerHTML = '<div class="adm-empty"><span class="empty-icon">' + NT.icon("circle-alert", "icon-lg") + "</span>" +
+      "<h2>Could not load this page</h2><p>" + NT.esc(message) + "</p></div>";
+    if (error && error.status === 401) window.setTimeout(function () { location.href = "login.html"; }, 1200);
+    if (retry) NT.toast(message, "error");
   }
 
-  function pageCodes(root) {
-    function render() {
-      var codes = NT.store.get().codes;
-      root.innerHTML = '<div class="adm-card code-admin-card"><div class="adm-card-head"><div><h2>Generate a preview code</h2><span class="sub">Codes created here can be redeemed on this device only.</span></div></div>' +
-        '<div class="adm-card-body"><div class="codegen"><div class="field"><label for="codePackage">Package</label><select class="input" id="codePackage">' +
-        D.LEVELS.map(function (level) { return '<option value="' + level + '">' + D.LEVEL_LABEL[level] + "</option>"; }).join("") +
-        '</select></div><button class="btn btn-primary" type="button" id="generateAdminCode">' + NT.icon("key") + "Generate code</button></div></div></div>" +
-        (codes.length ? '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Code</th><th>Package</th><th>Status</th><th>Created</th></tr></thead><tbody>' +
-          codes.map(function (record) {
-            return '<tr><td data-label="Code" class="mono td-strong">' + NT.esc(record.code) + "</td>" +
-              '<td data-label="Package">' + NT.levelBadge(record.pkg) + "</td>" +
-              '<td data-label="Status">' + badge(record.status) + "</td>" +
-              '<td data-label="Created">' + NT.fmtDate(record.created) + "</td></tr>";
-          }).join("") + "</tbody></table></div>" : '<div class="adm-card"><div class="adm-card-body"><p class="muted">No preview codes have been generated in this browser.</p></div></div>');
-      root.querySelector("#generateAdminCode").addEventListener("click", function () {
-        var packageId = root.querySelector("#codePackage").value;
-        var code;
-        do { code = NT.store.genCode(packageId); } while (NT.store.findCode(code));
-        NT.store.addCode(code, packageId, "unused");
-        NT.toast("Preview code generated", "success");
-        render();
-      });
-    }
-    render();
+  function option(value, label, current) {
+    return '<option value="' + NT.esc(value) + '"' + (String(current) === String(value) ? " selected" : "") + ">" + NT.esc(label) + "</option>";
   }
 
-  function pageAnnouncements(root) {
-    function render() {
-      var notices = NT.store.get().announcements.slice().sort(function (a, b) {
-        return new Date(b.updated || b.created || 0) - new Date(a.updated || a.created || 0);
-      });
-      root.innerHTML = '<div class="adm-toolbar"><p class="muted small">Announcements are stored in this browser and are not shared to other visitors.</p></div>' +
-        '<section class="adm-card"><div class="adm-card-head"><h2>New announcement</h2></div><div class="adm-card-body"><form id="announcementForm" class="settings-form">' +
-        '<div class="field"><label for="announcementTitle">Title</label><input class="input" id="announcementTitle" maxlength="120" required></div>' +
-        '<div class="field"><label for="announcementBody">Message</label><textarea class="input" id="announcementBody" rows="4" maxlength="1200" required></textarea></div>' +
-        '<div class="field"><label for="announcementStatus">Status</label><select class="input" id="announcementStatus"><option value="draft">Draft</option><option value="published">Published</option></select></div>' +
-        '<button class="btn btn-primary" type="submit">' + NT.icon("plus") + "Save announcement</button></form></div></section>" +
-        '<section class="adm-card announcement-admin-list-card"><div class="adm-card-head"><h2>Saved announcements</h2></div><div class="adm-card-body"><div class="announcement-admin-list">' +
-        (notices.length ? notices.map(function (notice) {
-          return '<article class="announcement-admin-item"><div><div class="announcement-admin-meta">' + badge(notice.status) + "<span>" + NT.fmtDate(notice.updated || notice.created) + "</span></div>" +
-            '<h3>' + NT.esc(notice.title) + '</h3><p>' + NT.esc(notice.body) + "</p></div>" +
-            '<div class="announcement-admin-actions"><select class="input" aria-label="Status for ' + NT.esc(notice.title) + '" data-status="' + NT.esc(notice.id) + '"><option value="draft"' + (notice.status === "draft" ? " selected" : "") + '>Draft</option><option value="published"' + (notice.status === "published" ? " selected" : "") + '>Published</option></select>' +
-            '<button class="btn btn-sm btn-secondary" type="button" data-edit="' + NT.esc(notice.id) + '">Edit</button>' +
-            '<button class="btn btn-sm btn-danger-soft" type="button" data-delete="' + NT.esc(notice.id) + '">Delete</button></div></article>';
-        }).join("") : '<p class="muted">No announcements have been created.</p>') +
-        "</div></div></section>";
-
-      root.querySelector("#announcementForm").addEventListener("submit", function (event) {
-        event.preventDefault();
-        var title = root.querySelector("#announcementTitle").value.trim();
-        var body = root.querySelector("#announcementBody").value.trim();
-        if (!title || !body) return;
-        NT.store.addAnnouncement({ title: title, body: body, status: root.querySelector("#announcementStatus").value, updated: new Date().toISOString() });
-        NT.toast("Announcement saved locally", "success");
-        render();
-      });
-      root.querySelectorAll("[data-status]").forEach(function (select) {
-        select.addEventListener("change", function () {
-          NT.store.updateAnnouncement(select.dataset.status, { status: select.value, updated: new Date().toISOString() });
-          render();
-        });
-      });
-      root.querySelectorAll("[data-edit]").forEach(function (button) {
-        button.addEventListener("click", function () { editAnnouncement(button.dataset.edit); });
-      });
-      root.querySelectorAll("[data-delete]").forEach(function (button) {
-        button.addEventListener("click", function () {
-          NT.store.removeAnnouncement(button.dataset.delete);
-          NT.toast("Announcement deleted", "success");
-          render();
-        });
-      });
-    }
-
-    function editAnnouncement(id) {
-      var notice = NT.store.get().announcements.filter(function (item) { return String(item.id) === String(id); })[0];
-      if (!notice) return;
-      var modal = NT.modal({
-        title: "Edit announcement",
-        body: '<div class="settings-form"><div class="field"><label for="editTitle">Title</label><input class="input" id="editTitle" maxlength="120" value="' + NT.esc(notice.title) + '"></div>' +
-          '<div class="field"><label for="editBody">Message</label><textarea class="input" id="editBody" rows="5" maxlength="1200">' + NT.esc(notice.body) + '</textarea></div></div>',
-        footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="saveEdit">Save changes</button>'
-      });
-      modal.querySelector("#saveEdit").addEventListener("click", function () {
-        var title = modal.querySelector("#editTitle").value.trim();
-        var body = modal.querySelector("#editBody").value.trim();
-        if (!title || !body) return;
-        NT.store.updateAnnouncement(id, { title: title, body: body, updated: new Date().toISOString() });
-        modal.close();
-        render();
-      });
-    }
-    render();
+  function levelOptions(current) {
+    return D.LEVELS.map(function (level) { return option(level, D.LEVEL_LABEL[level], current); }).join("");
   }
 
-  function pageSettings(root) {
-    var settings = NT.store.get().settings;
-    root.innerHTML = '<section class="adm-card"><div class="adm-card-head"><h2>Preview settings</h2></div><div class="adm-card-body">' +
-      '<form id="settingsForm" class="settings-form"><div class="field"><label for="supportEmail">Support email <span class="muted">(optional)</span></label><input class="input" id="supportEmail" type="email" value="' + NT.esc(settings.email) + '"><span class="field-hint">If set, this address appears in the public footer.</span></div>' +
-      '<div class="field"><label for="accessDays">Access period (days)</label><input class="input" id="accessDays" type="number" min="1" value="' + Number(settings.days) + '"></div>' +
-      '<button class="btn btn-primary" type="submit">' + NT.icon("check") + "Save settings</button></form></div></section>" +
-      '<section class="adm-card reset-card"><div class="adm-card-head"><h2>Reset local preview data</h2></div><div class="adm-card-body"><p class="muted">Clears this browser\'s access, generated codes, preferences, announcements, package edits and lesson access overrides.</p>' +
-      '<button class="btn btn-danger-soft" id="resetLocalData">' + NT.icon("rotate") + 'Reset this browser</button></div></section>';
-    root.querySelector("#settingsForm").addEventListener("submit", function (event) {
+  function slugHint(text) {
+    return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  }
+
+  /* Reload the public catalogue so student-facing copy stays in sync. */
+  function refreshCatalogue() {
+    NT.content.reload().catch(function () { /* offline is handled per page */ });
+  }
+
+  /* ------------------------------------------------------------ login */
+
+  function pageLogin() {
+    if (!root) return;
+    document.body.classList.add("adm-login-body");
+    root.innerHTML =
+      '<div class="adm-login">' +
+      '<div class="adm-login-card">' +
+      '<a class="adm-brand adm-brand-center" href="../index.html">' +
+      '<img src="../assets/img/logo.jpg" alt="" width="42" height="42">' +
+      '<span><b>Nuclear Tutorials</b><small>Administration</small></span></a>' +
+      "<h1>Administrator sign-in</h1>" +
+      '<p class="muted">The dashboard manages universities, semesters, courses and video lessons. ' +
+      "Students never see these controls.</p>" +
+      '<form id="admLoginForm" novalidate>' +
+      '<div class="field"><label for="admPassword">Administrator password</label>' +
+      '<input class="input" id="admPassword" name="password" type="password" autocomplete="current-password" ' +
+      'placeholder="Enter your password" required aria-describedby="admLoginHelp"></div>' +
+      '<p class="field-hint" id="admLoginHelp">On a fresh install the first-run password is printed once in the server log. ' +
+      "It must be changed before the catalogue can be managed.</p>" +
+      '<div class="adm-login-message" id="admLoginMessage" aria-live="polite"></div>' +
+      '<button class="btn btn-primary btn-block btn-lg" type="submit" id="admLoginSubmit">' + NT.icon("log-in") + "Sign in</button>" +
+      "</form>" +
+      '<a class="link-arrow adm-login-back" href="../index.html">' + NT.icon("arrow-left", "icon-sm") + "Back to the student site</a>" +
+      "</div></div>";
+
+    var form = document.getElementById("admLoginForm");
+    var message = document.getElementById("admLoginMessage");
+    var submit = document.getElementById("admLoginSubmit");
+    var input = document.getElementById("admPassword");
+
+    NT.api.admin.session().then(function (payload) {
+      if (payload.authenticated) location.replace("index.html");
+    }, function () { /* server unreachable — let the form explain */ });
+
+    form.addEventListener("submit", function (event) {
       event.preventDefault();
-      var email = root.querySelector("#supportEmail").value.trim();
-      var days = parseInt(root.querySelector("#accessDays").value, 10);
-      if ((email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || isNaN(days) || days < 1) {
-        NT.toast("Enter a valid email or leave it blank, and set an access period", "error");
+      var password = input.value;
+      if (!password) {
+        message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div>Enter the administrator password.</div></div>";
+        input.focus();
         return;
       }
-      NT.store.mutate(function (state) { state.settings.email = email; state.settings.days = days; });
-      NT.toast("Preview settings saved", "success");
-    });
-    root.querySelector("#resetLocalData").addEventListener("click", function () {
-      var modal = NT.modal({
-        title: "Reset this browser?",
-        body: "<p class=\"muted\">This clears locally stored access codes, preferences and preview settings.</p>",
-        footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-danger-soft" id="confirmReset">Reset</button>'
-      });
-      modal.querySelector("#confirmReset").addEventListener("click", function () {
-        NT.store.reset();
-        location.reload();
+      submit.disabled = true;
+      NT.api.admin.login(password).then(function (payload) {
+        if (payload && payload.mustChangePassword) {
+          location.href = "settings.html?first-run=1";
+          return;
+        }
+        location.href = NT.qs("next") || "index.html";
+      }, function (error) {
+        submit.disabled = false;
+        var text = error.status === 0 ? "The server is unreachable. Start Nuclear Tutorials and try again." : error.message;
+        message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div>" + NT.esc(text) + "</div></div>";
+        input.select();
       });
     });
   }
 
-  var ROUTES = {
+  /* ------------------------------------------------------------ overview */
+
+  function pageHome() {
+    shell("home", loading(), '<a class="btn btn-primary btn-sm" href="lessons.html">' + NT.icon("plus") + "Add a video lesson</a>");
+    var host = document.getElementById("admContent");
+    NT.api.admin.overview().then(function (payload) {
+      var totals = payload.totals || {};
+      var cards = [
+        { label: "Universities", value: totals.universities, hint: totals.schools + " secondary pathway" },
+        { label: "Courses", value: totals.courses, hint: "Semester 1 and 2" },
+        { label: "Video lessons", value: totals.videos, hint: totals.published + " published · " + totals.drafts + " draft" },
+        { label: "Access codes", value: totals.codes, hint: totals.codesRedeemed + " redeemed" },
+        { label: "Students seen", value: totals.students, hint: totals.views + " progress records" }
+      ];
+      var stats = '<div class="adm-cards">' + cards.map(function (card) {
+        return '<article class="adm-card adm-stat"><span class="adm-stat-value">' + card.value + "</span>" +
+          '<span class="adm-stat-label">' + card.label + "</span>" +
+          '<span class="adm-stat-hint">' + NT.esc(card.hint) + "</span></article>";
+      }).join("") + "</div>";
+
+      var semesters = '<section class="adm-card adm-block"><div class="adm-block-head"><h2>Semester coverage</h2>' +
+        "<p>Lessons are grouped by the semester you selected when adding them.</p></div>" +
+        '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Semester</th><th>Courses</th><th>Video lessons</th><th></th></tr></thead><tbody>' +
+        (payload.semesters || []).map(function (row) {
+          return "<tr><td class='td-strong'>" + NT.esc(NT.semesterLabel(row.semester)) + "</td><td>" + row.courses + "</td><td>" + row.videos + "</td>" +
+            '<td class="adm-row-end"><a class="btn btn-secondary btn-sm" href="lessons.html?semester=' + row.semester + '">Manage lessons</a></td></tr>';
+        }).join("") + "</tbody></table></div></section>";
+
+      var recent = '<section class="adm-card adm-block"><div class="adm-block-head"><h2>Recently added lessons</h2>' +
+        "<p>The latest video lessons in the catalogue, newest first.</p></div>" +
+        (payload.recentVideos && payload.recentVideos.length
+          ? videoTable(payload.recentVideos, { compact: true })
+          : '<div class="adm-empty-inline">No lessons yet. <a href="lessons.html">Add the first one</a>.</div>') + "</section>";
+
+      var universities = '<section class="adm-card adm-block"><div class="adm-block-head"><h2>Your institutions</h2>' +
+        "<p>Each university keeps its own semester and course structure.</p></div>" +
+        '<div class="adm-chip-row">' + (payload.universities || []).map(function (item) {
+          return '<a class="adm-chip" href="courses.html?university=' + encodeURIComponent(item.id) + '">' +
+            NT.icon(item.level === "high-school" ? "book-open" : "building", "icon-sm") +
+            NT.esc(item.name) + "<span>" + item.courseCount + " courses</span></a>";
+        }).join("") + "</div></section>";
+
+      host.innerHTML = stats + semesters + recent + universities;
+    }, function (error) { fail(host, error); });
+  }
+
+  /* ------------------------------------------------------------ universities & courses */
+
+  function pageCourses() {
+    shell("courses", loading());
+    var host = document.getElementById("admContent");
+    var state = { universityId: "", semester: 1 };
+
+    Promise.all([NT.api.admin.universities(), NT.api.admin.courses({})]).then(function (results) {
+      var universities = results[0].universities || [];
+      var courses = results[1].courses || [];
+      var query = NT.qs("university");
+      state.universityId = universities.some(function (item) { return item.id === query; })
+        ? query
+        : (universities[0] ? universities[0].id : "");
+      var semesterQuery = parseInt(NT.qs("semester"), 10);
+      if (semesterQuery === 1 || semesterQuery === 2) state.semester = semesterQuery;
+      else {
+        var first = courses.filter(function (item) { return item.universityId === state.universityId; })[0];
+        if (first) state.semester = first.semester;
+      }
+
+      function coursesOf() {
+        return courses.filter(function (item) { return item.universityId === state.universityId && item.semester === state.semester; });
+      }
+
+      function render() {
+        var university = universities.filter(function (item) { return item.id === state.universityId; })[0];
+        var counts = { 1: 0, 2: 0 };
+        courses.filter(function (item) { return item.universityId === state.universityId; }).forEach(function (item) {
+          counts[item.semester] = (counts[item.semester] || 0) + 1;
+        });
+
+        var institutionPanel = '<section class="adm-card adm-block"><div class="adm-block-head">' +
+          '<div><h2>Universities and schools</h2><p>A course always belongs to one institution and one semester.</p></div>' +
+          '<button class="btn btn-primary btn-sm" type="button" id="addUniversity">' + NT.icon("plus") + "Add institution</button></div>" +
+          '<div class="adm-list">' + universities.map(function (item) {
+            var active = item.id === state.universityId;
+            return '<div class="adm-list-row' + (active ? " is-active" : "") + '">' +
+              '<button class="adm-list-pick" type="button" data-university="' + NT.esc(item.id) + '">' +
+              "<b>" + NT.esc(item.name) + "</b>" +
+              "<span>" + NT.esc(item.level === "high-school" ? "Secondary school pathway" : (item.city || "University")) +
+              " · " + item.courseCount + " courses · " + item.videoCount + " lessons</span></button>" +
+              '<div class="adm-row-actions">' +
+              '<button class="btn btn-ghost btn-sm" type="button" data-edit-university="' + NT.esc(item.id) + '">' + NT.icon("pencil") + "Edit</button>" +
+              '<button class="btn btn-ghost btn-sm adm-danger" type="button" data-delete-university="' + NT.esc(item.id) + '">' + NT.icon("trash") + "</button>" +
+              "</div></div>";
+          }).join("") + "</div></section>";
+
+        var coursePanel = '<section class="adm-card adm-block"><div class="adm-context">' +
+          '<span class="adm-context-label">Editing</span>' +
+          '<span class="adm-context-item">' + NT.icon("building", "icon-sm") + "<b>" + NT.esc(university ? university.name : "No institution") + "</b></span>" +
+          '<span class="adm-context-item">' + NT.icon("calendar", "icon-sm") + "<b>" + NT.esc(NT.semesterLabel(state.semester)) + "</b></span>" +
+          '<span class="adm-context-item">' + NT.icon("book-open", "icon-sm") + "<b>" + counts[state.semester] + " courses</b></span></div>" +
+          '<div class="adm-toolbar"><div class="segmented" role="group" aria-label="Semester being edited">' +
+          [1, 2].map(function (semester) {
+            return '<button type="button" data-semester="' + semester + '" class="' + (state.semester === semester ? "active" : "") + '">' +
+              NT.semesterLabel(semester) + " · " + (counts[semester] || 0) + "</button>";
+          }).join("") + "</div>" +
+          '<button class="btn btn-primary btn-sm" type="button" id="addCourse"' + (university ? "" : " disabled") + ">" +
+          NT.icon("plus") + "Add course</button></div>" +
+          (coursesOf().length
+            ? '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Course</th><th>Code</th><th>Lessons</th><th>Status</th><th></th></tr></thead><tbody>' +
+              coursesOf().map(function (item) {
+                return '<tr><td class="td-strong">' + NT.esc(item.title) + "</td>" +
+                  "<td>" + NT.esc(item.code || "—") + "</td>" +
+                  "<td>" + item.videoCount + "</td>" +
+                  '<td><span class="badge badge-semester">' + NT.esc(NT.semesterLabel(item.semester)) + "</span></td>" +
+                  '<td class="adm-row-end">' +
+                  '<a class="btn btn-secondary btn-sm" href="lessons.html?course=' + encodeURIComponent(item.id) + '">' + NT.icon("video") + "Lessons</a>" +
+                  '<button class="btn btn-ghost btn-sm" type="button" data-edit-course="' + NT.esc(item.id) + '">' + NT.icon("pencil") + "</button>" +
+                  '<button class="btn btn-ghost btn-sm adm-danger" type="button" data-delete-course="' + NT.esc(item.id) + '">' + NT.icon("trash") + "</button>" +
+                  "</td></tr>";
+              }).join("") + "</tbody></table></div>"
+            : '<div class="adm-empty-inline">No courses in ' + NT.esc(NT.semesterLabel(state.semester)) +
+              " for this institution yet. Use “Add course” to create the first one.</div>") +
+          "</section>";
+
+        host.innerHTML = '<div class="adm-grid">' + institutionPanel + coursePanel + "</div>";
+        wireUniversityPanel();
+        wireCoursePanel();
+      }
+
+      function wireUniversityPanel() {
+        host.querySelectorAll("[data-university]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            state.universityId = button.dataset.university;
+            render();
+          });
+        });
+        host.querySelectorAll("[data-edit-university]").forEach(function (button) {
+          button.addEventListener("click", function () { editUniversity(button.dataset.editUniversity); });
+        });
+        host.querySelectorAll("[data-delete-university]").forEach(function (button) {
+          button.addEventListener("click", function () { removeUniversity(button.dataset.deleteUniversity); });
+        });
+        var add = document.getElementById("addUniversity");
+        if (add) add.addEventListener("click", function () { editUniversity(""); });
+      }
+
+      function wireCoursePanel() {
+        host.querySelectorAll("[data-semester]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            state.semester = parseInt(button.dataset.semester, 10);
+            render();
+          });
+        });
+        var add = document.getElementById("addCourse");
+        if (add) add.addEventListener("click", function () { editCourse(""); });
+        host.querySelectorAll("[data-edit-course]").forEach(function (button) {
+          button.addEventListener("click", function () { editCourse(button.dataset.editCourse); });
+        });
+        host.querySelectorAll("[data-delete-course]").forEach(function (button) {
+          button.addEventListener("click", function () { removeCourse(button.dataset.deleteCourse); });
+        });
+      }
+
+      function editUniversity(id) {
+        var existing = universities.filter(function (item) { return item.id === id; })[0] || {};
+        var modal = NT.modal({
+          title: id ? "Edit institution" : "Add an institution",
+          body: '<div class="adm-form">' +
+            '<div class="field"><label for="uName">Institution name</label>' +
+            '<input class="input" id="uName" value="' + NT.esc(existing.name || "") + '" placeholder="e.g. University of Zambia" required></div>' +
+            '<div class="field"><label for="uShort">Short name</label>' +
+            '<input class="input" id="uShort" value="' + NT.esc(existing.shortName || "") + '" placeholder="e.g. UNZA"></div>' +
+            '<div class="adm-form-row">' +
+            '<div class="field"><label for="uLevel">Type</label><select class="input" id="uLevel">' +
+            option("university", "University", existing.level || "university") +
+            option("high-school", "Secondary school pathway", existing.level) + "</select></div>" +
+            '<div class="field"><label for="uCity">City</label><input class="input" id="uCity" value="' + NT.esc(existing.city || "") + '" placeholder="e.g. Lusaka"></div>' +
+            "</div>" +
+            '<div class="field"><label for="uSummary">Summary</label>' +
+            '<textarea class="input" id="uSummary" rows="3" placeholder="One or two sentences shown on the university card.">' + NT.esc(existing.summary || "") + "</textarea></div>" +
+            '<div class="field"><label for="uAccent">Accent colour</label><input class="input" id="uAccent" type="color" value="' +
+            NT.esc(existing.accent || "#0d7ea4") + '"></div></div>',
+          footer: '<button class="btn btn-ghost" data-close>Cancel</button>' +
+            '<button class="btn btn-primary" id="saveUniversity">' + (id ? "Save changes" : "Add institution") + "</button>"
+        });
+        modal.querySelector("#saveUniversity").addEventListener("click", function (event) {
+          var button = event.currentTarget;
+          var body = {
+            name: modal.querySelector("#uName").value.trim(),
+            shortName: modal.querySelector("#uShort").value.trim(),
+            level: modal.querySelector("#uLevel").value,
+            city: modal.querySelector("#uCity").value.trim(),
+            summary: modal.querySelector("#uSummary").value.trim(),
+            accent: modal.querySelector("#uAccent").value
+          };
+          if (!body.name) return NT.toast("Give the institution a name", "error");
+          button.disabled = true;
+          var request = id ? NT.api.admin.updateUniversity(id, body) : NT.api.admin.createUniversity(body);
+          request.then(function (payload) {
+            var saved = payload.university;
+            if (id) {
+              universities = universities.map(function (item) { return item.id === id ? saved : item; });
+            } else {
+              universities.push(saved);
+              state.universityId = saved.id;
+            }
+            NT.toast(id ? "Institution updated" : "Institution added", "success");
+            modal.close();
+            render();
+            refreshCatalogue();
+          }, function (error) {
+            button.disabled = false;
+            NT.toast(error.message, "error");
+          });
+        });
+      }
+
+      function removeUniversity(id) {
+        var item = universities.filter(function (entry) { return entry.id === id; })[0];
+        if (!item) return;
+        var confirm = NT.modal({
+          title: "Delete " + item.name + "?",
+          body: "<p class=\"muted\">This removes the institution, its " + item.courseCount + " courses and " + item.videoCount +
+            " video lessons. Students lose access to them immediately and this cannot be undone.</p>",
+          footer: '<button class="btn btn-ghost" data-close>Keep it</button><button class="btn btn-danger-soft" id="confirmDelete">Delete permanently</button>'
+        });
+        confirm.querySelector("#confirmDelete").addEventListener("click", function () {
+          NT.api.admin.deleteUniversity(id).then(function () {
+            universities = universities.filter(function (entry) { return entry.id !== id; });
+            courses = courses.filter(function (entry) { return entry.universityId !== id; });
+            if (state.universityId === id) state.universityId = universities[0] ? universities[0].id : "";
+            NT.toast("Institution deleted", "success");
+            confirm.close();
+            render();
+            refreshCatalogue();
+          }, function (error) { NT.toast(error.message, "error"); });
+        });
+      }
+
+      function editCourse(id) {
+        var existing = courses.filter(function (item) { return item.id === id; })[0] || {};
+        var university = universities.filter(function (item) { return item.id === state.universityId; })[0];
+        var modal = NT.modal({
+          title: id ? "Edit course" : "Add a course",
+          body: '<div class="adm-context adm-context-inline">' +
+            '<span class="adm-context-item">' + NT.icon("building", "icon-sm") + "<b>" + NT.esc(university ? university.name : "") + "</b></span>" +
+            '<span class="adm-context-item">' + NT.icon("calendar", "icon-sm") + "<b>" + NT.esc(NT.semesterLabel(state.semester)) + "</b></span></div>" +
+            '<div class="adm-form">' +
+            '<div class="field"><label for="cTitle">Course title</label>' +
+            '<input class="input" id="cTitle" value="' + NT.esc(existing.title || "") + '" placeholder="e.g. Mathematics I" required></div>' +
+            '<div class="field"><label for="cCode">Course code</label>' +
+            '<input class="input" id="cCode" value="' + NT.esc(existing.code || "") + '" placeholder="e.g. MTH 1010"></div>' +
+            '<div class="field"><label for="cDesc">Description</label>' +
+            '<textarea class="input" id="cDesc" rows="3" placeholder="What the course covers.">' + NT.esc(existing.description || "") + "</textarea></div>" +
+            '<div class="adm-form-row">' +
+            '<div class="field"><label for="cIcon">Icon</label><select class="input" id="cIcon">' +
+            ICON_CHOICES.map(function (name) { return option(name, name, existing.icon || "book-open"); }).join("") + "</select></div>" +
+            '<div class="field"><label for="cTint">Card tint</label><input class="input" id="cTint" type="color" value="' +
+            NT.esc(existing.tint || "#e8f6fb") + '"></div>' +
+            "</div></div>",
+          footer: '<button class="btn btn-ghost" data-close>Cancel</button>' +
+            '<button class="btn btn-primary" id="saveCourse">' + (id ? "Save changes" : "Add course") + "</button>"
+        });
+        modal.querySelector("#saveCourse").addEventListener("click", function (event) {
+          var button = event.currentTarget;
+          var body = {
+            universityId: state.universityId,
+            semester: state.semester,
+            title: modal.querySelector("#cTitle").value.trim(),
+            code: modal.querySelector("#cCode").value.trim(),
+            description: modal.querySelector("#cDesc").value.trim(),
+            icon: modal.querySelector("#cIcon").value,
+            tint: modal.querySelector("#cTint").value
+          };
+          if (!body.title) return NT.toast("Give the course a title", "error");
+          button.disabled = true;
+          var request = id ? NT.api.admin.updateCourse(id, body) : NT.api.admin.createCourse(body);
+          request.then(function (payload) {
+            if (id) courses = courses.map(function (item) { return item.id === id ? payload.course : item; });
+            else courses.push(payload.course);
+            NT.toast(id ? "Course updated" : "Course added", "success");
+            modal.close();
+            render();
+            refreshCatalogue();
+          }, function (error) {
+            button.disabled = false;
+            NT.toast(error.message, "error");
+          });
+        });
+      }
+
+      function removeCourse(id) {
+        var item = courses.filter(function (entry) { return entry.id === id; })[0];
+        if (!item) return;
+        var confirm = NT.modal({
+          title: "Delete this course?",
+          body: "<p class=\"muted\">" + NT.esc(item.title) + " and its " + item.videoCount +
+            " video lessons are removed from the catalogue. This cannot be undone.</p>",
+          footer: '<button class="btn btn-ghost" data-close>Keep it</button><button class="btn btn-danger-soft" id="confirmDelete">Delete course</button>'
+        });
+        confirm.querySelector("#confirmDelete").addEventListener("click", function () {
+          NT.api.admin.deleteCourse(id).then(function () {
+            courses = courses.filter(function (entry) { return entry.id !== id; });
+            NT.toast("Course deleted", "success");
+            confirm.close();
+            render();
+            refreshCatalogue();
+          }, function (error) { NT.toast(error.message, "error"); });
+        });
+      }
+
+      render();
+    }, function (error) { fail(host, error); });
+  }
+
+  /* ------------------------------------------------------------ video lessons */
+
+  function videoTable(videos, options) {
+    var showCourse = !options || options.showCourse !== false;
+    var rows = videos.map(function (video, index) {
+      var level = video.level || "standard";
+      return "<tr data-video-row=\"" + NT.esc(video.id) + '">' +
+        '<td class="adm-cell-lesson"><div class="adm-lesson-cell"><span class="adm-order">' + (index + 1) + "</span>" +
+        '<div class="adm-lesson-copy"><b>' + NT.esc(video.title) + "</b>" +
+        '<span class="adm-lesson-sub">' + NT.esc(video.topic || "") + "</span>" +
+        (showCourse ? '<span class="adm-lesson-sub">' + NT.esc(video.courseTitle || "") +
+          " · " + NT.esc(NT.semesterLabel(video.semester)) + "</span>" : "") +
+        "</div>" + NT.thumb(video, "sm") + "</div></td>" +
+        '<td><span class="badge badge-' + level + '">' + D.LEVEL_LABEL[level] + "</span></td>" +
+        "<td>" + (video.durationSeconds ? NT.duration(video.durationSeconds) : "—") + "</td>" +
+        "<td>" + (video.published ? '<span class="badge badge-success">Published</span>' : '<span class="badge badge-outline">Draft</span>') + "</td>" +
+        '<td class="adm-row-end">' +
+        '<button class="btn btn-ghost btn-sm" type="button" data-move="up" data-video="' + NT.esc(video.id) + '" aria-label="Move lesson up">' + NT.icon("arrow-up") + "</button>" +
+        '<button class="btn btn-ghost btn-sm" type="button" data-move="down" data-video="' + NT.esc(video.id) + '" aria-label="Move lesson down">' + NT.icon("arrow-down") + "</button>" +
+        '<button class="btn btn-ghost btn-sm" type="button" data-toggle="' + NT.esc(video.id) + '">' +
+        (video.published ? NT.icon("eye-off") + "Unpublish" : NT.icon("eye") + "Publish") + "</button>" +
+        '<button class="btn btn-ghost btn-sm" type="button" data-edit="' + NT.esc(video.id) + '">' + NT.icon("pencil") + "Edit</button>" +
+        '<button class="btn btn-ghost btn-sm adm-danger" type="button" data-delete="' + NT.esc(video.id) + '" aria-label="Delete lesson">' + NT.icon("trash") + "</button>" +
+        "</td></tr>";
+    }).join("");
+    return '<div class="table-wrap"><table class="nt-table adm-lesson-table"><thead><tr>' +
+      "<th>Lesson</th><th>Package</th><th>Duration</th><th>Status</th><th></th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+  }
+
+  function pageLessons() {
+    shell("lessons", loading());
+    var host = document.getElementById("admContent");
+    var state = { universityId: "", semester: 1, courseId: "" };
+
+    NT.api.admin.universities().then(function (payload) {
+      var universities = payload.universities || [];
+      if (!universities.length) {
+        host.innerHTML = '<div class="adm-empty"><h2>No institutions yet</h2>' +
+          "<p>Add a university and a course before adding video lessons.</p>" +
+          '<a class="btn btn-primary" href="courses.html">Go to universities &amp; courses</a></div>';
+        return;
+      }
+      var queryCourse = NT.qs("course");
+      var queryUniversity = NT.qs("university");
+      var querySemester = parseInt(NT.qs("semester"), 10);
+      var chosen = null;
+
+      function pickDefaults() {
+        var institution = universities.filter(function (item) {
+          return item.id === (queryUniversity || "");
+        })[0];
+        if (!institution) {
+          institution = universities.filter(function (item) { return item.videoCount > 0; })[0] || universities[0];
+        }
+        state.universityId = institution.id;
+        state.semester = querySemester === 1 || querySemester === 2 ? querySemester : (state.semester || 1);
+        if (chosen && chosen.universityId === institution.id) {
+          state.semester = chosen.semester;
+          state.courseId = chosen.id;
+        }
+      }
+
+      pickDefaults();
+
+      if (queryCourse) {
+        NT.api.admin.courses({ university: state.universityId }).then(function (result) {
+          var match = (result.courses || []).filter(function (item) { return item.id === queryCourse; })[0];
+          if (match) { chosen = match; state.semester = match.semester; state.courseId = match.id; }
+          render();
+        }, function () { render(); });
+      } else {
+        render();
+      }
+
+      function render() {
+        var university = universities.filter(function (item) { return item.id === state.universityId; })[0];
+        var controls = '<section class="adm-card adm-block"><div class="adm-context">' +
+          '<span class="adm-context-label">Adding lessons to</span>' +
+          '<span class="adm-context-item">' + NT.icon("building", "icon-sm") + "<b>" + NT.esc(university ? university.name : "") + "</b></span>" +
+          '<span class="adm-context-item">' + NT.icon("calendar", "icon-sm") + "<b>" + NT.esc(NT.semesterLabel(state.semester)) + "</b></span>" +
+          '<span class="adm-context-item">' + NT.icon("book-open", "icon-sm") + "<b id=\"admCourseName\">…</b></span></div>" +
+          '<div class="adm-toolbar">' +
+          '<label class="field field-inline"><span class="field-label">University</span><select class="input" id="fUniversity">' +
+          universities.map(function (item) { return option(item.id, item.name, state.universityId); }).join("") + "</select></label>" +
+          '<label class="field field-inline"><span class="field-label">Semester</span><select class="input" id="fSemester">' +
+          option(1, "Semester 1", state.semester) + option(2, "Semester 2", state.semester) + "</select></label>" +
+          '<label class="field field-inline"><span class="field-label">Course</span><select class="input" id="fCourse"></select></label>' +
+          '<label class="field field-inline"><span class="field-label">Status</span><select class="input" id="fStatus">' +
+          option("all", "All lessons", "all") + option("published", "Published only", "") + option("draft", "Drafts only", "") + "</select></label>" +
+          "</div></section>";
+
+        host.innerHTML = controls + '<div id="lessonList">' + loading("Loading lessons…") + "</div>";
+
+        document.getElementById("fUniversity").addEventListener("change", function (event) {
+          state.universityId = event.target.value;
+          state.courseId = "";
+          render();
+        });
+        document.getElementById("fSemester").addEventListener("change", function (event) {
+          state.semester = parseInt(event.target.value, 10);
+          state.courseId = "";
+          render();
+        });
+        document.getElementById("fStatus").addEventListener("change", function () { loadLessons(); });
+
+        NT.api.admin.courses({ university: state.universityId, semester: state.semester }).then(function (result) {
+          var courses = result.courses || [];
+          if (!courses.some(function (item) { return item.id === state.courseId; })) {
+            state.courseId = courses[0] ? courses[0].id : "";
+          }
+          var select = document.getElementById("fCourse");
+          select.innerHTML = courses.length
+            ? courses.map(function (item) { return option(item.id, (item.code ? item.code + " · " : "") + item.title, state.courseId); }).join("")
+            : '<option value="">No courses in this semester</option>';
+          var nameHost = document.getElementById("admCourseName");
+          var current = courses.filter(function (item) { return item.id === state.courseId; })[0];
+          if (nameHost) nameHost.textContent = current ? current.title : "No course selected";
+          select.addEventListener("change", function (event) {
+            state.courseId = event.target.value;
+            var picked = courses.filter(function (item) { return item.id === state.courseId; })[0];
+            if (nameHost) nameHost.textContent = picked ? picked.title : "No course selected";
+            loadLessons();
+          });
+          loadLessons();
+        }, function (error) { fail(document.getElementById("lessonList"), error); });
+      }
+
+      function loadLessons() {
+        var list = document.getElementById("lessonList");
+        if (!state.courseId) {
+          list.innerHTML = '<div class="adm-card adm-block"><div class="adm-empty-inline">Choose a course to manage its video lessons. ' +
+            'If this semester has no courses yet, <a href="courses.html">add a course first</a>.</div></div>';
+          return;
+        }
+        list.innerHTML = loading("Loading video lessons…");
+        var status = document.getElementById("fStatus").value;
+        NT.api.admin.videos({ course: state.courseId, status: status }).then(function (result) {
+          var videos = result.videos || [];
+          list.innerHTML = '<section class="adm-card adm-block"><div class="adm-block-head">' +
+            '<div><h2>Video lessons</h2><p>' + videos.length + " lesson" + (videos.length === 1 ? "" : "s") +
+            " in this course. The list order is the order students see.</p></div>" +
+            '<button class="btn btn-primary btn-sm" type="button" id="addLesson">' + NT.icon("plus") + "Add video lesson</button></div>" +
+            (videos.length ? videoTable(videos, { showCourse: false })
+              : '<div class="adm-empty-inline">No video lessons yet. Use “Add video lesson” to paste a YouTube, Vimeo or MP4 link.</div>') +
+            "</section>";
+
+          document.getElementById("addLesson").addEventListener("click", function () { editLesson(""); });
+          list.querySelectorAll("[data-edit]").forEach(function (button) {
+            button.addEventListener("click", function () { editLesson(button.dataset.edit); });
+          });
+          list.querySelectorAll("[data-delete]").forEach(function (button) {
+            button.addEventListener("click", function () { removeLesson(button.dataset.delete); });
+          });
+          list.querySelectorAll("[data-toggle]").forEach(function (button) {
+            button.addEventListener("click", function () {
+              var id = button.dataset.toggle;
+              var video = videos.filter(function (item) { return item.id === id; })[0];
+              NT.api.admin.updateVideo(id, { published: video.published ? 0 : 1 }).then(function () {
+                NT.toast(video.published ? "Lesson unpublished" : "Lesson published — students can see it now", "success");
+                loadLessons();
+                refreshCatalogue();
+              }, function (error) { NT.toast(error.message, "error"); });
+            });
+          });
+          list.querySelectorAll("[data-move]").forEach(function (button) {
+            button.addEventListener("click", function () {
+              NT.api.admin.moveVideo(button.dataset.video, button.dataset.move).then(function () {
+                loadLessons();
+                refreshCatalogue();
+              }, function (error) { NT.toast(error.message, "error"); });
+            });
+          });
+        }, function (error) { fail(list, error); });
+      }
+
+      function editLesson(id) {
+        var existing = null;
+        if (id) {
+          var rows = host.querySelectorAll("[data-video-row]");
+          for (var index = 0; index < rows.length; index++) {
+            if (rows[index].dataset.videoRow === id) break;
+          }
+        }
+        NT.api.admin.videos({ course: state.courseId }).then(function (result) {
+          existing = (result.videos || []).filter(function (item) { return item.id === id; })[0] || {};
+          var university = universities.filter(function (item) { return item.id === state.universityId; })[0];
+          var courseName = document.getElementById("admCourseName");
+          var modal = NT.modal({
+            size: "lg",
+            title: id ? "Edit video lesson" : "Add a video lesson",
+            body: '<div class="adm-context adm-context-inline">' +
+              '<span class="adm-context-item">' + NT.icon("building", "icon-sm") + "<b>" + NT.esc(university ? university.name : "") + "</b></span>" +
+              '<span class="adm-context-item">' + NT.icon("calendar", "icon-sm") + "<b>" + NT.esc(NT.semesterLabel(state.semester)) + "</b></span>" +
+              '<span class="adm-context-item">' + NT.icon("book-open", "icon-sm") + "<b>" +
+              NT.esc(courseName ? courseName.textContent : "") + "</b></span></div>" +
+              '<div class="adm-form">' +
+              '<div class="field"><label for="vTitle">Lesson title</label>' +
+              '<input class="input" id="vTitle" value="' + NT.esc(existing.title || "") + '" placeholder="e.g. Limits and continuity" required></div>' +
+              '<div class="field"><label for="vTopic">Topic</label>' +
+              '<input class="input" id="vTopic" value="' + NT.esc(existing.topic || "") + '" placeholder="e.g. MIT 18.01 · Lecture 2"></div>' +
+              '<div class="field"><label for="vSource">Video URL</label>' +
+              '<input class="input" id="vSource" value="' + NT.esc(existing.sourceUrl || "") + '" placeholder="https://www.youtube.com/watch?v=…" required>' +
+              '<span class="field-hint">YouTube and Vimeo links play inside the lesson page. The platform detects the provider and thumbnail automatically.</span></div>' +
+              '<div class="adm-form-row">' +
+              '<div class="field"><label for="vLevel">Package level</label><select class="input" id="vLevel">' + levelOptions(existing.level) + "</select></div>" +
+              '<div class="field"><label for="vDuration">Duration</label>' +
+              '<input class="input" id="vDuration" value="' + NT.esc(existing.duration || "") + '" placeholder="e.g. 48:12 or 2892"></div>' +
+              "</div>" +
+              '<div class="field"><label for="vThumb">Thumbnail URL <span class="muted">(optional)</span></label>' +
+              '<input class="input" id="vThumb" value="' + NT.esc(existing.thumbnailUrl || "") + '" placeholder="Leave blank to use the platform thumbnail"></div>' +
+              '<div class="field"><label for="vDesc">Description</label>' +
+              '<textarea class="input" id="vDesc" rows="4" placeholder="What the lesson covers, and any attribution for the video source.">' + NT.esc(existing.description || "") + "</textarea></div>" +
+              '<label class="adm-check"><input type="checkbox" id="vPublished"' + (existing.published === false ? "" : " checked") + ">" +
+              "<span>Published — visible to students immediately</span></label></div>",
+            footer: '<button class="btn btn-ghost" data-close>Cancel</button>' +
+              '<button class="btn btn-primary" id="saveLesson">' + (id ? "Save lesson" : "Add lesson") + "</button>"
+          });
+          modal.querySelector("#saveLesson").addEventListener("click", function (event) {
+            var button = event.currentTarget;
+            var body = {
+              courseId: state.courseId,
+              title: modal.querySelector("#vTitle").value.trim(),
+              topic: modal.querySelector("#vTopic").value.trim(),
+              sourceUrl: modal.querySelector("#vSource").value.trim(),
+              level: modal.querySelector("#vLevel").value,
+              duration: modal.querySelector("#vDuration").value.trim(),
+              thumbnailUrl: modal.querySelector("#vThumb").value.trim(),
+              description: modal.querySelector("#vDesc").value.trim(),
+              published: modal.querySelector("#vPublished").checked ? 1 : 0
+            };
+            if (!body.title) return NT.toast("Give the lesson a title", "error");
+            if (!body.source_url) return NT.toast("Paste the video URL", "error");
+            button.disabled = true;
+            var request = id ? NT.api.admin.updateVideo(id, body) : NT.api.admin.createVideo(body);
+            request.then(function () {
+              NT.toast(id ? "Lesson saved" : "Lesson added", "success");
+              modal.close();
+              loadLessons();
+              refreshCatalogue();
+            }, function (error) {
+              button.disabled = false;
+              NT.toast(error.message, "error");
+            });
+          });
+        }, function (error) { NT.toast(error.message, "error"); });
+      }
+
+      function removeLesson(id) {
+        var confirm = NT.modal({
+          title: "Delete this lesson?",
+          body: "<p class=\"muted\">The video lesson is removed from the course and from student progress. This cannot be undone.</p>",
+          footer: '<button class="btn btn-ghost" data-close>Keep it</button><button class="btn btn-danger-soft" id="confirmDelete">Delete lesson</button>'
+        });
+        confirm.querySelector("#confirmDelete").addEventListener("click", function () {
+          NT.api.admin.deleteVideo(id).then(function () {
+            NT.toast("Lesson deleted", "success");
+            confirm.close();
+            loadLessons();
+            refreshCatalogue();
+          }, function (error) { NT.toast(error.message, "error"); });
+        });
+      }
+    }, function (error) { fail(host, error); });
+  }
+
+  /* ------------------------------------------------------------ codes */
+
+  function pageCodes() {
+    shell("codes", loading());
+    var host = document.getElementById("admContent");
+
+    function load() {
+      host.innerHTML = loading("Loading access codes…");
+      NT.api.admin.codes().then(function (payload) {
+        var codes = payload.codes || [];
+        var unused = codes.filter(function (item) { return item.status === "unused"; }).length;
+        host.innerHTML =
+          '<div class="adm-cards">' +
+          '<article class="adm-card adm-stat"><span class="adm-stat-value">' + codes.length + '</span><span class="adm-stat-label">Codes issued</span></article>' +
+          '<article class="adm-card adm-stat"><span class="adm-stat-value">' + unused + '</span><span class="adm-stat-label">Still unused</span></article>' +
+          '<article class="adm-card adm-stat"><span class="adm-stat-value">' + (codes.length - unused) + '</span><span class="adm-stat-label">Redeemed</span></article>' +
+          "</div>" +
+          '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Issue access codes</h2>' +
+          "<p>Each code works once and is tied to the package you choose.</p></div></div>" +
+          '<div class="adm-toolbar"><label class="field field-inline"><span class="field-label">Package</span>' +
+          '<select class="input" id="codePackage">' + D.LEVELS.map(function (level) {
+            return option(level, D.LEVEL_LABEL[level] + " — " + NT.kwacha(NT.packagePrice(level)), level);
+          }).join("") + "</select></label>" +
+          '<label class="field field-inline"><span class="field-label">How many</span>' +
+          '<input class="input" id="codeCount" type="number" min="1" max="25" value="5"></label>' +
+          '<button class="btn btn-primary btn-sm" type="button" id="issueCodes">' + NT.icon("plus") + "Issue codes</button></div></section>" +
+          '<section class="adm-card adm-block"><div class="adm-block-head"><h2>Issued codes</h2>' +
+          "<p>Codes stay on the server, so they can be redeemed from any device.</p></div>" +
+          (codes.length
+            ? '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Code</th><th>Package</th><th>Status</th><th>Issued</th><th></th></tr></thead><tbody>' +
+              codes.map(function (item) {
+                return '<tr><td class="td-strong mono">' + NT.esc(item.code) + "</td>" +
+                  '<td><span class="badge badge-' + item.package + '">' + D.LEVEL_LABEL[item.package] + "</span></td>" +
+                  '<td>' + (item.status === "redeemed" ? '<span class="badge badge-success">Redeemed</span>' : '<span class="badge badge-outline">Unused</span>') + "</td>" +
+                  "<td>" + NT.fmtDate(item.redeemedAt || item.issuedAt) + "</td>" +
+                  '<td class="adm-row-end"><button class="btn btn-ghost btn-sm adm-danger" type="button" data-delete-code="' + NT.esc(item.code) + '">' +
+                  NT.icon("trash") + "</button></td></tr>";
+              }).join("") + "</tbody></table></div>"
+            : '<div class="adm-empty-inline">No codes issued yet.</div>') + "</section>";
+
+        document.getElementById("issueCodes").addEventListener("click", function (event) {
+          var button = event.currentTarget;
+          var pkg = document.getElementById("codePackage").value;
+          var count = Math.min(Math.max(parseInt(document.getElementById("codeCount").value, 10) || 1, 1), 25);
+          button.disabled = true;
+          NT.api.admin.createCodes(pkg, count).then(function (payload) {
+            button.disabled = false;
+            NT.toast(payload.codes.length + " " + D.LEVEL_LABEL[pkg].toLowerCase() + " code(s) issued", "success");
+            load();
+          }, function (error) {
+            button.disabled = false;
+            NT.toast(error.message, "error");
+          });
+        });
+        host.querySelectorAll("[data-delete-code]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            NT.api.admin.deleteCode(button.dataset.deleteCode).then(function () {
+              NT.toast("Access code removed", "success");
+              load();
+            }, function (error) { NT.toast(error.message, "error"); });
+          });
+        });
+      }, function (error) { fail(host, error); });
+    }
+    load();
+  }
+
+  /* ------------------------------------------------------------ announcements */
+
+  function pageAnnouncements() {
+    shell("announcements", loading(), '<button class="btn btn-primary btn-sm" type="button" id="newAnnouncement">' +
+      NT.icon("plus") + "New announcement</button>");
+    var host = document.getElementById("admContent");
+
+    function load() {
+      host.innerHTML = loading("Loading announcements…");
+      NT.api.admin.announcements().then(function (payload) {
+        var items = payload.announcements || [];
+        host.innerHTML = '<section class="adm-card adm-block"><div class="adm-block-head">' +
+          "<div><h2>Announcements</h2><p>Published announcements appear on the student announcements page and in search.</p></div>" +
+          '<button class="btn btn-primary btn-sm" type="button" id="newAnnouncementInline">' + NT.icon("plus") + "New announcement</button></div>" +
+          (items.length
+            ? '<div class="adm-announcements">' + items.map(function (item) {
+              return '<article class="adm-announcement"><div class="adm-announcement-head">' +
+                "<div><h3>" + NT.esc(item.title) + "</h3><span class=\"muted small\">" + NT.fmtDate(item.updatedAt || item.createdAt) + " · " +
+                (item.status === "published" ? "Published" : "Draft") + "</span></div>" +
+                '<div class="adm-row-actions">' +
+                '<button class="btn btn-ghost btn-sm" type="button" data-edit-announcement="' + NT.esc(item.id) + '">' + NT.icon("pencil") + "Edit</button>" +
+                '<button class="btn btn-ghost btn-sm" type="button" data-status-announcement="' + NT.esc(item.id) + '" data-status="' +
+                (item.status === "published" ? "draft" : "published") + '">' +
+                (item.status === "published" ? NT.icon("eye-off") + "Unpublish" : NT.icon("eye") + "Publish") + "</button>" +
+                '<button class="btn btn-ghost btn-sm adm-danger" type="button" data-delete-announcement="' + NT.esc(item.id) + '">' + NT.icon("trash") + "</button>" +
+                "</div></div><p>" + NT.esc(item.body || "") + "</p></article>";
+            }).join("") + "</div>"
+            : '<div class="adm-empty-inline">No announcements yet. Students see the page once you publish one.</div>') +
+          "</section>";
+
+        function openForm(id) {
+          var existing = items.filter(function (item) { return item.id === id; })[0] || {};
+          var modal = NT.modal({
+            title: id ? "Edit announcement" : "New announcement",
+            body: '<div class="adm-form"><div class="field"><label for="aTitle">Title</label>' +
+              '<input class="input" id="aTitle" value="' + NT.esc(existing.title || "") + '" placeholder="e.g. New Semester 2 lessons published"></div>' +
+              '<div class="field"><label for="aBody">Message</label>' +
+              '<textarea class="input" id="aBody" rows="5" placeholder="Keep it short and useful.">' + NT.esc(existing.body || "") + "</textarea></div>" +
+              '<label class="adm-check"><input type="checkbox" id="aPublished"' + (existing.status === "draft" ? "" : " checked") + ">" +
+              "<span>Publish now</span></label></div>",
+            footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="saveAnnouncement">Save</button>'
+          });
+          modal.querySelector("#saveAnnouncement").addEventListener("click", function (event) {
+            var button = event.currentTarget;
+            var body = {
+              title: modal.querySelector("#aTitle").value.trim(),
+              body: modal.querySelector("#aBody").value.trim(),
+              status: modal.querySelector("#aPublished").checked ? "published" : "draft"
+            };
+            if (body.title.length < 3 || body.body.length < 3) return NT.toast("Add a title and a message", "error");
+            button.disabled = true;
+            var request = id ? NT.api.admin.updateAnnouncement(id, body) : NT.api.admin.createAnnouncement(body);
+            request.then(function () {
+              NT.toast("Announcement saved", "success");
+              modal.close();
+              load();
+            }, function (error) {
+              button.disabled = false;
+              NT.toast(error.message, "error");
+            });
+          });
+        }
+
+        function bindNew() {
+          var newButton = document.getElementById("newAnnouncement");
+          if (newButton) newButton.onclick = function () { openForm(""); };
+          var inline = document.getElementById("newAnnouncementInline");
+          if (inline) inline.onclick = function () { openForm(""); };
+        }
+        bindNew();
+        host.querySelectorAll("[data-edit-announcement]").forEach(function (button) {
+          button.addEventListener("click", function () { openForm(button.dataset.editAnnouncement); });
+        });
+        host.querySelectorAll("[data-status-announcement]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            NT.api.admin.updateAnnouncement(button.dataset.statusAnnouncement, { status: button.dataset.status }).then(function () {
+              NT.toast("Announcement " + button.dataset.status, "success");
+              load();
+            }, function (error) { NT.toast(error.message, "error"); });
+          });
+        });
+        host.querySelectorAll("[data-delete-announcement]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            NT.api.admin.deleteAnnouncement(button.dataset.deleteAnnouncement).then(function () {
+              NT.toast("Announcement deleted", "success");
+              load();
+            }, function (error) { NT.toast(error.message, "error"); });
+          });
+        });
+      }, function (error) { fail(host, error); });
+    }
+    load();
+
+    var header = document.getElementById("newAnnouncement");
+    if (header) header.addEventListener("click", function () {
+      var inline = document.getElementById("newAnnouncementInline");
+      if (inline) inline.click();
+    });
+  }
+
+  /* ------------------------------------------------------------ packages */
+
+  function pagePackages() {
+    shell("packages", loading());
+    var host = document.getElementById("admContent");
+    NT.api.admin.settings().then(function (payload) {
+      var settings = payload.settings || {};
+      var packages = settings.packages || {};
+      var total = NT.counts().total;
+      host.innerHTML = '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Access packages</h2>' +
+        "<p>These names, prices and features are what students see on the pricing page.</p></div></div>" +
+        '<form class="adm-form" id="packagesForm">' +
+        '<div class="adm-form-row"><div class="field"><label for="sAccessDays">Access period (days)</label>' +
+        '<input class="input" id="sAccessDays" type="number" min="1" max="3650" value="' +
+        NT.esc(String(settings.accessDays || NT.accessDays())) + '"></div>' +
+        '<div class="field"><label for="sSupportEmail">Support email</label>' +
+        '<input class="input" id="sSupportEmail" type="email" value="' + NT.esc(settings.supportEmail || "") + '" placeholder="support@example.com"></div></div>' +
+        D.LEVELS.map(function (level) {
+          var pack = packages[level] || {};
+          return '<fieldset class="adm-fieldset"><legend><span class="badge badge-' + level + '">' + D.LEVEL_LABEL[level] +
+            "</span><small>" + NT.availableFor(level) + " of " + total + " lessons included</small></legend>" +
+            '<div class="adm-form-row"><div class="field"><label for="pkg-' + level + '-name">Name</label>' +
+            '<input class="input" id="pkg-' + level + '-name" value="' + NT.esc(pack.name || "") + '"></div>' +
+            '<div class="field"><label for="pkg-' + level + '-price">Price (Kwacha)</label>' +
+            '<input class="input" id="pkg-' + level + '-price" type="number" min="0" value="' + NT.esc(String(pack.price == null ? "" : pack.price)) + '"></div></div>' +
+            '<div class="field"><label for="pkg-' + level + '-tagline">Tagline</label>' +
+            '<input class="input" id="pkg-' + level + '-tagline" value="' + NT.esc(pack.tagline || "") + '"></div>' +
+            '<div class="field"><label for="pkg-' + level + '-features">Feature list <span class="muted">(one per line)</span></label>' +
+            '<textarea class="input" id="pkg-' + level + '-features" rows="3">' + NT.esc((pack.features || []).join("\n")) + "</textarea></div></fieldset>";
+        }).join("") +
+        '<div class="adm-form-actions"><button class="btn btn-primary" type="submit">' + NT.icon("save") + "Save packages</button></div></form></section>";
+
+      document.getElementById("packagesForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var body = {
+          accessDays: parseInt(document.getElementById("sAccessDays").value, 10) || NT.accessDays(),
+          supportEmail: document.getElementById("sSupportEmail").value.trim(),
+          packages: {}
+        };
+        D.LEVELS.forEach(function (level) {
+          body.packages[level] = {
+            name: document.getElementById("pkg-" + level + "-name").value.trim(),
+            price: parseInt(document.getElementById("pkg-" + level + "-price").value, 10) || 0,
+            tagline: document.getElementById("pkg-" + level + "-tagline").value.trim(),
+            features: document.getElementById("pkg-" + level + "-features").value.split("\n").map(function (line) { return line.trim(); }).filter(Boolean)
+          };
+        });
+        var button = event.currentTarget.querySelector('button[type="submit"]');
+        button.disabled = true;
+        NT.api.admin.saveSettings(body).then(function (payload) {
+          button.disabled = false;
+          NT.store.applyServerSettings(payload.settings);
+          NT.toast("Package settings saved", "success");
+          refreshCatalogue();
+        }, function (error) {
+          button.disabled = false;
+          NT.toast(error.message, "error");
+        });
+      });
+    }, function (error) { fail(host, error); });
+  }
+
+  /* ------------------------------------------------------------ settings */
+
+  function pageSettings() {
+    shell("settings", loading());
+    var host = document.getElementById("admContent");
+    NT.api.admin.settings().then(function (payload) {
+      var settings = payload.settings || {};
+      host.innerHTML = '<div class="adm-grid adm-grid-form">' +
+        '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Platform settings</h2>' +
+        "<p>Contact details and how long a redeemed code stays active.</p></div></div>" +
+        '<form class="adm-form" id="settingsForm">' +
+        '<div class="field"><label for="setSupport">Support email</label>' +
+        '<input class="input" id="setSupport" type="email" value="' + NT.esc(settings.supportEmail || "") + '" placeholder="support@example.com"></div>' +
+        '<div class="field"><label for="setDays">Access period (days)</label>' +
+        '<input class="input" id="setDays" type="number" min="1" max="3650" value="' + NT.esc(String(settings.accessDays || NT.accessDays())) + '">' +
+        '<span class="field-hint">Applies to access codes redeemed from now on.</span></div>' +
+        '<div class="adm-form-actions"><button class="btn btn-primary" type="submit">' + NT.icon("save") + "Save settings</button></div>" +
+        "</form></section>" +
+        '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Administrator password</h2>' +
+        "<p>Changing the password signs out every other administrator session.</p></div></div>" +
+        '<div id="passwordBanner"></div>' +
+        '<form class="adm-form" id="passwordForm">' +
+        '<div class="field"><label for="pwCurrent">Current password</label>' +
+        '<input class="input" id="pwCurrent" type="password" autocomplete="current-password"></div>' +
+        '<div class="field"><label for="pwNext">New password</label>' +
+        '<input class="input" id="pwNext" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>' +
+        '<div class="adm-form-actions"><button class="btn btn-secondary" type="submit" id="pwSubmit">' + NT.icon("key") + "Change password</button>" +
+        '<span class="field-hint" id="pwNote"></span></div>' +
+        "</form></section></div>" +
+        '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Data model</h2>' +
+        "<p>Everything students see comes from the server database.</p></div></div>" +
+        '<div class="adm-kv">' +
+        '<div class="row"><span>Structure</span><b>University → Semester 1 or 2 → Course → Video lessons</b></div>' +
+        '<div class="row"><span>Lesson sources</span><b>YouTube, Vimeo or direct MP4 links</b></div>' +
+        '<div class="row"><span>Student progress</span><b>Stored against the access code on the server</b></div>' +
+        "</div></section>";
+
+      document.getElementById("settingsForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var body = {
+          supportEmail: document.getElementById("setSupport").value.trim(),
+          accessDays: parseInt(document.getElementById("setDays").value, 10) || NT.accessDays()
+        };
+        var button = event.currentTarget.querySelector("button");
+        button.disabled = true;
+        NT.api.admin.saveSettings(body).then(function (payload) {
+          button.disabled = false;
+          NT.store.applyServerSettings(payload.settings);
+          NT.toast("Settings saved", "success");
+        }, function (error) {
+          button.disabled = false;
+          NT.toast(error.message, "error");
+        });
+      });
+
+      /* A first-run password must be replaced before the admin API accepts
+         catalogue management, so say so plainly on this page. */
+      function showRotationNotice() {
+        var banner = document.getElementById("passwordBanner");
+        var note = document.getElementById("pwNote");
+        var submit = document.getElementById("pwSubmit");
+        if (!banner) return;
+        banner.innerHTML = '<div class="adm-notice">' + NT.icon("circle-alert") +
+          "<div><b>Change the first-run password.</b> Until you do, catalogue management stays disabled for every " +
+          "administrator session. The password you received from the server log is temporary" +
+          (NT.qs("first-run") ? " — you are here because of it." : ".") + "</div></div>";
+        if (note) note.textContent = "Required before the admin area unlocks.";
+        if (submit) submit.className = "btn btn-primary";
+      }
+      NT.api.admin.session().then(function (payload) {
+        if (payload && payload.mustChangePassword) showRotationNotice();
+      }, function () { /* the page already reported the failure */ });
+
+      document.getElementById("passwordForm").addEventListener("submit", function (event) {
+        event.preventDefault();
+        var current = document.getElementById("pwCurrent").value;
+        var next = document.getElementById("pwNext").value;
+        if (next.length < 8) return NT.toast("Use at least 8 characters for the new password", "error");
+        var button = event.currentTarget.querySelector("button");
+        button.disabled = true;
+        NT.api.admin.changePassword(current, next).then(function () {
+          NT.toast("Password changed. Sign in again.", "success");
+          /* Changing the password clears every session, so sign in again. */
+          window.setTimeout(function () { location.href = "login.html"; }, 900);
+        }, function (error) {
+          button.disabled = false;
+          NT.toast(error.message, "error");
+        });
+      });
+    }, function (error) { fail(host, error); });
+  }
+
+  /* ------------------------------------------------------------ router */
+
+  var routes = {
+    login: pageLogin,
     home: pageHome,
     courses: pageCourses,
     lessons: pageLessons,
+    codes: pageCodes,
     announcements: pageAnnouncements,
     packages: pagePackages,
-    codes: pageCodes,
     settings: pageSettings
   };
 
   document.addEventListener("DOMContentLoaded", function () {
-    var root = renderShell();
-    var route = ROUTES[document.body.dataset.admin || "home"];
-    if (route) route(root);
+    var route = document.body.dataset.admin || "home";
+    var handler = routes[route] || routes.home;
+
+    if (route === "login") {
+      handler();
+      return;
+    }
+
+    root.innerHTML = '<div class="adm-loading"><span class="adm-spin" aria-hidden="true"></span>' +
+      "<p>Checking your administrator session…</p></div>";
+
+    NT.api.admin.session().then(function (payload) {
+      if (!payload || !payload.authenticated) {
+        location.replace("login.html?next=" + encodeURIComponent(route + ".html"));
+        return;
+      }
+      handler();
+    }, function () {
+      root.innerHTML = '<div class="adm-empty"><span class="empty-icon">' + NT.icon("circle-alert", "icon-lg") + "</span>" +
+        "<h1>Administration is offline</h1><p>Start the Nuclear Tutorials server, then reload this page.</p>" +
+        '<div class="empty-actions"><a class="btn btn-primary" href="' + NT.base() + 'index.html">Student site</a>' +
+        '<button class="btn btn-secondary" type="button" onclick="location.reload()">Reload</button></div></div>';
+    });
   });
 })();

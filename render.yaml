@@ -1,0 +1,44 @@
+# ============================================================
+# Nuclear Tutorials — Render deployment
+#
+# The SQLite database must live on a persistent disk, otherwise it
+# is erased on every deploy. The disk below is mounted at /var/data
+# and the app is told to keep its database there through NT_DATA_DIR.
+#
+#   Render dashboard → your service → Disks → mount path /var/data
+#   Environment → NT_DATA_DIR = /var/data
+#
+# Set NT_ADMIN_PASSWORD once (or read the generated first-run password
+# from the service log) and change it in Admin → Settings on first use.
+# ============================================================
+services:
+  - type: web
+    name: nuclear-tutorials
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: NODE_ENV
+        value: production
+      # Persistent storage: the database is written here and survives
+      # restarts, redeploys and new releases.
+      - key: NT_DATA_DIR
+        value: /var/data
+      # Refuse to boot if the database would fall back inside the deploy
+      # directory (which is wiped on every deploy).
+      - key: NT_REQUIRE_PERSISTENT_STORAGE
+        value: "1"
+      # First-run administrator password. sync: false keeps it out of the
+      # repository; set it in the Render dashboard, or remove it and read
+      # the generated password once from the service log.
+      - key: NT_ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: nuclear-tutorials-data
+      mountPath: /var/data
+      sizeGB: 1

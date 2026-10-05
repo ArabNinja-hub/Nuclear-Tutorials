@@ -1,153 +1,169 @@
 /* ============================================================
-   NUCLEAR TUTORIALS — Local preview state
-   Access codes and preferences persist in this browser only.
+   NUCLEAR TUTORIALS — Student state (this device only)
+
+   Only student-owned preferences live here: the access grant redeemed
+   with an access code, plus study preferences such as the level,
+   university and semester the student last chose. Catalogue content
+   and progress always come from the server.
+
+   Access codes, packages, announcements and lesson data used to be
+   stored in this browser; those records now live in the database.
    ============================================================ */
 (function () {
   window.NT = window.NT || {};
-  var KEY = "nt_demo_state_v1";
+  var KEY = "nt_student_state_v2";
+  var LEGACY_KEY = "nt_demo_state_v1";
 
   function defaults() {
     return {
       access: null,
       accessMeta: null,
-      codes: [],
-      lessonLevels: {},
-      announcements: [],
-      profile: { name: "", educationLevel: "", subjectId: "" },
-      packages: { basic: 50, standard: 100, premium: 200 },
-      packageDetails: {},
-      settings: {
-        email: "",
-        days: 30
+      profile: { name: "", educationLevel: "", universityId: "", semester: 0 },
+      settings: { supportEmail: "", accessDays: 180, packages: null }
+    };
+  }
+
+  function cleanProfile(raw) {
+    var profile = raw && typeof raw === "object" ? raw : {};
+    var semester = parseInt(profile.semester, 10);
+    return {
+      name: String(profile.name || "").slice(0, 60),
+      educationLevel: profile.educationLevel === "high-school" || profile.educationLevel === "university"
+        ? profile.educationLevel : "",
+      universityId: String(profile.universityId || "").slice(0, 60),
+      semester: semester === 2 ? 2 : (semester === 1 ? 1 : 0)
+    };
+  }
+
+  function cleanAccess(value, meta) {
+    if (!value) return { access: null, accessMeta: null };
+    var info = meta && typeof meta === "object" ? meta : {};
+    return {
+      access: String(value),
+      accessMeta: {
+        code: String(info.code || "").toUpperCase(),
+        since: String(info.since || ""),
+        expiresAt: String(info.expiresAt || ""),
+        educationLevel: String(info.educationLevel || "")
       }
     };
   }
 
   var cache = null;
 
+  function migrateLegacy(base) {
+    var raw = null;
+    try { raw = localStorage.getItem(LEGACY_KEY); } catch (error) { raw = null; }
+    if (!raw) return base;
+    var parsed = null;
+    try { parsed = JSON.parse(raw); } catch (error) { parsed = null; }
+    if (!parsed || typeof parsed !== "object") return base;
+    /* Keep only what still belongs to the student, and drop the legacy
+       browser-local catalogue data (packages, announcements, lessons). */
+    var carried = cleanAccess(parsed.access, parsed.accessMeta);
+    var profile = cleanProfile(parsed.profile);
+    base.access = carried.access;
+    base.accessMeta = carried.accessMeta;
+    base.profile = profile;
+    if (parsed.settings && typeof parsed.settings === "object") {
+      if (parsed.settings.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsed.settings.email)) {
+        base.settings.supportEmail = String(parsed.settings.email);
+      }
+      var days = parseInt(parsed.settings.days, 10);
+      if (Number.isFinite(days) && days > 0) base.settings.accessDays = days;
+    }
+    try { localStorage.removeItem(LEGACY_KEY); } catch (error) { /* ignore */ }
+    return base;
+  }
+
   function load() {
     if (cache) return cache;
     var base = defaults();
-    try {
-      var raw = localStorage.getItem(KEY);
-      if (raw) {
-        var parsed = JSON.parse(raw) || {};
-        cache = Object.assign(base, parsed);
-        cache.settings = Object.assign({}, base.settings, parsed.settings || {});
-        if (cache.settings.email === "support@nucleartutorials.zm") cache.settings.email = "";
-        delete cache.settings.name;
-        delete cache.settings.currency;
-        cache.packages = Object.assign({}, base.packages, parsed.packages || {});
-        cache.packageDetails = Object.assign({}, parsed.packageDetails || {});
-        cache.profile = {
-          name: String((parsed.profile && parsed.profile.name) || ""),
-          educationLevel: String((parsed.profile && parsed.profile.educationLevel) || ""),
-          subjectId: String((parsed.profile && parsed.profile.subjectId) || "")
-        };
-        var oldAccessMeta = parsed.accessMeta && typeof parsed.accessMeta === "object" ? parsed.accessMeta : null;
-        var oldCode = oldAccessMeta && String(oldAccessMeta.code || "").trim().toUpperCase();
-        var seededCode = /^NT-(BASIC|STANDARD|PREMIUM)-2026$/.test(oldCode || "");
-        var simulatedAccess = oldAccessMeta && (oldAccessMeta.source === "payment" || oldAccessMeta.source === "persona" || oldAccessMeta.method || oldAccessMeta.ref);
-        var discardedCode = seededCode || simulatedAccess ? oldCode : "";
-        if (seededCode || simulatedAccess) {
-          cache.access = null;
-          cache.accessMeta = null;
-        } else if (oldAccessMeta) {
-          cache.accessMeta = {};
-          ["code", "source", "since", "educationLevel"].forEach(function (key) {
-            if (oldAccessMeta[key] != null) cache.accessMeta[key] = String(oldAccessMeta[key]);
-          });
-        } else {
-          cache.accessMeta = null;
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (error) { raw = null; }
+    if (raw) {
+      var parsed = null;
+      try { parsed = JSON.parse(raw); } catch (error) { parsed = null; }
+      if (parsed && typeof parsed === "object") {
+        var carried = cleanAccess(parsed.access, parsed.accessMeta);
+        base.access = carried.access;
+        base.accessMeta = carried.accessMeta;
+        base.profile = cleanProfile(parsed.profile);
+        if (parsed.settings && typeof parsed.settings === "object") {
+          base.settings.supportEmail = String(parsed.settings.supportEmail || "");
+          var days = parseInt(parsed.settings.accessDays, 10);
+          if (Number.isFinite(days) && days > 0) base.settings.accessDays = days;
+          base.settings.packages = parsed.settings.packages || null;
         }
-        cache.codes = (Array.isArray(parsed.codes) ? parsed.codes : []).filter(function (record) {
-          return record && record.code && !record.seeded && String(record.code).toUpperCase() !== discardedCode;
-        });
-        cache.announcements = Array.isArray(parsed.announcements) ? parsed.announcements : [];
-        cache.lessonLevels = parsed.lessonLevels && typeof parsed.lessonLevels === "object"
-          ? parsed.lessonLevels
-          : (parsed.videoLevels && typeof parsed.videoLevels === "object" ? parsed.videoLevels : {});
-        /* Migrate old lesson-access overrides and discard obsolete simulated records. */
-        delete cache.videoLevels;
-        delete cache.payments;
-        delete cache.students;
-        delete cache.completed;
-        delete cache.recentLessons;
-        delete cache.extraLessons;
-        delete cache.extraCourses;
-        delete cache.extraPackages;
-      } else {
-        cache = base;
       }
-    } catch (e) {
-      cache = base;
+    } else {
+      base = migrateLegacy(base);
     }
+    cache = base;
     return cache;
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) { /* private browsing */ }
+    try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (error) { /* private browsing */ }
   }
 
   NT.store = {
     get: function () { return load(); },
     save: save,
     mutate: function (fn) { var state = load(); fn(state); save(); return state; },
-    reset: function () { cache = defaults(); save(); },
+    reset: function () {
+      cache = defaults();
+      save();
+      NT.progress && NT.progress.reset();
+    },
 
-    setAccess: function (level, meta) {
+    accessCode: function () {
+      var state = load();
+      return state.accessMeta && state.accessMeta.code ? state.accessMeta.code : "";
+    },
+    isActive: function () {
+      var state = load();
+      if (!state.access) return false;
+      var expires = state.accessMeta && state.accessMeta.expiresAt;
+      if (!expires) return true;
+      return new Date(expires).getTime() > Date.now();
+    },
+
+    setAccess: function (pkg, meta) {
       NT.store.mutate(function (state) {
-        state.access = level;
-        state.accessMeta = Object.assign({ since: new Date().toISOString() }, meta || {});
+        var carried = cleanAccess(pkg, Object.assign({ since: new Date().toISOString() }, meta || {}));
+        state.access = carried.access;
+        state.accessMeta = carried.accessMeta;
+      });
+      NT.progress && NT.progress.reset();
+    },
+    clearAccess: function () {
+      NT.store.mutate(function (state) { state.access = null; state.accessMeta = null; });
+      NT.progress && NT.progress.reset();
+    },
+
+    setProfile: function (patch) {
+      NT.store.mutate(function (state) {
+        state.profile = cleanProfile(Object.assign({}, state.profile || {}, patch || {}));
+      });
+      return load().profile;
+    },
+
+    /* Public platform settings mirror the server so the footer and the
+       pricing copy match what an administrator saved. */
+    applyServerSettings: function (settings) {
+      if (!settings) return;
+      NT.store.mutate(function (state) {
+        state.settings.supportEmail = String(settings.supportEmail || "");
+        var days = parseInt(settings.accessDays, 10);
+        if (Number.isFinite(days) && days > 0) state.settings.accessDays = days;
+        if (settings.packages) state.settings.packages = settings.packages;
       });
     },
-    findCode: function (code) {
-      var normalized = String(code || "").trim().toUpperCase();
-      return load().codes.filter(function (record) {
-        return String(record.code || "").toUpperCase() === normalized;
-      })[0] || null;
-    },
-    addCode: function (code, pkg, status) {
-      NT.store.mutate(function (state) {
-        state.codes.unshift({
-          code: String(code).toUpperCase(),
-          pkg: pkg,
-          status: status || "unused",
-          created: new Date().toISOString().slice(0, 10)
-        });
-      });
-    },
-    redeemCode: function (code) {
-      NT.store.mutate(function (state) {
-        var record = state.codes.filter(function (item) {
-          return String(item.code || "").toUpperCase() === String(code || "").toUpperCase();
-        })[0];
-        if (record) record.status = "redeemed";
-      });
-    },
-    addAnnouncement: function (announcement) {
-      NT.store.mutate(function (state) {
-        state.announcements.unshift(Object.assign({
-          id: "notice-" + Date.now(),
-          status: "draft",
-          created: new Date().toISOString()
-        }, announcement));
-      });
-    },
-    updateAnnouncement: function (id, updates) {
-      NT.store.mutate(function (state) {
-        var item = state.announcements.filter(function (notice) { return notice.id === id; })[0];
-        if (item) Object.assign(item, updates || {});
-      });
-    },
-    removeAnnouncement: function (id) {
-      NT.store.mutate(function (state) {
-        state.announcements = state.announcements.filter(function (notice) { return notice.id !== id; });
-      });
-    },
-    genCode: function (pkg) {
-      var number = Math.floor(1000 + Math.random() * 9000);
-      return "NT-" + String(pkg || "").toUpperCase() + "-" + number;
+
+    settings: function () {
+      var state = load();
+      return state.settings;
     }
   };
 })();

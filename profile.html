@@ -6,16 +6,17 @@
 <title>Learning Profile — Nuclear Tutorials</title>
 <meta name="description" content="Set the study level and subject used to pre-filter your Nuclear Tutorials course list.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/fonts.css">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="profile">
 
-<main>
+<main id="main" tabindex="-1">
   <section class="page-head">
     <div class="container">
       <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Profile</div>
       <h1>Your learning profile</h1>
-      <p class="lede">Choose a study level and subject to pre-filter course browsing.</p>
+      <p class="lede">Choose your level, university and semester so the catalogue opens in the right place.</p>
     </div>
   </section>
 
@@ -33,15 +34,19 @@
             <select class="input" id="profileEducationLevel" required></select>
           </div>
           <div class="field">
-            <label for="profileSubject">Subject of interest <span class="muted">(optional)</span></label>
-            <select class="input" id="profileSubject"></select>
+            <label for="profileUniversity">University</label>
+            <select class="input" id="profileUniversity"></select>
+          </div>
+          <div class="field">
+            <label for="profileSemester">Semester</label>
+            <select class="input" id="profileSemester"></select>
           </div>
           <div class="profile-form-actions">
             <button class="btn btn-primary" type="submit">Save preferences</button>
             <span id="profileSaveMessage" class="profile-save-message" aria-live="polite"></span>
           </div>
         </form>
-        <p class="profile-note">Preferences are stored in this browser only.</p>
+        <p class="profile-note">Preferences are kept on this device and pre-filter the catalogue. Access codes and progress are handled by the platform server.</p>
       </section>
 
       <aside class="card profile-summary-card">
@@ -56,6 +61,7 @@
 <script src="assets/js/icons.js"></script>
 <script src="assets/js/data.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
 <script src="assets/js/ui.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
