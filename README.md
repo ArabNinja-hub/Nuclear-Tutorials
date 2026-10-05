@@ -97,6 +97,39 @@ The client logo is used as-supplied from `assets/img/logo.jpg` (see
 `assets/img/README.md`). Interface accents are derived from the logo's palette
 (sky-cyan primary, magenta/amber tier accents) on a clean navy/slate base.
 
+## Interface layer
+
+The public UI is one design system (`assets/css/main.css`) plus one admin shell
+(`assets/css/admin.css`); the demo keeps a single visual identity and the same brand
+logo throughout. Recent interface work stayed inside that system:
+
+- **A closed type and radius scale** — the stylesheets keep to one documented
+  ladder (9–16px text, 18/20/22/26px figures, 1.1/1.3/1.6rem headings, plus fluid
+  `clamp()` display sizes) and one radius ladder (6/8/10/12/16/20px, 999px pills).
+  The rules are written at the top of `main.css`; controls share a 42/48px height
+  and a single focus ring, and `admin.css` uses the same type steps, so the console
+  and the public site read off one system.
+- **Education levels are visible in the UI** — the Courses page opens with a pathway
+  selector (All pathways / High School / University) that drives the same
+  *Education level* filter in the refine panel and keeps the URL in step. Course
+  cards, search results and lesson pages identify a course's pathway with a level
+  chip, and the home page pathway cards show catalogue figures instead of
+  placeholders.
+- **Dashboard personalisation** — the optional local learning profile acts as the
+  student's pathway: the dashboard shows it in the header, labels the study plan and
+  lists pathway courses first. Nothing is inferred — an unset profile simply means
+  no pathway emphasis.
+- **Clearer locked states** — library cards name the package a lesson needs and the
+  lesson page keeps its gate, so the paywall stays obvious without exposing media.
+- **Admin console** — the same nine sections, grouped into Overview, Catalogue,
+  Access, Students and System, with the academic model surfaced on the dashboard.
+- **Shared wording** — `NT.pathwayLabel`, `NT.pathwayChip` and `NT.pathwayCounts`
+  in `assets/js/ui.js` are the single source of pathway wording for both the public
+  site and the admin console, so the two can no longer drift apart.
+
+All flows (payment → access package → access code → unlocked content), demo data and
+localStorage state are unchanged.
+
 ## Structure
 
 ```
@@ -104,7 +137,8 @@ index.html  courses.html  resources.html  search.html  announcements.html  profi
 pricing.html  access.html  control.html  library.html  dashboard.html  lesson.html  checkout.html
 admin/        index videos courses announcements packages codes students payments settings
 assets/css/   main.css (design system + public UI), admin.css (console shell)
-assets/js/    icons.js data.js store.js ui.js app.js admin.js
+assets/js/    icons.js data.js store.js ui.js (shared UI + pathway helpers)
+              app.js (public routing) admin.js (console routing)
 assets/img/   logo.jpg (client artwork)
 ```
 

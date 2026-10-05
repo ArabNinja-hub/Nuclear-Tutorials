@@ -24,7 +24,7 @@
         '<ul class="price-feats">' + feats + "</ul>" +
         (current
           ? '<button class="btn btn-secondary btn-block" disabled>' + NT.icon("check-circle") + "Current package</button>"
-          : '<a class="btn ' + (p.popular ? "btn-primary" : "btn-secondary") + ' btn-block" href="' + NT.base() + 'checkout.html?pkg=' + id + '">' + NT.icon("arrow-right") + "Get Access</a>") +
+          : '<a class="btn ' + (p.popular ? "btn-primary" : "btn-secondary") + ' btn-block" href="' + NT.base() + 'checkout.html?pkg=' + id + '">' + NT.icon("arrow-right") + "Get access</a>") +
         "</div>";
     }).join("");
   };
@@ -52,31 +52,23 @@
     return { id: "unlocked", label: "Unlocked", done: 0, unlocked: unlocked.length, total: lessons.length };
   }
 
-  function coursePathwayLabel(path) {
-    if (!path) return "";
-    if (path.educationLevel === "high-school") {
-      var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
-      return "High School" + (grade ? " · " + grade.label + " · " + grade.detail : "");
-    }
-    var university = NT.university(path.universityId);
-    var programme = NT.programme(path.programmeId);
-    return "University" + (university ? " · " + university.name : " · institution not specified") +
-      (programme ? " · " + programme.name + (programme.school ? " · " + programme.school : "") : " · programme / school not specified");
-  }
+  /* Wording for education pathways lives in ui.js so the public site and the
+     admin console cannot drift apart. */
+  function coursePathwayLabel(path) { return NT.pathwayLabel(path); }
 
   NT.renderCourseCard = function (course) {
     var lessons = NT.courseLessons(course.id);
     var prog = courseProgress(course);
     var status = courseAccessState(course);
     var subject = NT.subject(course.subjectId) || { title: course.title };
-    var pathways = NT.coursePathways(course).map(function (path) { return coursePathwayLabel(path); });
+    var pathwayChips = NT.coursePathways(course).map(function (path) { return NT.pathwayChip(path); }).join("");
     var statusIcon = status.id === "locked" ? "lock" : status.id === "completed" ? "circle-check" : status.id === "in-progress" ? "play-circle" : "unlock";
     var accessText = status.id === "locked" ? "Choose a package to unlock lessons" :
       status.unlocked + " of " + status.total + " lessons included";
     return '<article class="card card-hover course-card" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' +
       '<div class="course-card-top"><div class="course-icon">' + NT.icon(course.icon) + "</div>" +
       '<span class="course-state course-state-' + status.id + '">' + NT.icon(statusIcon) + status.label + "</span></div>" +
-      '<div class="course-pathway-tags">' + pathways.map(function (label) { return '<span class="badge badge-outline">' + NT.esc(label) + "</span>"; }).join("") + "</div>" +
+      '<div class="course-pathway-tags">' + pathwayChips + "</div>" +
       '<span class="course-subject">' + NT.esc(subject.title) + " · Subject" + "</span>" +
       "<h3>" + NT.esc(course.title) + "</h3>" +
       '<p class="desc">' + NT.esc(course.desc) + "</p>" +
@@ -111,6 +103,15 @@
     document.getElementById("statLevels").textContent = D.EDUCATION_LEVELS.length;
     document.getElementById("courseGrid").innerHTML = D.COURSES.map(NT.renderCourseCard).join("");
     NT.renderPricingCards(document.getElementById("pricingGrid"));
+    /* Pathway figures come straight from the catalogue — no invented numbers. */
+    D.EDUCATION_LEVELS.forEach(function (level) {
+      var slot = document.getElementById("pathwayMeta-" + level.id);
+      if (!slot) return;
+      var figures = NT.pathwayCounts(level.id);
+      slot.innerHTML = '<span>' + NT.icon("book-open", "icon-sm") + figures.courses + " courses</span>" +
+        '<span>' + NT.icon("play-circle", "icon-sm") + figures.lessons + " tutorial videos</span>" +
+        '<span>' + NT.icon("unlock", "icon-sm") + "Access by package</span>";
+    });
   }
 
   /* ============================ COURSES ============================ */
@@ -166,16 +167,42 @@
       });
     }
 
-    function pathwayText(path) {
-      if (!path) return "High School & University samples";
-      if (path.educationLevel === "high-school") {
-        var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
-        return "High School" + (grade ? " · " + grade.label + " · " + grade.detail : "");
+    /* Prominent pathway (education level) selector. It drives the same
+       #courseEducation filter as the refine panel, so both stay in sync. */
+    var pathwayTabHost = document.getElementById("pathwayTabs");
+    function renderPathwayTabs() {
+      if (!pathwayTabHost) return;
+      /* Keep keyboard focus on the tab the visitor just used. */
+      var focusedPathway = pathwayTabHost.contains(document.activeElement) ? document.activeElement.dataset.pathway : null;
+      var options = [{ id: "", label: "All pathways", icon: "layers" }].concat(D.EDUCATION_LEVELS.map(function (item) {
+        return { id: item.id, label: item.label, icon: NT.pathwayIcon(item.id) };
+      }));
+      pathwayTabHost.innerHTML = options.map(function (option) {
+        var active = (education.value || "") === option.id;
+        var figures = option.id ? NT.pathwayCounts(option.id) : { courses: D.COURSES.length, lessons: NT.allLessons().length };
+        var count = figures.courses + (figures.courses === 1 ? " course" : " courses");
+        return '<button type="button" class="pathway-tab' + (active ? " active" : "") + '" data-pathway="' + option.id + '" aria-pressed="' + active + '"' +
+          ' aria-label="' + NT.esc(option.label + ", " + count) + '">' +
+          NT.icon(option.icon) + "<span>" + NT.esc(option.label) + '</span><span class="count" aria-hidden="true">' + figures.courses + "</span></button>";
+      }).join("");
+      pathwayTabHost.querySelectorAll("[data-pathway]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          education.value = button.dataset.pathway;
+          refreshPathwayControls();
+          render();
+        });
+      });
+      if (focusedPathway !== null) {
+        var refocus = pathwayTabHost.querySelector('[data-pathway="' + focusedPathway + '"]');
+        if (refocus) refocus.focus();
       }
-      var uni = NT.university(path.universityId);
-      var prog = NT.programme(path.programmeId);
-      return "University" + (uni ? " · " + uni.name : " · institution not specified") +
-        (prog ? " · " + prog.name + (prog.school ? " · " + prog.school : "") : " · programme / school not specified");
+    }
+    function syncUrl() {
+      if (!window.history || !window.history.replaceState) return;
+      var url = new URL(window.location.href);
+      if (education.value) url.searchParams.set("level", education.value); else url.searchParams.delete("level");
+      if (subject.value) url.searchParams.set("subject", subject.value); else url.searchParams.delete("subject");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
     }
 
     function courseCard(course, offerings) {
@@ -187,16 +214,17 @@
       var path = education.value ? offerings[0] : null;
       var status = courseAccessState(course);
       var unlockedCount = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); }).length;
-      var pathLabels = path ? [pathwayText(path)] : offerings.map(pathwayText);
+      var pathwayChips = (path ? [path] : offerings).map(function (item) { return NT.pathwayChip(item); }).join("");
       var statusIcon = status.id === "locked" ? "lock" : status.id === "completed" ? "circle-check" : status.id === "in-progress" ? "play-circle" : "unlock";
       var lessonRows = lessons.map(function (lesson) {
         var unlocked = NT.isUnlocked(lesson);
         var done = NT.store.isComplete(lesson.id);
         return '<div class="course-lesson-row">' +
           '<span class="lesson-index">' + String(lesson.index).padStart(2, "0") + '</span>' +
-          '<span class="course-lesson-state" style="--tint:' + course.tint + ';--tint-fg:' + course.tintFg + '">' + NT.icon(done ? "circle-check" : unlocked ? "play" : "lock", "icon-sm") + "</span>" +
+          '<span class="course-lesson-state" style="--tint:' + course.tint + ';--tint-fg:' + course.tintFg + '">' + NT.icon(done ? "circle-check" : unlocked ? "play" : "lock", "icon-sm") +
+          '<span class="sr-only">' + (done ? "Completed" : unlocked ? "Unlocked" : "Locked") + "</span></span>" +
           '<span class="course-lesson-title"><b>' + NT.esc(lesson.title) + '</b><small>' + NT.esc(lesson.duration) + " min · " + D.LEVEL_LABEL[NT.levelOf(lesson)] + " access</small></span>" +
-          (done ? '<span class="badge badge-success">Completed</span>' : unlocked ? '<a class="btn btn-sm btn-secondary" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(lesson.id) + '">Watch</a>' : NT.levelBadge(NT.levelOf(lesson), true)) +
+          (done ? '<span class="badge badge-success">Completed</span>' : unlocked ? '<a class="btn btn-sm btn-secondary" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(lesson.id) + '" aria-label="Watch ' + NT.esc(lesson.title) + '">Watch</a>' : NT.levelBadge(NT.levelOf(lesson), true)) +
           "</div>";
       }).join("");
       var activePackage = NT.store.get().access;
@@ -210,7 +238,7 @@
         '<div class="catalog-card-main">' +
         '<div class="catalog-card-top"><span class="course-icon" style="--tint:' + course.tint + ';--tint-fg:' + course.tintFg + '">' + NT.icon(course.icon) + '</span>' +
         '<span class="course-state course-state-' + status.id + '">' + NT.icon(statusIcon) + status.label + "</span></div>" +
-        '<div class="course-pathway-tags">' + pathLabels.map(function (label) { return '<span class="badge badge-outline">' + NT.icon(label.indexOf("University") === 0 ? "graduation-cap" : "book-open") + NT.esc(label) + "</span>"; }).join("") + "</div>" +
+        '<div class="course-pathway-tags">' + pathwayChips + "</div>" +
         '<span class="course-subject">' + NT.esc(subjectInfo.title) + " · Subject course</span>" +
         '<h2>' + NT.esc(course.title) + '</h2>' +
         '<p class="course-description">' + NT.esc(course.desc) + "</p>" + catalogFacts +
@@ -239,8 +267,12 @@
       wrap.innerHTML = list.length
         ? list.map(function (entry) { return courseCard(entry.course, entry.offerings); }).join("")
         : '<div class="card course-empty"><span class="course-empty-icon">' + NT.icon("search", "icon-lg") + '</span><h2>No courses match these filters</h2><p>Try another subject, education level, university or search term.</p><button class="btn btn-secondary" type="button" id="emptyClear">Clear filters</button></div>';
-      summary.innerHTML = '<span><b>' + list.length + "</b> " + (list.length === 1 ? "course" : "courses") + " found</span>" +
+      var activeLevel = education.value ? NT.educationLevel(education.value) : null;
+      summary.innerHTML = '<span><b>' + list.length + "</b> " + (list.length === 1 ? "course" : "courses") + " found" +
+        (activeLevel ? " · " + NT.esc(activeLevel.label) + " pathway" : "") + "</span>" +
         '<span class="tiny muted">Sample course catalogue · new subjects and programmes can be added over time</span>';
+      renderPathwayTabs();
+      syncUrl();
       var emptyClear = document.getElementById("emptyClear");
       if (emptyClear) emptyClear.addEventListener("click", clearFilters);
     }
@@ -262,6 +294,11 @@
       search.value = "";
       refreshPathwayControls();
       render();
+    }
+
+    var catalogueFacts = document.getElementById("catalogueFacts");
+    if (catalogueFacts) {
+      catalogueFacts.innerHTML = NT.icon("library", "icon-sm") + D.COURSES.length + " sample courses · " + NT.allLessons().length + " tutorial videos";
     }
 
     education.addEventListener("change", function () { refreshPathwayControls(); render(); });
@@ -356,7 +393,7 @@
         '<div class="unlock-result">' +
         '<div class="big-ico">' + NT.icon("unlock", "icon-xl") + "</div>" +
         "<h2>" + D.LEVEL_LABEL[rec.pkg].toUpperCase() + " access unlocked</h2>" +
-        '<p class="videos-line"><b>' + avail + " of " + total + "</b> videos are now available.</p>" +
+        '<p class="videos-line"><b>' + avail + " of " + total + "</b> lessons are now available.</p>" +
         '<div class="row-between" style="justify-content:center;gap:12px;flex-wrap:wrap">' +
         '<a class="btn btn-primary btn-lg" href="' + NT.base() + 'dashboard.html">' + NT.icon("layout-dashboard") + "Go to Dashboard</a>" +
         '<a class="btn btn-secondary btn-lg" href="' + NT.base() + 'library.html">' + NT.icon("library") + "Browse the library</a>" +
@@ -376,7 +413,7 @@
         var ok = D.LEVEL_RANK[level] >= D.LEVEL_RANK[lv];
         var n = NT.allLessons().filter(function (l) { return NT.levelOf(l) === lv; }).length;
         return '<li class="' + (ok ? "ok" : "no") + '">' + NT.icon(ok ? "check-circle" : "lock") +
-          "<span>" + D.LEVEL_LABEL[lv] + " lessons <span class='muted'>(" + n + " videos)</span></span></li>";
+          "<span>" + D.LEVEL_LABEL[lv] + " lessons <span class='muted'>(" + n + " in total)</span></span></li>";
       }).join("");
     }
 
@@ -387,7 +424,7 @@
         var viewing = isPersona && cur === lv;
         return '<div class="card persona-card' + (viewing ? " active-view" : "") + '">' +
           (viewing ? '<span class="viewing-tag">Viewing now</span>' : "") +
-          '<div class="persona-head"><h3>' + D.LEVEL_LABEL[lv] + " Student</h3>" +
+          '<div class="persona-head"><h2>' + D.LEVEL_LABEL[lv] + " student</h2>" +
           '<span class="persona-price">' + NT.kwacha(NT.packagePrice(lv)) + "</span></div>" +
           '<ul class="persona-list">' + personaList(lv) + "</ul>" +
           '<button class="btn ' + (viewing ? "btn-secondary" : "btn-dark") + ' btn-block" data-persona="' + lv + '">' +
@@ -481,9 +518,9 @@
         "</div>" +
         '<div class="lesson-foot">' +
         (unlocked
-          ? '<a class="btn btn-primary btn-sm" href="' + NT.base() + "lesson.html?id=" + l.id + '">' + NT.icon("play", "icon-sm") + "Watch Now</a>"
-          : '<a class="btn btn-secondary btn-sm" href="' + NT.base() + 'pricing.html">' + NT.icon("lock", "icon-sm") + "Upgrade your access</a>") +
-        '<span class="tiny muted">' + (unlocked ? "Included" : "Not in your package") + "</span>" +
+          ? '<a class="btn btn-primary btn-sm" href="' + NT.base() + "lesson.html?id=" + l.id + '">' + NT.icon("play", "icon-sm") + "Watch now</a>"
+          : '<a class="btn btn-secondary btn-sm" href="' + NT.base() + 'pricing.html">' + NT.icon("lock", "icon-sm") + "Unlock with " + D.LEVEL_LABEL[NT.levelOf(l)] + "</a>") +
+        '<span class="tiny muted">' + (unlocked ? "Included in your package" : D.LEVEL_LABEL[NT.levelOf(l)] + " package required") + "</span>" +
         "</div></div></article>";
     }
 
@@ -627,7 +664,9 @@
       return '<article class="search-result search-course-result">' +
         '<span class="search-result-icon" style="--tint:' + course.tint + ';--tint-fg:' + course.tintFg + '">' + NT.icon(course.icon) + "</span>" +
         '<div class="search-result-copy"><div class="search-result-meta"><span>Course</span><span>' + NT.esc(subjectInfo.title) + '</span><span class="course-state course-state-' + status.id + '">' + NT.esc(status.label) + "</span></div>" +
-        '<h3>' + NT.esc(course.title) + '</h3><p>' + NT.esc(course.desc) + '</p><small>' + NT.esc(pathText(course)) + " · " + NT.courseLessons(course.id).length + " lessons" +
+        '<h3>' + NT.esc(course.title) + '</h3><p>' + NT.esc(course.desc) + '</p>' +
+        '<div class="course-pathway-tags" style="margin-top:7px">' + NT.coursePathways(course).map(function (path) { return NT.pathwayChip(path); }).join("") + "</div>" +
+        '<small>' + NT.courseLessons(course.id).length + " lessons" +
         (progress ? " · " + progress.done + "/" + progress.total + " available lessons complete" : "") + "</small></div>" +
         '<a class="search-result-link" href="' + NT.base() + "courses.html?subject=" + encodeURIComponent(course.subjectId) + '#' + encodeURIComponent(course.id) + '" aria-label="View ' + NT.esc(course.title) + ' course">' + NT.icon("arrow-up-right") + "</a></article>";
     }
@@ -831,6 +870,26 @@
     var expires = new Date(since.getTime() + s.settings.days * 86400000);
     var packageInfo = NT.packageDetails(s.access);
     var profile = s.profile || {};
+    /* The optional learning profile is the student's chosen academic pathway.
+       When it is set, pathway courses are surfaced first and shown in the header. */
+    var profileLevel = D.EDUCATION_LEVELS.filter(function (item) { return item.id === profile.educationLevel; })[0] || null;
+    var profileGrade = profileLevel && profileLevel.id === "high-school"
+      ? D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === profile.levelId; })[0] : null;
+    var profilePathLabel = profileLevel
+      ? profileLevel.label + (profileGrade ? " · " + profileGrade.label : "") +
+        (profileLevel.id === "university" && profile.university ? " · " + profile.university : "")
+      : "";
+    function orderForPathway(courses) {
+      if (!profileLevel) return courses;
+      return courses.slice().sort(function (a, b) {
+        return (NT.coursePathway(a, profileLevel.id) ? 0 : 1) - (NT.coursePathway(b, profileLevel.id) ? 0 : 1);
+      });
+    }
+    var pathwayChip = profileLevel
+      ? '<a class="pathway-chip' + (profileLevel.id === "university" ? " pc-university" : "") + '" href="' + NT.base() + 'profile.html" title="Change your learning pathway">' +
+        NT.icon(NT.pathwayIcon(profileLevel.id)) + NT.esc(profilePathLabel) + "</a>"
+      : '<a class="pathway-chip" href="' + NT.base() + 'profile.html" title="Choose a pathway to personalise your dashboard">' +
+        NT.icon("target") + "Set your pathway</a>";
     var recentAnnouncements = publishedAnnouncements().slice(0, 2);
     var announcementsHtml = recentAnnouncements.length
       ? '<section class="card dashboard-section dashboard-announcements"><div class="dashboard-section-head"><div><span class="eyebrow">Platform updates</span><h2>Announcements</h2></div><a class="link-arrow" href="' + NT.base() + 'announcements.html">View all ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
@@ -858,7 +917,7 @@
       '<a class="btn btn-primary" href="' + NT.base() + 'lesson.html?id=' + encodeURIComponent(next.id) + '">' + NT.icon("play") + (recent.length ? "Continue lesson" : "Start your first lesson") + '</a></div></section>' :
       '<section class="card dashboard-continue dashboard-finished"><div><span class="eyebrow">Learning progress</span><h2>You have completed every unlocked lesson.</h2><p>Explore more of the catalogue or review a lesson any time.</p><a class="btn btn-primary" href="' + NT.base() + 'library.html">Open your library</a></div></section>';
 
-    var courseRows = D.COURSES.map(function (course) {
+    var courseRows = orderForPathway(D.COURSES).map(function (course) {
       var lessons = NT.courseLessons(course.id);
       var courseUnlocked = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); });
       var done = courseUnlocked.filter(function (lesson) { return NT.store.isComplete(lesson.id); }).length;
@@ -882,7 +941,7 @@
     var unlockedCourses = D.COURSES.filter(function (course) {
       return NT.courseLessons(course.id).some(function (lesson) { return NT.isUnlocked(lesson); });
     });
-    var miniCourses = D.COURSES.map(function (course) {
+    var miniCourses = orderForPathway(D.COURSES).map(function (course) {
       var lessons = NT.courseLessons(course.id);
       var included = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); }).length;
       return '<article class="dashboard-mini-course"><span class="dashboard-course-icon" style="--tint:' + course.tint + ';--tint-fg:' + course.tintFg + '">' + NT.icon(course.icon) + '</span>' +
@@ -894,7 +953,8 @@
     root.innerHTML =
       '<div class="dashboard-page">' +
       '<header class="dashboard-heading"><div><span class="eyebrow">Student dashboard</span><h1>' + (profile.name ? "Welcome back, " + NT.esc(profile.name) + "." : "Welcome back.") + '</h1><p>Your courses, progress and access in one place.</p></div>' +
-      '<div class="dashboard-heading-actions"><span class="badge badge-' + s.access + '">' + NT.icon("layers") + NT.esc(packageInfo.name) + " package</span>" +
+      '<div class="dashboard-heading-actions">' + pathwayChip +
+      '<span class="badge badge-' + s.access + '">' + NT.icon("layers") + NT.esc(packageInfo.name) + " package</span>" +
       '<span class="badge badge-success">' + NT.icon("badge-check") + "Access active</span>" +
       '<a class="btn btn-secondary" href="' + NT.base() + 'profile.html">' + NT.icon("circle-user", "icon-sm") + "Profile</a>" +
       '<a class="btn btn-secondary" href="' + NT.base() + 'library.html">Open library ' + NT.icon("arrow-right", "icon-sm") + '</a></div></header>' +
@@ -906,7 +966,7 @@
       '<div class="card stat-card"><span class="lab">' + NT.icon("trending-up") + "Overall progress</span><span class=\"val\">" + pct + '%</span><div class="progress"><i style="width:' + pct + '%"></i></div></div></div>' +
 
       '<div class="dashboard-layout"><div class="dashboard-primary">' + continueHtml + announcementsHtml +
-      '<section class="card dashboard-section"><div class="dashboard-section-head"><div><span class="eyebrow">Your study plan</span><h2>Current courses</h2></div><a class="link-arrow" href="' + NT.base() + 'courses.html">Browse all courses ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
+      '<section class="card dashboard-section"><div class="dashboard-section-head"><div><span class="eyebrow">Your study plan' + (profileLevel ? " · " + NT.esc(profileLevel.label) + " pathway" : "") + '</span><h2>Current courses</h2></div><a class="link-arrow" href="' + NT.base() + 'courses.html">Browse all courses ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
       '<div class="dashboard-course-list">' + courseRows + "</div></section>" +
       '<section class="card dashboard-section"><div class="dashboard-section-head"><div><span class="eyebrow">Pick up where you left off</span><h2>Recently watched</h2></div><a class="link-arrow" href="' + NT.base() + 'library.html">Full library ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
       '<div class="list-rows dashboard-recent-list">' + recentHtml + "</div></section>" +
@@ -965,6 +1025,7 @@
     var courseDone = lessons.filter(function (l) { return NT.isUnlocked(l) && NT.store.isComplete(l.id); }).length;
     var courseUnlocked = lessons.filter(function (l) { return NT.isUnlocked(l); }).length;
     var coursePct = courseUnlocked ? Math.round((courseDone / courseUnlocked) * 100) : 0;
+    var pathwayChips = NT.coursePathways(course).map(function (path) { return NT.pathwayChip(path); }).join("");
 
     if (!unlocked) {
       root.innerHTML =
@@ -980,12 +1041,13 @@
         '<p class="tiny muted" style="margin-top:18px">Locked videos are never exposed before purchase — no preview URLs, no partial streams.</p>' +
         "</div>" +
         '<div class="split" style="margin-top:8px">' +
-        '<div class="card"><div class="adm-card-head"><h3>About this lesson</h3>' + NT.levelBadge(NT.levelOf(lesson), true) + "</div>" +
-        '<div class="adm-card-body"><p class="muted small">' + NT.esc(lesson.description) + "</p>" +
+        '<div class="card"><div class="card-head"><h3>About this lesson</h3>' + NT.levelBadge(NT.levelOf(lesson), true) + "</div>" +
+        '<div class="card-body"><p class="muted small">' + NT.esc(lesson.description) + "</p>" +
+        '<div class="course-pathway-tags" style="margin-top:12px">' + pathwayChips + "</div>" +
         '<div class="kv" style="margin-top:14px"><div class="row"><span>Course</span><b>' + course.title + "</b></div>" +
         '<div class="row"><span>Duration</span><b>' + lesson.duration + "</b></div>" +
         '<div class="row"><span>Lesson</span><b>' + lesson.index + " of " + lessons.length + "</b></div></div></div></div>" +
-        '<div class="card"><div class="adm-card-head"><h3>In this course</h3></div><div class="side-list">' + sideList + "</div></div>" +
+        '<div class="card"><div class="card-head"><h3>In this course</h3></div><div class="side-list">' + sideList + "</div></div>" +
         "</div>";
       wireLockedLinks();
       return;
@@ -1008,26 +1070,27 @@
       '<button class="pc-btn" id="pcFull" aria-label="Fullscreen">' + NT.icon("maximize") + "</button>" +
       "</div>" +
 
-      '<div class="card card-pad" style="margin-top:22px">' +
-      '<div class="row-between"><div>' +
+      '<div class="card card-pad lesson-detail" style="margin-top:22px">' +
+      '<div class="lesson-detail-head"><div>' +
       '<span class="lesson-course">' + NT.esc(course.title) + ' · Lesson ' + lesson.index + " of " + lessons.length + "</span>" +
-      "<h2 style=\"margin:8px 0 6px;font-size:1.5rem\">" + NT.esc(lesson.title) + "</h2>" +
+      '<h2 class="lesson-detail-title">' + NT.esc(lesson.title) + "</h2>" +
       '<div class="lesson-meta"><span>' + NT.icon("clock", "icon-sm") + lesson.duration + "</span>" +
       NT.levelBadge(NT.levelOf(lesson), false) +
-      '<span id="doneBadge"></span></div></div>' +
+      '<span id="doneBadge"></span></div>' +
+      '<div class="course-pathway-tags" style="margin-top:11px">' + pathwayChips + "</div></div>" +
       '<button class="btn btn-secondary" id="markDone">' + NT.icon("circle-check") + "Mark as complete</button></div>" +
-      '<p class="muted" style="margin-top:14px;font-size:14.5px;line-height:1.7">' + NT.esc(lesson.description) + "</p>" +
+      '<p class="lesson-detail-desc">' + NT.esc(lesson.description) + "</p>" +
       '<div class="progress-row" style="margin-top:18px"><span style="white-space:nowrap">Course progress</span><div class="progress"><i id="courseProg" style="width:' + coursePct + '%"></i></div><span id="coursePct">' + coursePct + "%</span></div>" +
-      '<div class="row-between" style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">' +
-      (prev ? '<a class="btn btn-secondary btn-sm" href="' + NT.base() + "lesson.html?id=" + prev.id + '">' + NT.icon("arrow-left", "icon-sm") + "Previous lesson</a>" : '<span class="tiny muted">First lesson in course</span>') +
-      (nextL ? '<a class="btn btn-primary btn-sm" href="' + NT.base() + "lesson.html?id=" + nextL.id + '">Next lesson ' + NT.icon("arrow-right", "icon-sm") + "</a>" : '<span class="tiny muted">Final lesson in course</span>') +
+      '<div class="lesson-nav-row">' +
+      (prev ? '<a class="btn btn-secondary" href="' + NT.base() + "lesson.html?id=" + prev.id + '">' + NT.icon("arrow-left") + "Previous lesson</a>" : '<span class="lesson-nav-hint">' + NT.icon("play-circle", "icon-sm") + "This is the first lesson in the course</span>") +
+      (nextL ? '<a class="btn btn-primary" title="Up next: ' + NT.esc(nextL.title) + '" href="' + NT.base() + "lesson.html?id=" + nextL.id + '">Next lesson' + NT.icon("arrow-right") + "</a>" : '<span class="lesson-nav-hint">' + NT.icon("circle-check", "icon-sm") + "Final lesson in this course</span>") +
       "</div></div>" +
       "</div>" +
 
       '<aside class="lesson-side">' +
-      '<div class="card"><div class="adm-card-head"><h3>Course contents</h3><span class="badge badge-outline">' + courseDone + "/" + courseUnlocked + " done</span></div>" +
+      '<div class="card"><div class="card-head"><h3>Course contents</h3><span class="badge badge-outline">' + courseDone + "/" + courseUnlocked + " done</span></div>" +
       '<div class="side-list">' + sideList + "</div></div>" +
-      '<div class="card"><div class="adm-card-head"><h3>Related lessons</h3></div>' +
+      '<div class="card"><div class="card-head"><h3>Related lessons</h3></div>' +
       '<div class="list-rows" style="padding:8px 14px 14px">' + relatedLessons(lesson).map(function (l) { return lessonRow(l, true); }).join("") + "</div></div>" +
       "</aside></div>";
 
@@ -1241,8 +1304,10 @@
         '<div class="field" style="margin-bottom:20px"><label>1 · Choose your package</label>' +
         '<div class="method-grid method-grid-3">' +
         D.LEVELS.map(function (lv) {
-          return '<button type="button" class="method-card' + (pkg === lv ? " selected" : "") + '" data-pkg="' + lv + '" style="flex-direction:column;align-items:flex-start;gap:2px">' +
-            "<b>" + NT.esc(NT.packageDetails(lv).name) + '</b><small>' + NT.kwacha(NT.packagePrice(lv)) + " · " + NT.availableFor(lv) + " videos</small>" +
+          return '<button type="button" class="method-card pkg-choice' + (pkg === lv ? " selected" : "") + '" data-pkg="' + lv + '" aria-pressed="' + (pkg === lv) + '">' +
+            '<span class="pkg-choice-name">' + NT.esc(NT.packageDetails(lv).name) + "</span>" +
+            '<span class="pkg-choice-price">' + NT.kwacha(NT.packagePrice(lv)) + "</span>" +
+            '<span class="pkg-choice-meta">Unlocks ' + NT.availableFor(lv) + " of " + NT.counts().total + " lessons</span>" +
             '<span class="radio"></span></button>';
         }).join("") + "</div></div>" +
 
@@ -1285,16 +1350,16 @@
       var box = document.getElementById("methodFields");
       if (method === "card") {
         box.innerHTML =
-          '<div class="stack" style="gap:14px"><div class="field"><label>Card number</label>' +
-          '<input class="input mono" inputmode="numeric" placeholder="4242 4242 4242 4242" maxlength="19" value="4242 4242 4242 4242">' +
+          '<div class="stack" style="gap:14px"><div class="field"><label for="payCard">Card number</label>' +
+          '<input class="input mono" id="payCard" inputmode="numeric" placeholder="4242 4242 4242 4242" maxlength="19" value="4242 4242 4242 4242">' +
           '<span class="field-hint">Visual only — never sent anywhere.</span></div>' +
-          '<div class="input-row"><div class="field"><label>Expiry</label><input class="input mono" placeholder="MM/YY" value="12/28"></div>' +
-          '<div class="field"><label>CVC</label><input class="input mono" placeholder="123" value="123" maxlength="4"></div></div></div>';
+          '<div class="input-row"><div class="field"><label for="payExpiry">Expiry</label><input class="input mono" id="payExpiry" placeholder="MM/YY" value="12/28"></div>' +
+          '<div class="field"><label for="payCvc">CVC</label><input class="input mono" id="payCvc" placeholder="123" value="123" maxlength="4"></div></div></div>';
       } else {
         var m = D.METHODS.filter(function (x) { return x.id === method; })[0];
         box.innerHTML =
-          '<div class="field"><label>' + m.name + ' number</label>' +
-          '<input class="input mono" inputmode="tel" placeholder="097X XXX XXX" value="0977 000 000">' +
+          '<div class="field"><label for="payWallet">' + m.name + ' number</label>' +
+          '<input class="input mono" id="payWallet" inputmode="tel" placeholder="097X XXX XXX" value="0977 000 000">' +
           '<span class="field-hint">Visual only — no prompt is sent to any phone.</span></div>';
       }
     }
@@ -1328,7 +1393,7 @@
         '<div class="panel panel-narrow"><div class="unlock-result">' +
         '<div class="big-ico">' + NT.icon("check-circle", "icon-xl") + "</div>" +
         "<h2>Payment Successful</h2>" +
-        '<p class="videos-line" style="margin-top:10px">Your ' + D.LEVEL_LABEL[pkg] + " access is active — <b>" + NT.availableFor(pkg) + " of " + NT.counts().total + "</b> videos are now available.</p>" +
+        '<p class="videos-line" style="margin-top:10px">Your ' + D.LEVEL_LABEL[pkg] + " access is active — <b>" + NT.availableFor(pkg) + " of " + NT.counts().total + "</b> lessons are now available.</p>" +
         '<div class="receipt">' +
         '<div class="rrow"><span>Package purchased</span><b>' + NT.esc(NT.packageDetails(pkg).name) + " · " + NT.kwacha(price()) + "</b></div>" +
         '<div class="rrow"><span>Payment method</span><b>' + mName + " (demo)</b></div>" +

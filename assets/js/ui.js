@@ -71,6 +71,52 @@
   };
   NT.cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
 
+  /* ---------- academic pathway helpers (shared by the public site and admin) ----------
+     Education levels are course-level attributes: a course record lists one or more
+     offerings, each pointing at an education level. These helpers keep the wording
+     identical everywhere it is displayed. */
+  NT.pathwayLabel = function (path) {
+    if (!path) return "";
+    if (path.educationLevel === "high-school") {
+      var grade = NT.data.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
+      return "High School" + (grade ? " · " + grade.label + " · " + grade.detail : "");
+    }
+    var university = NT.university(path.universityId);
+    var programme = NT.programme(path.programmeId);
+    return "University" + (university ? " · " + university.name : " · institution not specified") +
+      (programme ? " · " + programme.name + (programme.school ? " · " + programme.school : "") : " · programme / school not specified");
+  };
+  NT.pathwayShort = function (path) {
+    if (!path) return "";
+    if (path.educationLevel === "high-school") {
+      var grade = NT.data.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
+      return "High School" + (grade ? " · " + grade.detail : "");
+    }
+    return "University";
+  };
+  NT.pathwayName = function (path) {
+    var level = path && NT.data.EDUCATION_LEVELS.filter(function (item) { return item.id === path.educationLevel; })[0];
+    return level ? level.label : "";
+  };
+  NT.pathwayIcon = function (educationLevelId) {
+    return educationLevelId === "university" ? "graduation-cap" : "book-open";
+  };
+  NT.pathwayChip = function (path, extraClass) {
+    if (!path) return "";
+    var university = path.educationLevel === "university";
+    return '<span class="level-chip' + (university ? " level-chip-university" : "") +
+      (extraClass ? " " + extraClass : "") + '" title="' + NT.esc(NT.pathwayLabel(path)) + '">' +
+      NT.icon(NT.pathwayIcon(path.educationLevel)) + NT.esc(NT.pathwayShort(path)) + "</span>";
+  };
+  NT.pathwayCounts = function (educationLevelId) {
+    var courses = NT.data.COURSES.filter(function (course) {
+      return NT.coursePathways(course).some(function (path) { return path.educationLevel === educationLevelId; });
+    });
+    var lessons = 0;
+    courses.forEach(function (course) { lessons += NT.courseLessons(course.id).length; });
+    return { courses: courses.length, lessons: lessons };
+  };
+
   NT.levelBadge = function (level, locked) {
     var cls = "badge badge-" + level;
     var ico = locked === true ? "lock" : (locked === false ? "unlock" : "shield");
@@ -123,15 +169,16 @@
     }).join("");
 
     var statusCard = s.access
-      ? '<div class="sheet-status">' + NT.icon("badge-check") + "<div><b>" + NT.esc(NT.packageDetails(s.access).name) + " access is active.</b><br>" + NT.availableFor(s.access) + " of " + NT.counts().total + " videos unlocked.</div></div>"
+      ? '<div class="sheet-status">' + NT.icon("badge-check") + "<div><b>" + NT.esc(NT.packageDetails(s.access).name) + " access is active.</b><br>" + NT.availableFor(s.access) + " of " + NT.counts().total + " lessons unlocked.</div></div>"
       : '<div class="sheet-status">' + NT.icon("lock") + "<div><b>No active access yet.</b><br>Choose a package or redeem an access code.</div></div>";
 
     var html =
+      '<a class="skip-link" href="#main">Skip to main content</a>' +
       '<div class="container header-inner">' +
       brandHtml() +
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
       '<div class="header-actions">' + chip +
-      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'access.html">' + NT.icon("key") + "Unlock Access</a>" +
+      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'access.html" aria-label="Unlock your access">' + NT.icon("key") + '<span class="hac-label">Unlock access</span></a>' +
       '<button class="nav-toggle" id="navToggle" aria-label="Open more navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>" +
       "</div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
@@ -162,6 +209,19 @@
     header.innerHTML = html;
     document.body.classList.add("has-mobile-nav");
     document.body.prepend(header);
+
+    /* Keyboard users land on the page content rather than the whole nav */
+    var main = document.querySelector("main");
+    if (!main) main = document.querySelector(".page-head, .section-body, section");
+    if (main) {
+      if (!main.id) main.id = "main";
+      if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+    }
+
+    /* Subtle elevation once the sticky header leaves the top of the page */
+    function syncStuck() { header.classList.toggle("is-stuck", window.scrollY > 6); }
+    window.addEventListener("scroll", syncStuck, { passive: true });
+    syncStuck();
 
     var sheet = header.querySelector("#mobileSheet");
     var toggle = header.querySelector("#navToggle");
@@ -208,7 +268,9 @@
       '<div class="footer-note">' + NT.icon("info") + "Client demo — all payments and codes are simulated.</div>" +
       "</div>" +
       '<div class="footer-col"><h4>Platform</h4>' +
-      '<a href="' + b + 'courses.html">' + NT.icon("book-open", "icon-sm") + "Courses</a>" +
+      '<a href="' + b + 'courses.html?level=high-school">' + NT.icon("book-open", "icon-sm") + "High School courses</a>" +
+      '<a href="' + b + 'courses.html?level=university">' + NT.icon("graduation-cap", "icon-sm") + "University courses</a>" +
+      '<a href="' + b + 'courses.html">' + NT.icon("book-open", "icon-sm") + "All courses</a>" +
       '<a href="' + b + 'resources.html">' + NT.icon("library", "icon-sm") + "Resources</a>" +
       '<a href="' + b + 'announcements.html">' + NT.icon("bell", "icon-sm") + "Announcements</a>" +
       '<a href="' + b + 'search.html">' + NT.icon("search", "icon-sm") + "Search</a>" +
