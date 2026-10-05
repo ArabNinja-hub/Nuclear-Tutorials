@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learning Resources — Nuclear Tutorials</title>
-<meta name="description" content="Browse Nuclear Tutorials video lessons and see which academic resource formats are available in this demo.">
+<meta name="description" content="Browse Nuclear Tutorials tutorial videos across the current course catalogue.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
@@ -16,30 +16,22 @@
       <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Resources</div>
       <div class="page-head-row">
         <div>
-          <span class="eyebrow">Learning resources</span>
-          <h1>Study in the format that works for you.</h1>
-          <p class="lede">Find tutorial videos across the current sample courses. Other resource types are shown for clarity, but are not available in this demo.</p>
+          <h1>Tutorial videos</h1>
+          <p class="lede">Video lessons are the only resource format available in this demo. Notes, revision materials and past papers are not included.</p>
         </div>
-        <a class="btn btn-secondary" href="search.html">Search the catalogue <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></a>
+        <a class="btn btn-secondary" href="library.html">Open the library</a>
       </div>
     </div>
   </section>
 
   <section class="section-body">
     <div class="container">
-      <div class="resource-intro-note"><span class="resource-note-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span><p><b>What is available now?</b> Tutorial videos are the only resource type implemented in this front-end demo. No notes, past papers or downloadable files are represented as available.</p></div>
-
-      <div class="resource-type-grid" id="resourceTypes" aria-label="Resource formats"></div>
-
-      <div class="resource-browser-heading">
-        <div><span class="eyebrow">Available now</span><h2>Tutorial videos by course</h2><p>See lesson titles and access requirements before opening a course.</p></div>
-        <a class="link-arrow" href="library.html">Open full video library <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
-      </div>
-
-      <div class="resource-toolbar card">
-        <label class="resource-search"><span>Search video courses</span><div class="search"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" id="resourceSearch" type="search" placeholder="Try a subject or lesson title" aria-label="Search tutorial video courses"></div></label>
-        <label class="resource-filter"><span>Education level</span><select class="input" id="resourceLevel" aria-label="Filter by education level"></select></label>
-        <label class="resource-filter"><span>Subject</span><select class="input" id="resourceSubject" aria-label="Filter by subject"></select></label>
+      <div class="resource-toolbar">
+        <div class="search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="input" id="resourceSearch" type="search" placeholder="Search courses" aria-label="Search tutorial video courses">
+        </div>
+        <select class="input" id="resourceSubject" aria-label="Filter by subject"></select>
       </div>
       <p class="resource-summary" id="resourceSummary" aria-live="polite"></p>
       <div class="resource-course-grid" id="resourceCourses"></div>
