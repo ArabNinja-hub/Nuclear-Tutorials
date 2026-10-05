@@ -1067,7 +1067,8 @@
         button.disabled = true;
         NT.api.admin.changePassword(current, next).then(function () {
           NT.toast("Password changed. Sign in again.", "success");
-          window.setTimeout(function () { location.href = NT.qs("first-run") ? "login.html" : "settings.html"; }, 900);
+          /* Changing the password clears every session, so sign in again. */
+          window.setTimeout(function () { location.href = "login.html"; }, 900);
         }, function (error) {
           button.disabled = false;
           NT.toast(error.message, "error");

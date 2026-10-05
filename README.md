@@ -46,6 +46,9 @@ and vanilla JavaScript.
 Environment (see `.env.example`): `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`,
 `NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`, `NT_ALLOW_DEMO_SEED`.
 
+The live checks sign in as the administrator, so start the server with
+`NT_ADMIN_PASSWORD` set (a first-run password is rotated by the check itself).
+
 ### Administrator sign-in
 
 Open `/admin/login.html`.

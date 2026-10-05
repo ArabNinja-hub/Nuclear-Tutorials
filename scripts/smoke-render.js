@@ -185,10 +185,12 @@ var ADMIN_VIDEO = Object.assign({}, VIDEOS[0]);
 /* Package tiers exactly like the server: a code's package limits which
    lessons are returned with their source URL. */
 var TIER = { basic: 1, standard: 2, premium: 3 };
+/* Only the code this fixture server actually issued counts — exactly like the
+   real server, which looks the code up in the database. */
+var ISSUED_CODE = "NT-STANDARD-4826";
 function codeLevel(init) {
   var header = ((init && init.headers) || {})["X-NT-Code"] || "";
-  var match = /^NT-(BASIC|STANDARD|PREMIUM)-/i.exec(header);
-  return match ? TIER[match[1].toLowerCase()] : 0;
+  return String(header).toUpperCase() === ISSUED_CODE ? TIER.standard : 0;
 }
 function protect(video, level) {
   var allowed = level >= (TIER[video.level] || 1);
@@ -516,6 +518,36 @@ chain = chain.then(function () {
     "success state routes to Semester 1 of the catalogue for the redeemed level");
 }).catch(function (error) {
   if (!LIVE) ok(false, "access-code flow throws: " + (error && error.stack));
+});
+
+/* A student can type anything into localStorage; the server's verdict has to
+   win. This mirrors scripts/check-access.js, at the front-end level. */
+chain = chain.then(function () {
+  if (LIVE) { console.log("\n== Fabricated local grant ==\n  SKIP  covered by scripts/check-access.js against the live server"); return; }
+  group("Fabricated local grant");
+  installStorage();
+  global.NT.store.reset();
+  global.NT.store.mutate(function (state) {
+    state.access = "premium";
+    state.accessMeta = {
+      source: "access-code", code: "NT-PREMIUM-9999",
+      since: new Date().toISOString(), expiresAt: "2030-01-01T00:00:00.000Z"
+    };
+  });
+  ok(global.NT.store.get().access === "premium", "a fabricated premium grant can be written into localStorage");
+  fetchLog = [];
+  return global.NT.content.reload().then(function () {
+    var premium = global.NT.content.data().videos.filter(function (video) { return video.level === "premium"; })[0];
+    ok(!!premium, "the catalogue still lists premium lessons so students can see what a package adds");
+    ok(premium.locked === true && premium.sourceUrl === null,
+      "the server keeps the premium lesson locked and withholds its source URL");
+    ok(global.NT.isUnlocked(premium) === false, "the front end cannot unlock the lesson from localStorage");
+    ok(global.NT.store.get().access === null && global.NT.store.get().accessMeta === null,
+      "the fabricated grant is dropped once the server denies it");
+    return drain(20);
+  });
+}).catch(function (error) {
+  if (!LIVE) ok(false, "fabricated-grant check throws: " + (error && error.stack));
 });
 
 chain = chain.then(function () {
