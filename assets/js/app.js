@@ -340,6 +340,7 @@
       }
 
       document.title = course.title + " — Nuclear Tutorials";
+      NT.setHeaderContext("#lessons", "video", "Jump to video lessons");
       var lessons = NT.content.lessonsOf(course.id);
       var unlocked = lessons.filter(function (lesson) { return NT.isUnlocked(lesson); });
       var watched = NT.progress.watchedIn(course.id);
@@ -394,8 +395,8 @@
         "<h2>Video lessons</h2><p>Watch in order, or open any lesson that your package includes.</p></div>" +
         '<span class="badge badge-brand">' + NT.plural(lessons.length, "lesson") + "</span></div>" +
         (lessons.length
-          ? '<div class="video-grid">' + lessons.map(function (lesson, index) {
-            return NT.videoCard(lesson, { description: false, index: index + 1 });
+          ? '<div class="lesson-list">' + lessons.map(function (lesson, index) {
+            return NT.videoCard(lesson, { list: true, index: index + 1 });
           }).join("") + "</div>"
           : NT.empty({
             icon: "video",
@@ -438,6 +439,7 @@
       var video = payload.video;
       var course = payload.course || NT.content.course(video.courseId);
       var university = payload.university || NT.content.university(video.universityId);
+      NT.setHeaderContext(NT.base() + "course.html?id=" + encodeURIComponent(video.courseId), "book-open", "Course overview");
       var lessons = payload.lessons || NT.content.lessonsOf(video.courseId);
       var previous = payload.previous || null;
       var next = payload.next || null;
@@ -469,7 +471,7 @@
           '<a class="btn btn-outline-light" href="' + NT.base() + 'access.html">' + NT.icon("key") + "Log in with a code</a>" +
           "</div></div></div>";
       } else if (embed && video.provider === "direct") {
-        player = '<div class="player"><video controls preload="metadata" playsinline poster="' + NT.esc(video.thumbnailUrl || "") + '" src="' + NT.esc(embed) + '"></video></div>';
+        player = '<div class="player"><video controls preload="none" playsinline poster="' + NT.esc(video.thumbnailUrl || "") + '" src="' + NT.esc(embed) + '"></video></div>';
       } else if (embed) {
         player = '<div class="player player-embed"><iframe src="' + NT.esc(embed) + '?rel=0&modestbranding=1" title="' +
           NT.esc(video.title) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
@@ -947,7 +949,7 @@
           "</div></section>"
         : "";
 
-      root.innerHTML = '<div class="dashboard-page">' + heading + stats + continueCard + recentSection + courseSection + "</div>";
+      root.innerHTML = '<div class="dashboard-page">' + heading + continueCard + stats + recentSection + courseSection + "</div>";
 
       var logout = document.getElementById("dashLogout");
       if (logout) logout.addEventListener("click", function () {

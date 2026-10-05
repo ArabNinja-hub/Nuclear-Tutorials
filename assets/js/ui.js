@@ -104,15 +104,21 @@
       return '<a href="' + NT.base() + href + '" class="' + (active ? "active" : "") + '"' +
         (active ? ' aria-current="page"' : "") + ">" + NT.icon(icon) + "<span>" + label + "</span></a>";
     }
-    var accountSheetPrimary = state.access
-      ? sheetLink("dashboard.html", "layout-dashboard", "Dashboard", page === "dashboard")
-      : sheetLink("access.html", "key", "Log in with a code", page === "access");
 
+    var pageIsPrimary = ["home", "courses", "course", "lesson", "search", "dashboard"].indexOf(page) !== -1;
+    var moreActive = !pageIsPrimary;
+    var headerContext = { href: NT.base() + "search.html", icon: "search", label: "Search courses and lessons" };
+    if (page === "home") headerContext = { href: NT.base() + "courses.html", icon: "graduation-cap", label: "Browse courses" };
+    if (page === "course") headerContext = { href: "#lessons", icon: "video", label: "Jump to video lessons" };
+    if (page === "lesson") headerContext = { href: NT.base() + "courses.html", icon: "book-open", label: "Browse courses" };
+    if (page === "search") headerContext = { href: NT.base() + "dashboard.html", icon: "layout-dashboard", label: "Go to your dashboard" };
+    if (page === "dashboard") headerContext = { href: NT.base() + "courses.html", icon: "graduation-cap", label: "Browse courses" };
+    if (page === "access") headerContext = { href: NT.base() + "pricing.html", icon: "layers", label: "View access packages" };
     var totals = NT.content.data() ? NT.content.totals() : null;
     var statusCard = state.access
       ? "<b>" + NT.esc(NT.packageDetails(state.access).name) + " package active.</b> " +
         NT.percentLabel(NT.availableFor(state.access), totals ? totals.videos : 0) + " of the published lessons are included."
-      : "<b>No access code redeemed yet.</b> Choose a package and log in to start learning.";
+      : "<b>No access code redeemed yet.</b> Log in with a code to save your learning progress.";
 
     var html =
       '<a class="skip-link" href="#main">Skip to main content</a>' +
@@ -121,38 +127,33 @@
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
       '<div class="header-actions">' +
       accountLink(state, "") +
-      '<a class="btn-icon header-search-btn" href="' + NT.base() + 'search.html" aria-label="Search lessons">' + NT.icon("search") + "</a>" +
+      '<a class="btn-icon header-context-action" id="headerContextAction" href="' + headerContext.href + '" aria-label="' + NT.esc(headerContext.label) + '" title="' + NT.esc(headerContext.label) + '">' + NT.icon(headerContext.icon) + "</a>" +
       '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'pricing.html">Get access</a>' +
       '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>" +
       "</div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
       '<div class="scrim" data-close-sheet></div>' +
-      '<div class="sheet" role="dialog" aria-modal="true" aria-label="Navigation">' +
-      '<div class="sheet-head">' + brandHtml(false) +
+      '<div class="sheet" role="dialog" aria-modal="true" aria-label="More navigation">' +
+      '<div class="sheet-head"><div><span class="sheet-kicker">Explore</span><h2>More from Nuclear Tutorials</h2></div>' +
       '<button class="modal-x" data-close-sheet aria-label="Close navigation">' + NT.icon("x") + "</button></div>" +
-      '<nav class="sheet-nav" aria-label="All pages">' +
-      '<span class="sheet-label">Learn</span>' +
-      sheetLink("courses.html", "graduation-cap", "Courses", page === "courses") +
-      sheetLink("library.html", "video", "Video library", page === "library") +
-      sheetLink("pricing.html", "layers", "Pricing", page === "pricing") +
-      sheetLink("index.html#how-it-works", "target", "How it works", false) +
+      '<nav class="sheet-nav" aria-label="More pages">' +
       '<span class="sheet-label">Your learning</span>' +
-      accountSheetPrimary +
-      sheetLink("library.html", "book-marked", "My lessons", page === "library") +
-      sheetLink("profile.html", "circle-user", "Profile", page === "profile") +
-      '<span class="sheet-label">More</span>' +
+      sheetLink("library.html", "book-marked", "Video library", page === "library") +
+      sheetLink("profile.html", "circle-user", "Learning profile", page === "profile") +
+      sheetLink("access.html", "key", "Log in with an access code", page === "access") +
+      '<span class="sheet-label">Explore</span>' +
+      sheetLink("pricing.html", "layers", "Access packages", page === "pricing") +
       sheetLink("announcements.html", "bell", "Announcements", page === "announcements") +
-      sheetLink("search.html", "search", "Search", page === "search") +
+      sheetLink("index.html#how-it-works", "target", "How it works", false) +
       "</nav>" +
       '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("info") + "<span>" + statusCard + "</span></p>" +
       "</div></div></div>" +
-      '<nav class="mobile-nav" aria-label="Mobile navigation">' +
-      '<a href="' + NT.base() + 'courses.html" class="' + (page === "courses" ? "active" : "") + '">' + NT.icon("graduation-cap") + "<span>Courses</span></a>" +
-      '<a href="' + NT.base() + 'library.html" class="' + (page === "library" ? "active" : "") + '">' + NT.icon("video") + "<span>Lessons</span></a>" +
-      (state.access
-        ? '<a href="' + NT.base() + 'dashboard.html" class="' + (page === "dashboard" ? "active" : "") + '">' + NT.icon("layout-dashboard") + "<span>Dashboard</span></a>"
-        : '<a href="' + NT.base() + 'access.html" class="' + (page === "access" ? "active" : "") + '">' + NT.icon("key") + "<span>Log in</span></a>") +
-      '<button class="mobile-nav-more" id="mobileMore" type="button" aria-label="More navigation" aria-expanded="false" aria-haspopup="dialog">' +
+      '<nav class="mobile-nav" aria-label="Primary mobile navigation">' +
+      '<a href="' + NT.base() + 'index.html" class="' + (page === "home" ? "active" : "") + '"' + (page === "home" ? ' aria-current="page"' : "") + '>' + NT.icon("house") + "<span>Home</span></a>" +
+      '<a href="' + NT.base() + 'courses.html" class="' + (["courses", "course", "lesson"].indexOf(page) !== -1 ? "active" : "") + '"' + (page === "courses" ? ' aria-current="page"' : (["course", "lesson"].indexOf(page) !== -1 ? ' aria-current="location"' : "")) + '>' + NT.icon("graduation-cap") + "<span>Courses</span></a>" +
+      '<a href="' + NT.base() + 'search.html" class="' + (page === "search" ? "active" : "") + '"' + (page === "search" ? ' aria-current="page"' : "") + '>' + NT.icon("search") + "<span>Search</span></a>" +
+      '<a href="' + NT.base() + 'dashboard.html" class="' + (page === "dashboard" ? "active" : "") + '"' + (page === "dashboard" ? ' aria-current="page"' : "") + '>' + NT.icon("layout-dashboard") + "<span>Dashboard</span></a>" +
+      '<button class="mobile-nav-more' + (moreActive ? " is-current" : "") + '" id="mobileMore" type="button" aria-label="More pages" aria-expanded="false" aria-haspopup="dialog">' +
       NT.icon("ellipsis") + "<span>More</span></button></nav>";
 
     var header = document.createElement("header");
@@ -161,6 +162,13 @@
     document.body.classList.add("has-mobile-nav");
     document.body.prepend(header);
 
+    /* Keep viewport-fixed controls outside the sticky/backdrop header's
+       containing block so they stay pinned to the actual screen. */
+    var mobileSheet = header.querySelector("#mobileSheet");
+    var mobileNav = header.querySelector(".mobile-nav");
+    if (mobileSheet) document.body.appendChild(mobileSheet);
+    if (mobileNav) document.body.appendChild(mobileNav);
+
     var main = document.querySelector("main");
     if (!main) main = document.querySelector(".page-head, .section-body, section");
     if (main) {
@@ -168,10 +176,11 @@
       if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
     }
 
-    var sheet = header.querySelector("#mobileSheet");
+    var sheet = document.getElementById("mobileSheet");
     var toggle = header.querySelector("#navToggle");
-    var more = header.querySelector("#mobileMore");
+    var more = document.getElementById("mobileMore");
     var lastTrigger = null;
+
     function setOpen(open, trigger) {
       if (open) lastTrigger = trigger || toggle || more;
       sheet.classList.toggle("open", open);
@@ -187,14 +196,24 @@
         lastTrigger.focus();
       }
     }
+
     if (toggle) toggle.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), toggle); });
     if (more) more.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), more); });
-    header.querySelectorAll("[data-close-sheet]").forEach(function (el) {
+    sheet.querySelectorAll("[data-close-sheet]").forEach(function (el) {
       el.addEventListener("click", function () { setOpen(false); });
     });
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && sheet.classList.contains("open")) setOpen(false);
     });
+  };
+
+  NT.setHeaderContext = function (href, icon, label) {
+    var action = document.getElementById("headerContextAction");
+    if (!action) return;
+    action.href = href;
+    action.setAttribute("aria-label", label);
+    action.setAttribute("title", label);
+    action.innerHTML = NT.icon(icon || "search");
   };
 
   /* ---------- footer ---------- */
@@ -391,6 +410,26 @@
     var href = NT.base() + "lesson.html?id=" + encodeURIComponent(video.id);
     var context = opts.context === false ? "" :
       '<p class="video-card-context">' + NT.esc(opts.contextLabel || NT.videoContext(video)) + "</p>";
+
+    if (opts.list) {
+      var accessLabel = unlocked
+        ? '<span class="badge badge-success">' + NT.icon("check-circle") + "Included</span>"
+        : '<span class="badge badge-warn">' + NT.icon("lock") + NT.esc(NT.data.LEVEL_LABEL[NT.levelOf(video)]) + " required</span>";
+      var detailParts = [];
+      if (video.durationSeconds) detailParts.push(NT.icon("clock", "icon-sm") + NT.duration(video.durationSeconds));
+      if (video.topic) detailParts.push(NT.esc(video.topic));
+      return '<a class="video-card lesson-row reveal' + (watched ? " is-watched" : "") + (unlocked ? "" : " is-locked") +
+        '" data-video="' + NT.esc(video.id) + '" href="' + href + '" aria-label="Lesson ' +
+        String(opts.index || 1).padStart(2, "0") + ': ' + NT.esc(video.title) + (unlocked ? "" : ", " + NT.data.LEVEL_LABEL[NT.levelOf(video)] + " package required") + '">' +
+        '<span class="video-card-index">' + String(opts.index || 1).padStart(2, "0") + "</span>" +
+        '<span class="lesson-row-copy"><span class="lesson-row-course">' + NT.esc(video.courseTitle || "Video lesson") + "</span>" +
+        '<strong class="lesson-row-title">' + NT.esc(video.title) + "</strong>" +
+        (detailParts.length ? '<span class="lesson-row-details">' + detailParts.join('<span class="lesson-row-dot">·</span>') + "</span>" : "") +
+        '</span><span class="lesson-row-access">' + accessLabel +
+        (watched ? '<span class="badge badge-success lesson-row-watched">' + NT.icon("check-circle") + "Watched</span>" : "") +
+        '</span><span class="lesson-row-arrow">' + NT.icon("arrow-right") + "</span></a>";
+    }
+
     return '<article class="video-card reveal' + (watched ? " is-watched" : "") + (unlocked ? "" : " is-locked") + '" data-video="' + NT.esc(video.id) + '">' +
       '<a class="video-card-media" href="' + href + '" aria-label="Open ' + NT.esc(video.title) + '">' +
       NT.thumb(video) +
@@ -426,11 +465,14 @@
       '<div class="course-card-head">' +
       '<span class="course-icon" style="--tint:' + NT.esc(course.tint || "var(--bg-soft)") + ";--tint-fg:" + NT.esc(course.tintFg || "var(--ink-2)") + '">' +
       NT.icon(course.icon || "book-open") + "</span>" +
-      "<div><h3><a href=\"" + href + "\">" + NT.esc(course.title) + "</a></h3>" +
-      '<p class="course-path">' + NT.icon("building", "icon-sm") + NT.esc(course.universityShort || course.universityName) +
-      '<span class="dot-sep" aria-hidden="true">·</span>' + NT.esc(NT.semesterLabel(course.semester)) +
-      (course.code ? '<span class="dot-sep" aria-hidden="true">·</span>' + NT.esc(course.code) : "") + "</p></div></div>" +
-      '<div class="course-card-body"><p class="desc">' + NT.esc(course.description) + "</p>" +
+      '<div class="course-card-heading"><p class="course-path">' + NT.icon("building", "icon-sm") + NT.esc(course.universityShort || course.universityName) + "</p>" +
+      "<h3><a href=\"" + href + "\">" + NT.esc(course.title) + "</a></h3>" +
+      '<div class="course-card-tags">' +
+      NT.semesterBadge(course.semester) +
+      (course.code ? '<span class="badge badge-outline course-code">' + NT.esc(course.code) + "</span>" : "") +
+      "</div></div></div>" +
+      '<div class="course-card-body">' +
+      (course.description ? '<p class="desc">' + NT.esc(course.description) + "</p>" : "") +
       '<div class="course-card-foot">' + meta +
       '<a class="btn btn-secondary btn-sm" href="' + href + '">Open course' + NT.icon("arrow-right", "icon-sm") + "</a>" +
       "</div></div></article>";
@@ -473,7 +515,7 @@
     }).join("");
     var all = opts.allowAll
       ? '<button type="button" class="semester-option' + (opts.current ? "" : " active") + '" data-semester="0"' +
-        ' aria-pressed="' + (!opts.current) + '">' + NT.icon("layers") + "<span>All semesters</span></button>"
+        ' aria-label="All semesters" aria-pressed="' + (!opts.current) + '">' + NT.icon("layers") + "<span>All</span></button>"
       : "";
     return '<div class="semester-switch" id="' + NT.esc(id) + '" role="group" aria-label="' +
       NT.esc(opts.label || "Select a semester") + '">' + all + cells + "</div>";

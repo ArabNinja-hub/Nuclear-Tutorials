@@ -226,3 +226,102 @@ body.admin { background: var(--bg); }
   .adm-spin { animation-duration: 1.4s !important; }
   .adm-side { transition: none !important; }
 }
+
+/* ---------- Touch-first administration ---------- */
+.adm-list-row { min-width: 0; }
+.adm-list-pick { min-height: 44px; }
+.adm-toolbar .input { min-width: 0; }
+.adm-form, .adm-grid, .adm-content, .adm-block { min-width: 0; }
+
+@media (max-width: 760px) {
+  body.admin { overflow-x: clip; }
+  .adm-shell, .adm-main { min-width: 0; width: 100%; }
+  .adm-topbar { gap: 10px; padding: calc(10px + env(safe-area-inset-top,0px)) 14px 10px; min-height: 62px; }
+  .adm-topbar h1 { font-size: 1rem; line-height: 1.2; overflow-wrap: anywhere; }
+  .adm-topbar p { display: none; }
+  .adm-side { padding-top: calc(20px + env(safe-area-inset-top,0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom,0px)); }
+  .adm-burger { width: 44px; height: 44px; flex: none; }
+  .adm-topbar-actions { gap: 6px; }
+  .adm-content { gap: 14px; padding: 14px 14px calc(28px + env(safe-area-inset-bottom,0px)); }
+  .adm-cards { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+  .adm-stat { min-width: 0; padding: 13px; }
+  .adm-stat-value { font-size: 1.55rem; }
+  .adm-stat-label { font-size: 12px; }
+  .adm-stat-hint { font-size: 10.5px; line-height: 1.35; }
+  .adm-block { gap: 14px; padding: 14px; border-radius: 15px; }
+  .adm-block-head { gap: 10px; }
+  .adm-block-head h2 { font-size: 1rem; }
+  .adm-block-head p { font-size: 12px; line-height: 1.45; }
+  .adm-block-head > .btn { width: 100%; }
+  .adm-context { align-items: flex-start; gap: 7px 9px; padding: 10px 11px; font-size: 12px; }
+  .adm-context-label { width: 100%; }
+  .adm-context-item { max-width: 100%; font-size: 11.5px; overflow-wrap: anywhere; }
+  .adm-context-item + .adm-context-item { padding-left: 0; border-left: 0; }
+  .adm-toolbar { align-items: stretch; gap: 10px; }
+  .adm-toolbar .field, .adm-toolbar .segmented { flex: 1 1 100%; max-width: none; }
+  .adm-toolbar .segmented { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .adm-toolbar .segmented button { min-height: 44px; padding: 8px; font-size: 12px; white-space: normal; }
+  .adm-toolbar > .btn { width: 100%; }
+  .adm-form { gap: 14px; }
+  .adm-form-row { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .adm-form-actions { align-items: stretch; flex-direction: column; }
+  .adm-form-actions .btn { width: 100%; }
+  .adm-fieldset { padding: 13px; gap: 12px; }
+  .adm-check { min-height: 44px; align-items: flex-start; padding: 9px 0; }
+  .adm-check input { width: 20px; height: 20px; margin-top: 1px; flex: none; }
+  .adm-list { gap: 8px; }
+  .adm-list-row { align-items: flex-start; flex-wrap: wrap; gap: 7px; padding: 10px; }
+  .adm-list-pick { min-width: calc(100% - 2px); padding: 2px 0; }
+  .adm-list-pick b { font-size: 13.5px; }
+  .adm-list-pick span { line-height: 1.4; }
+  .adm-row-actions, .adm-row-end { justify-content: flex-start; gap: 5px; }
+  .adm-row-actions .btn, .adm-row-end .btn { min-width: 44px; min-height: 44px; padding: 8px; }
+  .adm-chip-row { gap: 7px; }
+  .adm-chip { min-height: 44px; max-width: 100%; padding: 8px 10px; overflow-wrap: anywhere; }
+  .adm-kv .row { align-items: flex-start; gap: 12px; font-size: 12px; }
+  .adm-kv .row b { max-width: 60%; overflow-wrap: anywhere; }
+
+  /* Turn wide data grids into labelled cards instead of forcing a sideways drag. */
+  .table-wrap { overflow: visible; border: 0; border-radius: 0; background: transparent; }
+  table.nt-table, table.nt-table.adm-lesson-table { display: block; width: 100%; min-width: 0; border-collapse: separate; }
+  .nt-table thead { display: none; }
+  .nt-table tbody { display: flex; flex-direction: column; gap: 9px; }
+  .nt-table tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: var(--sh-1); }
+  .nt-table td { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 8px 0; border: 0; color: var(--ink-2); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+  .nt-table td::before { content: attr(data-label); flex: none; color: var(--muted-2); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .nt-table td:first-child { display: block; grid-column: 1 / -1; padding: 7px 0 9px; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 13px; font-weight: 650; }
+  .nt-table td:first-child::before { display: block; margin-bottom: 4px; }
+  .nt-table td:last-child { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; gap: 5px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+  .nt-table td:last-child::before { align-self: center; margin-right: 4px; }
+  .nt-table td .badge { max-width: 100%; white-space: normal; }
+  .adm-lesson-table .adm-cell-lesson { min-width: 0; }
+  .adm-lesson-cell { align-items: flex-start; gap: 9px; }
+  .adm-lesson-copy b { font-size: 12.5px; line-height: 1.35; overflow-wrap: anywhere; }
+  .adm-lesson-sub { font-size: 10px; line-height: 1.35; }
+  .adm-lesson-cell .thumb { display: none; }
+  .adm-order { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
+
+  .adm-login { min-height: 100svh; padding: 18px 14px calc(18px + env(safe-area-inset-bottom,0px)); }
+  .adm-login-card { padding: 22px 18px; border-radius: 18px; }
+  .adm-login-card h1 { margin-top: 18px; font-size: 1.45rem; }
+  .adm-login-card form { margin-top: 18px; }
+
+  /* Admin edit forms use a bottom-sheet modal with fixed, reachable actions. */
+  .modal-scrim { align-items: end; padding: 8px 0 0; }
+  .modal, .modal-lg { width: 100%; max-width: 100%; max-height: calc(100dvh - 8px); border-radius: 20px 20px 0 0; }
+  .modal-head { position: sticky; top: 0; z-index: 1; padding: 13px 16px; background: var(--surface); }
+  .modal-head h3 { font-size: 1rem; }
+  .modal-body { gap: 13px; padding: 14px 16px; overscroll-behavior: contain; }
+  .modal-foot { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 11px 16px calc(11px + env(safe-area-inset-bottom,0px)); background: var(--surface); }
+  .modal-foot .btn { width: 100%; min-height: 46px; padding: 8px; white-space: normal; }
+}
+
+@media (max-width: 430px) {
+  .adm-content { padding-right: 12px; padding-left: 12px; }
+  .adm-topbar { padding-right: 12px; padding-left: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-spin { animation: none !important; }
+  .adm-side { transition: none !important; }
+}
