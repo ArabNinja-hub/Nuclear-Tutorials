@@ -206,7 +206,10 @@ check(store.indexOf("accessMeta") !== -1 && store.indexOf("supportEmail") !== -1
   "local storage is limited to access, profile and settings mirror");
 check(serverApi.indexOf('pathname.indexOf("/api/admin/") === 0') !== -1, "the server gates every admin endpoint behind a session");
 check(adminJs.indexOf('location.replace("login.html') !== -1, "the admin UI redirects signed-out visits to the sign-in page");
-check(adminJs.indexOf("Admiral") === -1 && /ICON_CHOICES/.test(adminJs), "admin forms offer a fixed, validated icon list");
+check(/ICON_CHOICES/.test(adminJs) && adminJs.indexOf("createVideo") !== -1 && adminJs.indexOf("moveVideo") !== -1,
+  "admin forms offer a fixed icon list and use the video create/reorder API");
+check(adminJs.indexOf("NT.api.admin.login") !== -1 && adminJs.indexOf("NT.api.admin.changePassword") !== -1,
+  "the admin area signs in through the server and can rotate its password");
 check(/site-header/.test(read("assets/js/ui.js")) && read("assets/js/ui.js").indexOf("dashboard.html") !== -1,
   "public navigation links to the student dashboard");
 check(app.indexOf("NT.content") !== -1 && api.indexOf("/api/catalogue") !== -1,
