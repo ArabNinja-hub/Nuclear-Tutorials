@@ -1,0 +1,19 @@
+{
+  "name": "nuclear-tutorials",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nuclear Tutorials — video learning platform for university and secondary students (University / Semester / Course / Video lessons).",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/seed.js --force",
+    "check": "node scripts/check-platform.js && node scripts/smoke-render.js",
+    "check:live": "node scripts/check-platform.js && BASE=http://127.0.0.1:8000 node scripts/smoke-render.js",
+    "check:flows": "node scripts/check-flows.js"
+  },
+  "dependencies": {}
+}

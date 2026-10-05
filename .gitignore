@@ -1,0 +1,15 @@
+# Runtime database (created and seeded on first run)
+server/data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp

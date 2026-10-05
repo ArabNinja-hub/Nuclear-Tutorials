@@ -3,39 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nuclear Tutorials — High School and University Courses</title>
-<meta name="description" content="Browse Nuclear Tutorials course outlines, lesson lists and access requirements for High School and University.">
+<title>Nuclear Tutorials — Video Lessons for High School and University</title>
+<meta name="description" content="Nuclear Tutorials organises video lessons by university, semester and course, with access packages for High School and University students.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/fonts.css">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="home">
 
-<main>
+<main id="main" tabindex="-1">
   <section class="hero-home">
     <div class="container">
       <div class="hero-copy-column">
-        <span class="eyebrow">Course catalogue</span>
+        <span class="eyebrow">Video lessons · Semester 1 and 2</span>
         <h1>Course outlines for <em>High School and University.</em></h1>
-        <p class="hero-copy">Browse course outlines, lesson lists and package access requirements before choosing a learning path.</p>
+        <p class="hero-copy">Study with structured video lessons from recognised university lecture series and trusted science channels — organised by university, semester and course, so you always know what to learn next.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary btn-lg" href="courses.html">Browse courses</a>
-          <a class="btn btn-outline-light btn-lg" href="#how-it-works">How access works</a>
+          <a class="btn btn-outline-light btn-lg" href="#how-it-works">How it works</a>
+        </div>
+        <div class="hero-path" aria-label="Learning path">
+          <span>University</span><span class="path-arrow">→</span>
+          <span>Semester</span><span class="path-arrow">→</span>
+          <span>Course</span><span class="path-arrow">→</span>
+          <span>Video lesson</span>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section section-courses" id="course-catalogue">
+  <section class="section section-tight" id="catalogue-numbers">
+    <div class="container">
+      <div id="homeStats" class="stat-row" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="universities">
     <div class="container">
       <div class="section-head section-head-row reveal">
         <div>
-          <span class="eyebrow">Course catalogue</span>
-          <h2>Explore courses</h2>
-          <p>Open a course to see its lesson sequence and the content included with each access package.</p>
+          <span class="eyebrow">Start here</span>
+          <h2>Choose your university</h2>
+          <p>Every course belongs to a university and a semester. Open an institution to see its Semester 1 and Semester 2 course lists.</p>
         </div>
-        <a class="link-arrow" href="courses.html">Browse all courses <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        <a class="link-arrow" href="courses.html">All institutions</a>
       </div>
-      <div class="course-grid" id="courseGrid"></div>
+      <div class="institution-grid" id="universityGrid"></div>
     </div>
   </section>
 
@@ -43,25 +56,35 @@
     <div class="container">
       <div class="section-head reveal">
         <span class="eyebrow">Access and learning</span>
-        <h2>From course to lesson</h2>
+        <h2>From course to lesson in three steps</h2>
+        <p>No hunting through menus: pick a university, choose your semester and press play.</p>
       </div>
-      <div class="steps">
-        <article class="step reveal">
-          <span class="step-num">01</span>
-          <h3>Choose a course</h3>
-          <p>Review the lesson list and see which lessons each package includes.</p>
-        </article>
-        <article class="step reveal" data-delay="1">
-          <span class="step-num">02</span>
-          <h3>Get an access code</h3>
-          <p>Choose a package or use a code that has already been issued to you.</p>
-        </article>
-        <article class="step reveal" data-delay="2">
-          <span class="step-num">03</span>
-          <h3>Choose your level</h3>
-          <p>On the login page, select High School or University, enter your code and continue to the matching course view.</p>
-        </article>
+      <div class="steps" id="homeSteps"></div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="featured-courses">
+    <div class="container">
+      <div class="section-head section-head-row reveal">
+        <div>
+          <span class="eyebrow">Popular right now</span>
+          <h2>Featured courses</h2>
+          <p>A course per institution, each with its own ordered video lessons.</p>
+        </div>
+        <a class="link-arrow" href="courses.html">Browse all courses</a>
       </div>
+      <div class="course-grid" id="featuredCourses"></div>
+    </div>
+  </section>
+
+  <section class="section" id="packages">
+    <div class="container">
+      <div class="section-head reveal">
+        <span class="eyebrow">Access packages</span>
+        <h2>Choose how many lessons you unlock</h2>
+        <p>Packages apply across the catalogue. Compare them in detail on the access packages page.</p>
+      </div>
+      <div class="package-strip" id="homePackages"></div>
     </div>
   </section>
 </main>
@@ -69,6 +92,7 @@
 <script src="assets/js/icons.js"></script>
 <script src="assets/js/data.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
 <script src="assets/js/ui.js"></script>
 <script src="assets/js/app.js"></script>
 </body>

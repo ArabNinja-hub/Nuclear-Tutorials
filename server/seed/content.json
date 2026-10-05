@@ -1,0 +1,238 @@
+{
+  "$comment": "Nuclear Tutorials catalogue seed. Structure: institution -> course (semester 1|2) -> video lessons. Lesson videos are curated public lecture series (MIT OpenCourseWare CC BY-NC-SA, Crash Course) and link back to the original source; titles, topics and durations match those sources. Administrators add, edit, reorder, publish and remove lessons from Admin -> Video lessons without touching this file.",
+  "institutions": [
+    {
+      "id": "unza",
+      "name": "University of Zambia",
+      "shortName": "UNZA",
+      "city": "Lusaka",
+      "level": "university",
+      "accent": "#0d7ea4",
+      "summary": "Zambia's oldest public university (founded 1966). Engineering, natural sciences and computer studies programmes.",
+      "courses": [
+        {
+          "id": "unza-mth1010",
+          "code": "MTH 1010",
+          "semester": 1,
+          "title": "Mathematics I: Single Variable Calculus",
+          "icon": "sigma",
+          "tint": "#e8f4f9",
+          "tintFg": "#0e7fa2",
+          "description": "Limits, derivatives and the rules of differentiation, built up lecture by lecture for first-year students.",
+          "videos": [
+            { "title": "Rates of Change, Slope, Velocity and the Derivative", "topic": "MIT 18.01 · Lecture 1", "description": "The derivative is introduced as a rate of change from geometry and physics examples. MIT OpenCourseWare, Single Variable Calculus (Fall 2007), CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=7K1sB05pE0A", "duration": "51:33", "level": "basic" },
+            { "title": "Limits and Continuity", "topic": "MIT 18.01 · Lecture 2", "description": "How limits are defined and evaluated, and what it means for a function to be continuous. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=ryLdyDrBfvI", "duration": "52:47", "level": "basic" },
+            { "title": "Derivatives of Products and Quotients", "topic": "MIT 18.01 · Lecture 3", "description": "The product rule and quotient rule, with worked examples and proofs. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=kCPVBl953eY", "duration": "49:55", "level": "standard" },
+            { "title": "The Chain Rule and Higher Derivatives", "topic": "MIT 18.01 · Lecture 4", "description": "Differentiating composite functions and interpreting second derivatives. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=4sTKcvYMNxk", "duration": "46:03", "level": "standard" },
+            { "title": "Implicit Differentiation and Inverse Functions", "topic": "MIT 18.01 · Lecture 5", "description": "Differentiating implicitly defined curves and the derivatives of inverse functions. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=5q_3FDOkVRQ", "duration": "49:01", "level": "premium" },
+            { "title": "Exponentials, Logarithms and Logarithmic Differentiation", "topic": "MIT 18.01 · Lecture 6", "description": "The exponential and logarithm functions, their derivatives and logarithmic differentiation. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=9v25gg2qJYE", "duration": "47:57", "level": "premium" }
+          ]
+        },
+        {
+          "id": "unza-phy1010",
+          "code": "PHY 1010",
+          "semester": 1,
+          "title": "Physics I: Classical Mechanics",
+          "icon": "atom",
+          "tint": "#eef2f6",
+          "tintFg": "#40566d",
+          "description": "Units, kinematics, vectors, Newton's laws and simple harmonic motion — the mechanics core of first-year physics.",
+          "videos": [
+            { "title": "Powers of Ten, Units, Dimensions and Uncertainty", "topic": "MIT 8.01 · Lecture 1", "description": "Measurement, units, dimensional analysis and uncertainty in physical experiments. Lectures by Walter Lewin, MIT 8.01 Classical Mechanics.", "sourceUrl": "https://www.youtube.com/watch?v=GtOGurrUPmQ", "duration": "38:02", "level": "basic" },
+            { "title": "One-Dimensional Kinematics: Speed, Velocity, Acceleration", "topic": "MIT 8.01 · Lecture 2", "description": "Position, displacement, average and instantaneous velocity in one dimension. Lectures by Walter Lewin, MIT 8.01.", "sourceUrl": "https://www.youtube.com/watch?v=q9IWoQ199_o", "duration": "50:42", "level": "basic" },
+            { "title": "Vectors: Dot Products, Cross Products, 3D Kinematics", "topic": "MIT 8.01 · Lecture 3", "description": "Vector algebra and its use in describing motion in two and three dimensions. Lectures by Walter Lewin, MIT 8.01.", "sourceUrl": "https://www.youtube.com/watch?v=0na1JdPE_JY", "duration": "49:33", "level": "standard" },
+            { "title": "Circular Motion and Centripetal Forces", "topic": "MIT 8.01 · Lecture 5", "description": "Uniform circular motion, centripetal acceleration and perceived gravity. Lectures by Walter Lewin, MIT 8.01.", "sourceUrl": "https://www.youtube.com/watch?v=mWj1ZEQTI8I", "duration": "50:51", "level": "standard" },
+            { "title": "Newton's Laws of Motion", "topic": "MIT 8.01 · Lecture 6", "description": "Inertia, force, action and reaction, with classroom demonstrations. Lectures by Walter Lewin, MIT 8.01.", "sourceUrl": "https://www.youtube.com/watch?v=oduZsA0Tk58", "duration": "49:16", "level": "premium" },
+            { "title": "Hooke's Law, Springs, Pendulums and Simple Harmonic Motion", "topic": "MIT 8.01 · Lecture 10", "description": "Restoring forces, oscillation, period and energy in simple harmonic systems. Lectures by Walter Lewin, MIT 8.01.", "sourceUrl": "https://www.youtube.com/watch?v=tNpuTx7UQbw", "duration": "47:42", "level": "premium" }
+          ]
+        },
+        {
+          "id": "unza-csc1010",
+          "code": "CSC 1010",
+          "semester": 1,
+          "title": "Introduction to Programming in Python",
+          "icon": "cpu",
+          "tint": "#e7f4ec",
+          "tintFg": "#177245",
+          "description": "Computation, branching, iteration and program design for students with no programming background.",
+          "videos": [
+            { "title": "What is Computation?", "topic": "MIT 6.0001 · Lecture 1", "description": "What computation is, how a program describes it, and how Python executes it. MIT OpenCourseWare, 6.0001 (Fall 2016), CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=nykOeWgQcHM", "duration": "43:06", "level": "basic" },
+            { "title": "Branching and Iteration", "topic": "MIT 6.0001 · Lecture 2", "description": "Conditional statements and loops as the two structures that make programs do work. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=0jljZRnHwOI", "duration": "43:31", "level": "basic" },
+            { "title": "String Manipulation, Guess and Check, Approximations, Bisection", "topic": "MIT 6.0001 · Lecture 3", "description": "Working with strings and writing iterative approximations, including bisection search. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=SE4P7IVCunE", "duration": "45:02", "level": "standard" }
+          ]
+        },
+        {
+          "id": "unza-mth1020",
+          "code": "MTH 1020",
+          "semester": 2,
+          "title": "Linear Algebra",
+          "icon": "layers",
+          "tint": "#eef2f6",
+          "tintFg": "#40566d",
+          "description": "Systems of linear equations, elimination, vector spaces, independence and the four fundamental subspaces.",
+          "videos": [
+            { "title": "The Geometry of Linear Equations", "topic": "MIT 18.06 · Lecture 1", "description": "Linear equations seen as planes, rows and columns of a matrix. MIT OpenCourseWare, 18.06 Linear Algebra (Spring 2005), CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=J7DzL2_Na80", "duration": "39:49", "level": "basic" },
+            { "title": "Elimination with Matrices", "topic": "MIT 18.06 · Lecture 2", "description": "Gaussian elimination written as matrix operations, with back substitution. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=QVKj3LADCnA", "duration": "47:42", "level": "basic" },
+            { "title": "Transposes, Permutations and Vector Spaces", "topic": "MIT 18.06 · Lecture 5", "description": "Permutation matrices, transposes and the definition of a vector space. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=JibVXBElKL0", "duration": "47:42", "level": "standard" },
+            { "title": "Column Space and Nullspace", "topic": "MIT 18.06 · Lecture 6", "description": "The two subspaces attached to every matrix and what solvability means. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=8o5Cmfpeo6g", "duration": "46:01", "level": "standard" },
+            { "title": "Independence, Basis and Dimension", "topic": "MIT 18.06 · Lecture 9", "description": "Linear independence, span, bases and the dimension of a subspace. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=yjBerM5jWsc", "duration": "50:14", "level": "premium" },
+            { "title": "The Four Fundamental Subspaces", "topic": "MIT 18.06 · Lecture 10", "description": "Column space, nullspace, row space and left nullspace, and how their dimensions relate. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=nHlE7EgJFds", "duration": "49:20", "level": "premium" }
+          ]
+        },
+        {
+          "id": "unza-nse2010",
+          "code": "NSE 2010",
+          "semester": 2,
+          "title": "Introduction to Nuclear Engineering and Radiation",
+          "icon": "atom",
+          "tint": "#e8f4f9",
+          "tintFg": "#0e7fa2",
+          "description": "Nuclear stability, binding energy, reaction notation, cross sections and radioactive decay — the foundation of nuclear science.",
+          "videos": [
+            { "title": "Radiation History and the Discovery of the Neutron", "topic": "MIT 22.01 · Lecture 1", "description": "From early radiation research to the discovery of the neutron, and why it matters today. MIT OpenCourseWare, 22.01 (Fall 2016), CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=7LyvAVjQUR8", "duration": "53:32", "level": "basic" },
+            { "title": "Nuclear Mass and Stability, Reaction Notation and Cross Sections", "topic": "MIT 22.01 · Lecture 3", "description": "Mass as energy, nuclear stability trends, reaction notation and per-particle reaction probability. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=Gd0QPYVYnQg", "duration": "53:56", "level": "basic" },
+            { "title": "Binding Energy and the Semi-Empirical Liquid Drop Model", "topic": "MIT 22.01 · Lecture 4", "description": "Binding energy per nucleon, the liquid drop model and mass parabolas. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=SgM2wxELF4U", "duration": "52:08", "level": "standard" },
+            { "title": "Mass Parabolas, Stability and Half Life", "topic": "MIT 22.01 · Lecture 5", "description": "Reading stability from mass parabolas and the meaning of half life. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=mJ54DfN95Zo", "duration": "55:37", "level": "standard" },
+            { "title": "The Q-Equation: The Most General Nuclear Reaction", "topic": "MIT 22.01 · Lecture 6", "description": "Energy release in nuclear reactions derived from conservation laws. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=kZAFntUFx8I", "duration": "50:09", "level": "premium" },
+            { "title": "Radioactive Decay: Modes, Energetics and Trends", "topic": "MIT 22.01 · Lecture 8", "description": "Alpha, beta and gamma decay, decay energetics and the trends behind the decay chart. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=YLp8RziRbpg", "duration": "50:00", "level": "premium" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cbu",
+      "name": "Copperbelt University",
+      "shortName": "CBU",
+      "city": "Kitwe",
+      "level": "university",
+      "accent": "#177245",
+      "summary": "Zambia's second-largest public university, founded 1987, with a focus on engineering, technology and business.",
+      "courses": [
+        {
+          "id": "cbu-mth110",
+          "code": "MTH 110",
+          "semester": 1,
+          "title": "Mathematical Methods I",
+          "icon": "sigma",
+          "tint": "#e8f4f9",
+          "tintFg": "#0e7fa2",
+          "description": "Approximation, curve sketching, optimisation, related rates and the definite integral for engineering students.",
+          "videos": [
+            { "title": "Linear and Quadratic Approximations", "topic": "MIT 18.01 · Lecture 9", "description": "Using the derivative to approximate functions near a point. MIT OpenCourseWare, Single Variable Calculus, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=BSAA0akmPEU", "duration": "46:48", "level": "basic" },
+            { "title": "Curve Sketching", "topic": "MIT 18.01 · Lecture 10", "description": "Using first and second derivatives to sketch and read graphs. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=eRCN3daFCmU", "duration": "51:44", "level": "basic" },
+            { "title": "Maximum-Minimum Problems", "topic": "MIT 18.01 · Lecture 11", "description": "Applied optimisation: finding extreme values in real engineering problems. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=twzGBqPeW0M", "duration": "49:42", "level": "standard" },
+            { "title": "Related Rates", "topic": "MIT 18.01 · Lecture 12", "description": "Rates that depend on each other, solved by differentiating a relation. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=YN7k_bXXggY", "duration": "49:56", "level": "standard" },
+            { "title": "Definite Integrals", "topic": "MIT 18.01 · Lecture 18", "description": "The definite integral as a limit of Riemann sums, with its properties. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=hjZhPczMkL4", "duration": "47:14", "level": "premium" },
+            { "title": "The First Fundamental Theorem of Calculus", "topic": "MIT 18.01 · Lecture 19", "description": "How differentiation and integration undo each other, and what that gives you. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=1RLctDS2hUQ", "duration": "48:15", "level": "premium" }
+          ]
+        },
+        {
+          "id": "cbu-eee260",
+          "code": "EEE 260",
+          "semester": 2,
+          "title": "Analog Circuits and Electronics",
+          "icon": "cpu",
+          "tint": "#fbf3e2",
+          "tintFg": "#96660f",
+          "description": "Sinusoidal steady state, impedance, filters, operational amplifiers and energy in electronic circuits.",
+          "videos": [
+            { "title": "Sinusoidal Steady State", "topic": "MIT 6.002 · Lecture 16", "description": "How circuits behave when driven by sinusoidal sources, and why this matters. MIT OpenCourseWare, 6.002 Circuits and Electronics, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=3GdMaDzIUeQ", "duration": "52:08", "level": "basic" },
+            { "title": "The Impedance Model", "topic": "MIT 6.002 · Lecture 17", "description": "Extending resistive analysis to capacitors and inductors through impedance. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=Km9YIdkc2Oo", "duration": "49:32", "level": "basic" },
+            { "title": "Filters", "topic": "MIT 6.002 · Lecture 18", "description": "Frequency-selective circuits built from impedance and analysis. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=WT-qzgaKeGI", "duration": "48:00", "level": "standard" },
+            { "title": "The Operational Amplifier Abstraction", "topic": "MIT 6.002 · Lecture 19", "description": "Why the op-amp is the standard building block for analog design. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=V0z_f7qxLcY", "duration": "52:32", "level": "standard" },
+            { "title": "Operational Amplifier Circuits", "topic": "MIT 6.002 · Lecture 20", "description": "Amplifiers, summers and integrators built from op-amps. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=2SwT6JnfCq8", "duration": "49:52", "level": "premium" },
+            { "title": "Op Amps with Positive Feedback", "topic": "MIT 6.002 · Lecture 21", "description": "Comparator and Schmitt trigger behaviour when feedback is positive. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=ke3SL_R92ys", "duration": "51:14", "level": "premium" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mulungushi",
+      "name": "Mulungushi University",
+      "shortName": "MUK",
+      "city": "Kabwe",
+      "level": "university",
+      "accent": "#9c2b70",
+      "summary": "Public university in Kabwe, Central Province, offering science, agriculture, business and education programmes.",
+      "courses": [
+        {
+          "id": "muk-chm110",
+          "code": "CHM 110",
+          "semester": 1,
+          "title": "Principles of Chemical Science",
+          "icon": "flask",
+          "tint": "#f9ecf4",
+          "tintFg": "#9c2b70",
+          "description": "Atomic structure, wave-particle duality, orbital energies, periodic trends and bonding.",
+          "videos": [
+            { "title": "Atomic Structure", "topic": "MIT 5.111 · Lecture 2", "description": "The experimental evidence that shaped the modern model of the atom. MIT OpenCourseWare, 5.111 Principles of Chemical Science (Fall 2014), CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=ustfXi-mpkI", "duration": "39:00", "level": "basic" },
+            { "title": "Wave-Particle Duality of Light", "topic": "MIT 5.111 · Lecture 3", "description": "Light behaving as both wave and particle, and what spectroscopy reveals. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=_U6YamvF7BE", "duration": "45:52", "level": "basic" },
+            { "title": "Wave-Particle Duality of Matter and the Schrödinger Equation", "topic": "MIT 5.111 · Lecture 4", "description": "Matter waves, the wavefunction and how energy levels emerge. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=Qg7pQ_CYaIQ", "duration": "46:03", "level": "standard" },
+            { "title": "Hydrogen Atom Energy Levels", "topic": "MIT 5.111 · Lecture 5", "description": "Quantised energy levels of hydrogen and how they are calculated. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=kO0VmaLkgj8", "duration": "41:39", "level": "standard" },
+            { "title": "The Periodic Table and Periodic Trends", "topic": "MIT 5.111 · Lecture 8", "description": "Atomic size, ionisation energy and electron affinity explained from orbital structure. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=LWmVdG0uj2g", "duration": "41:36", "level": "premium" },
+            { "title": "Lewis Structures", "topic": "MIT 5.111 · Lecture 10", "description": "Drawing Lewis structures to describe bonding and molecular shape. MIT OpenCourseWare, CC BY-NC-SA.", "sourceUrl": "https://www.youtube.com/watch?v=ed_XR1BzuQs", "duration": "43:38", "level": "premium" }
+          ]
+        },
+        {
+          "id": "muk-sta210",
+          "code": "STA 210",
+          "semester": 2,
+          "title": "Statistics Foundations",
+          "icon": "sigma",
+          "tint": "#eef2f6",
+          "tintFg": "#40566d",
+          "description": "What statistics is for, how to reason with numbers, and how to describe data with averages and spread.",
+          "videos": [
+            { "title": "What Is Statistics?", "topic": "Crash Course Statistics · Episode 1", "description": "Why statistics matter, what they can answer, and how they are misused. Crash Course Statistics.", "sourceUrl": "https://www.youtube.com/watch?v=sxQaBpKfDRk", "level": "basic" },
+            { "title": "Mathematical Thinking and Numeracy", "topic": "Crash Course Statistics · Episode 2", "description": "Reading very large and very small numbers, and visualising data honestly. Crash Course Statistics.", "sourceUrl": "https://www.youtube.com/watch?v=tN9Xl1AcSv8", "level": "basic" },
+            { "title": "Mean, Median and Mode: Measures of Central Tendency", "topic": "Crash Course Statistics · Episode 3", "description": "The three common averages, when each is appropriate, and how they can mislead. Crash Course Statistics.", "sourceUrl": "https://www.youtube.com/watch?v=kn83BA7cRNM", "level": "standard" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "secondary",
+      "name": "Secondary School Programme",
+      "shortName": "Secondary",
+      "city": "Zambia",
+      "level": "high-school",
+      "accent": "#96660f",
+      "summary": "The Nuclear Tutorials secondary pathway: exam-focused video lessons for Grades 10 to 12, organised in two school semesters.",
+      "courses": [
+        {
+          "id": "sec-che100",
+          "code": "CHE 100",
+          "semester": 1,
+          "title": "Chemistry Essentials",
+          "icon": "flask",
+          "tint": "#f9ecf4",
+          "tintFg": "#9c2b70",
+          "description": "Atoms, the nucleus, significant figures, the fundamental laws of chemistry and reading the periodic table.",
+          "videos": [
+            { "title": "The Nucleus and the Atom", "topic": "Crash Course Chemistry · Episode 1", "description": "Protons, neutrons and electrons, atomic number, isotopes and relative atomic mass. Crash Course Chemistry.", "sourceUrl": "https://www.youtube.com/watch?v=FSyAehMdpyI", "level": "basic" },
+            { "title": "Unit Conversion and Significant Figures", "topic": "Crash Course Chemistry · Episode 2", "description": "SI units, scientific notation and reporting measurements with the right precision. Crash Course Chemistry.", "sourceUrl": "https://www.youtube.com/watch?v=hQpQ0hxVNTg", "level": "basic" },
+            { "title": "The Fundamental Laws of Chemistry", "topic": "Crash Course Chemistry · Episode 3", "description": "Conservation of mass, compounds and the birth of modern chemistry. Crash Course Chemistry.", "sourceUrl": "https://www.youtube.com/watch?v=QiiyvzZBKT8", "level": "standard" },
+            { "title": "The Periodic Table", "topic": "Crash Course Chemistry · Episode 4", "description": "How Mendeleev's table is organised and how to read the information inside it. Crash Course Chemistry.", "sourceUrl": "https://www.youtube.com/watch?v=0RRVV4Diomg", "level": "standard" }
+          ]
+        },
+        {
+          "id": "sec-phy100",
+          "code": "PHY 100",
+          "semester": 2,
+          "title": "Physics Essentials",
+          "icon": "atom",
+          "tint": "#eef2f6",
+          "tintFg": "#40566d",
+          "description": "Motion, the calculus of physics, vectors and Newton's laws, explained for school learners.",
+          "videos": [
+            { "title": "Motion in a Straight Line", "topic": "Crash Course Physics · Episode 1", "description": "Displacement, velocity and acceleration with everyday examples. Crash Course Physics.", "sourceUrl": "https://www.youtube.com/watch?v=ZM8ECpBuQYE", "level": "basic" },
+            { "title": "Derivatives in Physics", "topic": "Crash Course Physics · Episode 2", "description": "How gradients and rates of change describe motion. Crash Course Physics.", "sourceUrl": "https://www.youtube.com/watch?v=ObHJJYvu3RE", "level": "basic" },
+            { "title": "Integrals in Physics", "topic": "Crash Course Physics · Episode 3", "description": "Using areas under graphs to find distance travelled. Crash Course Physics.", "sourceUrl": "https://www.youtube.com/watch?v=jLJLXka2wEM", "level": "standard" },
+            { "title": "Vectors and Two-Dimensional Motion", "topic": "Crash Course Physics · Episode 4", "description": "Scalars, vectors and projectile motion. Crash Course Physics.", "sourceUrl": "https://www.youtube.com/watch?v=w3BhzYI6zXU", "level": "standard" },
+            { "title": "Newton's Laws of Motion", "topic": "Crash Course Physics · Episode 5", "description": "Force, mass, acceleration and action-reaction pairs. Crash Course Physics.", "sourceUrl": "https://www.youtube.com/watch?v=kKKM8Y-u7ds", "level": "premium" }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,15 @@
-/* Minimal-DOM render smoke for every current public and preview-admin route. */
+#!/usr/bin/env node
+/* ============================================================
+   Render smoke test
+
+   Runs the real front-end scripts (icons → data → store → api →
+   ui → app/admin) against a minimal DOM and a stubbed fetch that
+   serves fixtures shaped exactly like the Nuclear Tutorials API.
+   Every public page and every admin route is rendered as a
+   visitor and as a signed-in student, checking for broken markup.
+   ============================================================ */
 "use strict";
+
 var fs = require("fs");
 var path = require("path");
 var ROOT = path.resolve(__dirname, "..");
@@ -10,17 +20,24 @@ var documentQueries = {};
 var documentListeners = {};
 var storage = {};
 var educationRadios = [];
+var fetchLog = [];
+var redirected = "";
+process.on("unhandledRejection", function (error) { console.error("  UNHANDLED  " + ((error && error.stack) || error)); });
 
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
 function ok(condition, label) {
-  if (condition) passed++;
+  if (condition) { passed++; }
   else { failed++; console.error("  FAIL  " + label); }
 }
+function group(label) { console.log("\n== " + label + " =="); }
+
+/* ---------------- minimal DOM ---------------- */
+
 function makeEl(tag) {
   var el = {
     tagName: String(tag || "div").toUpperCase(),
-    children: [], innerHTML: "", textContent: "", value: "", className: "", id: "",
-    href: "", dataset: {}, style: {}, attributes: {}, listeners: {}, checked: false,
+    children: [], innerHTML: "", textContent: "", value: "", className: "", id: "", href: "",
+    dataset: {}, style: {}, attributes: {}, listeners: {}, checked: false, disabled: false, hidden: false,
     classList: {
       _values: {},
       add: function (name) { this._values[name] = true; },
@@ -56,39 +73,212 @@ function makeEl(tag) {
   };
   return el;
 }
+
 function byId(id) {
   if (!registry[id]) registry[id] = makeEl("div");
   return registry[id];
 }
-function resetDom(page) {
+
+function resetDom(page, kind) {
   registry = {};
   documentQueries = {};
   global.document.body = makeEl("body");
-  global.document.body.dataset.page = page || "";
-  global.document.body.dataset.admin = page || "";
+  global.document.body.dataset.page = kind === "admin" ? "" : (page || "");
+  global.document.body.dataset.admin = kind === "admin" ? page : "";
   global.document.title = "";
 }
-function collectHtml() {
+
+function collectHtml(pageFile) {
   var output = [];
+  if (pageFile) {
+    try { output.push(read(pageFile)); } catch (error) { /* page shell is optional */ }
+  }
   Object.keys(registry).forEach(function (key) { output.push(registry[key].innerHTML || ""); });
   (global.document.body.children || []).forEach(function (child) { output.push(child.innerHTML || ""); });
   return output.join("\n");
 }
-function runDomReady() {
-  (documentListeners.DOMContentLoaded || []).forEach(function (listener) { listener(); });
-}
-function clearStore() {
+
+function runDomReady() { (documentListeners.DOMContentLoaded || []).forEach(function (fn) { fn(); }); }
+function evaluate(rel) { new Function(read(rel))(); }
+
+function installStorage() {
   storage = {};
   global.localStorage = {
     getItem: function (key) { return Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null; },
     setItem: function (key, value) { storage[key] = String(value); },
     removeItem: function (key) { delete storage[key]; }
   };
-  global.NT.store.reset();
 }
-function evaluate(rel) { new Function(read(rel))(); }
 
-/* ---------------- DOM and browser APIs used by the static pages ---------------- */
+/* ---------------- fixtures shaped like the API ---------------- */
+
+var UNZA = {
+  id: "unza", slug: "unza", name: "University of Zambia", shortName: "UNZA", city: "Lusaka",
+  level: "university", summary: "Engineering and natural sciences.", accent: "#0d7ea4",
+  position: 10, courseCount: 2, videoCount: 3
+};
+var SCHOOL = {
+  id: "secondary", slug: "secondary", name: "Secondary School Programme", shortName: "Secondary",
+  city: "Zambia", level: "high-school", summary: "Grades 10 to 12.", accent: "#4c5fa8",
+  position: 40, courseCount: 0, videoCount: 0
+};
+var MTH101 = {
+  id: "unza-mth1010", universityId: "unza", universityName: "University of Zambia", universityShort: "UNZA",
+  universityLevel: "university", semester: 1, code: "MTH 1010", title: "Mathematics I",
+  description: "Single variable calculus for engineers.", icon: "calculator", tint: "#e8f6fb", tintFg: "#0a6788",
+  position: 10, videoCount: 3, publishedCount: 3
+};
+var PHY102 = {
+  id: "unza-phy1020", universityId: "unza", universityName: "University of Zambia", universityShort: "UNZA",
+  universityLevel: "university", semester: 2, code: "PHY 1020", title: "Electricity and Magnetism",
+  description: "Fields, circuits and electromagnetic waves.", icon: "atom", tint: "#eceefb", tintFg: "#4c5fa8",
+  position: 10, videoCount: 1, publishedCount: 1
+};
+function makeVideo(overrides) {
+  return Object.assign({
+    id: "unza-mth1010-v1", courseId: "unza-mth1010", courseTitle: "Mathematics I", courseCode: "MTH 1010",
+    universityId: "unza", universityName: "University of Zambia", universityShort: "UNZA",
+    universityLevel: "university", semester: 1, title: "Limits and continuity",
+    topic: "MIT 18.01 · Lecture 2", description: "How limits define derivatives.",
+    sourceUrl: "https://www.youtube.com/watch?v=ryLdyDrBfvI", provider: "youtube",
+    thumbnailUrl: "https://i.ytimg.com/vi/ryLdyDrBfvI/hqdefault.jpg", durationSeconds: 2892,
+    level: "basic", position: 10, published: true,
+    createdAt: "2026-09-01T08:00:00.000Z", updatedAt: "2026-09-01T08:00:00.000Z"
+  }, overrides || {});
+}
+var VIDEOS = [
+  makeVideo({}),
+  makeVideo({ id: "unza-mth1010-v2", title: "The derivative as a function", topic: "MIT 18.01 · Lecture 3", level: "standard", position: 20, durationSeconds: 2900 }),
+  makeVideo({ id: "unza-mth1010-v3", title: "Applying differentiation", topic: "MIT 18.01 · Lecture 4", level: "premium", position: 30, durationSeconds: 3010 }),
+  makeVideo({ id: "unza-phy1020-v1", courseId: "unza-phy1020", courseTitle: "Electricity and Magnetism", courseCode: "PHY 1020", semester: 2, title: "Electric charge and fields", topic: "MIT 8.02 · Lecture 1" })
+];
+var CATALOGUE = {
+  universities: [UNZA], schools: [SCHOOL], courses: [MTH101, PHY102], videos: VIDEOS,
+  totals: { universities: 1, schools: 1, courses: 2, videos: 4, levels: { basic: 2, standard: 1, premium: 1 } },
+  generatedAt: "2026-10-01T00:00:00.000Z"
+};
+var SETTINGS = {
+  supportEmail: "support@nucleartutorials.zm", accessDays: 180,
+  packages: { basic: { name: "Basic", price: 150, tagline: "Start watching.", features: ["Introductory lessons"] } }
+};
+var ANNOUNCEMENTS = [{ id: "notice-1", title: "Semester 2 lessons published", body: "New lectures are live.", status: "published", createdAt: "2026-09-20T08:00:00.000Z", updatedAt: "2026-09-20T08:00:00.000Z" }];
+var PROGRESS = [{ videoId: "unza-mth1010-v1", completed: true, seconds: 2892, updatedAt: "2026-09-25T10:00:00.000Z" }];
+
+var ADMIN_PAYLOADS = {
+  "/api/admin/overview": {
+    totals: { universities: 1, schools: 1, courses: 2, videos: 4, published: 4, drafts: 0, codes: 3, codesRedeemed: 1, students: 1, views: 1 },
+    semesters: [{ semester: 1, courses: 1, videos: 3 }, { semester: 2, courses: 1, videos: 1 }],
+    recentVideos: VIDEOS.slice(0, 2), universities: [UNZA, SCHOOL]
+  },
+  "/api/admin/universities": { universities: [UNZA, SCHOOL] },
+  "/api/admin/courses": { courses: [MTH101, PHY102] },
+  "/api/admin/videos": { videos: VIDEOS },
+  "/api/admin/codes": { codes: [{ code: "NT-STANDARD-4826", package: "standard", status: "redeemed", issuedAt: "2026-09-01T08:00:00.000Z", redeemedAt: "2026-09-02T08:00:00.000Z" }] },
+  "/api/admin/announcements": { announcements: ANNOUNCEMENTS },
+  "/api/admin/settings": { settings: SETTINGS },
+  "/api/admin/session": { authenticated: true }
+};
+var ADMIN_UNIVERSITY = Object.assign({}, UNZA);
+var ADMIN_COURSE = Object.assign({}, MTH101);
+var ADMIN_VIDEO = Object.assign({}, VIDEOS[0]);
+
+function jsonResponse(payload, status) {
+  return {
+    ok: (status || 200) < 400,
+    status: status || 200,
+    text: function () { return Promise.resolve(JSON.stringify(payload)); }
+  };
+}
+
+global.fetch = function (url, init) {
+  var method = (init && init.method) || "GET";
+  var resolved = new URL(String(url), global.location.href);
+  var target = resolved.pathname;
+  fetchLog.push(method + " " + target + resolved.search);
+
+  if (target === "/api/catalogue") return Promise.resolve(jsonResponse({ ok: true, catalogue: CATALOGUE, settings: SETTINGS }));
+  if (target === "/api/announcements") return Promise.resolve(jsonResponse({ ok: true, announcements: ANNOUNCEMENTS }));
+  if (target === "/api/search") return Promise.resolve(jsonResponse({ ok: true, universities: [UNZA], courses: [MTH101], videos: [VIDEOS[0]], announcements: [] }));
+  if (target === "/api/codes/issue") return Promise.resolve(jsonResponse({ ok: true, code: "NT-STANDARD-4826", package: "standard" }, 201));
+  if (target === "/api/access/redeem") {
+    return Promise.resolve(jsonResponse({
+      ok: true,
+      access: { code: "NT-STANDARD-4826", package: "standard", educationLevel: "university", since: "2026-10-01T00:00:00.000Z", expiresAt: "2027-03-30T00:00:00.000Z", accessDays: 180 }
+    }));
+  }
+  if (target === "/api/progress" && method === "GET") return Promise.resolve(jsonResponse({ ok: true, progress: PROGRESS }));
+  if (target === "/api/progress" && method === "POST") return Promise.resolve(jsonResponse({ ok: true, progress: PROGRESS }));
+  if (target === "/api/settings") return Promise.resolve(jsonResponse({ ok: true, settings: SETTINGS }));
+
+  if (target === "/api/admin/session" && process.env.SMOKE_SIGNED_OUT === "1") {
+    return Promise.resolve(jsonResponse({ ok: true, authenticated: false }));
+  }
+  if (ADMIN_PAYLOADS[target] && method === "GET") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (target === "/api/admin/login") return Promise.resolve(jsonResponse({ ok: true, session: { authenticated: true } }));
+  if (target === "/api/admin/logout") return Promise.resolve(jsonResponse({ ok: true }));
+  if (target === "/api/admin/session") {
+    if (process.env.SMOKE_SIGNED_OUT === "1") return Promise.resolve(jsonResponse({ ok: true, authenticated: false }));
+    return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  }
+  if (target === "/api/admin/universities") {
+    if (method === "POST") return Promise.resolve(jsonResponse({ ok: true, university: ADMIN_UNIVERSITY }, 201));
+    return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  }
+  if (/^\/api\/admin\/universities\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, university: ADMIN_UNIVERSITY }));
+  if (target === "/api/admin/courses") {
+    if (method === "POST") return Promise.resolve(jsonResponse({ ok: true, course: ADMIN_COURSE }, 201));
+    return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  }
+  if (/^\/api\/admin\/courses\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, course: ADMIN_COURSE }));
+  if (target === "/api/admin/videos") {
+    if (method === "POST") return Promise.resolve(jsonResponse({ ok: true, video: ADMIN_VIDEO }, 201));
+    return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  }
+  if (/^\/api\/admin\/videos\/[^/]+\/move$/.test(target)) return Promise.resolve(jsonResponse({ ok: true, videos: VIDEOS }));
+  if (/^\/api\/admin\/videos\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, video: ADMIN_VIDEO }));
+  if (target === "/api/admin/codes") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (/^\/api\/admin\/codes\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, deleted: true }));
+  if (target === "/api/admin/announcements") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (/^\/api\/admin\/announcements\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, id: "notice-1" }));
+  if (target === "/api/admin/settings") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (target === "/api/admin/password") return Promise.resolve(jsonResponse({ ok: true, changed: true }));
+  return Promise.resolve(jsonResponse({ ok: false, error: "Unknown route: " + target }, 404));
+};
+
+/* ------------------------------------------------------------
+   Live mode: SMOKE_BASE=http://host:port renders the same pages
+   against the running server instead of the fixtures.
+   ------------------------------------------------------------ */
+var LIVE = process.env.SMOKE_BASE ? process.env.SMOKE_BASE.replace(/\/$/, "") : "";
+
+if (LIVE) {
+  var httpModule = require("http");
+  global.fetch = function (url, init) {
+    var resolved = new URL(String(url), global.location.href);
+    var target = resolved.pathname + resolved.search;
+    fetchLog.push(((init && init.method) || "GET") + " " + target);
+    return new Promise(function (resolve, reject) {
+      var req = httpModule.request(LIVE + target, {
+        method: (init && init.method) || "GET",
+        headers: (init && init.headers) || {}
+      }, function (res) {
+        var chunks = [];
+        res.on("data", function (chunk) { chunks.push(chunk); });
+        res.on("end", function () {
+          var raw = Buffer.concat(chunks).toString("utf8");
+          resolve({ ok: res.statusCode < 400, status: res.statusCode, text: function () { return Promise.resolve(raw); } });
+        });
+      });
+      req.on("error", function (error) { reject(error); });
+      req.setTimeout(8000, function () { req.destroy(new Error("timeout")); });
+      if (init && init.body) req.write(init.body);
+      req.end();
+    });
+  };
+}
+
+/* ---------------- browser globals ---------------- */
+
 global.document = {
   body: makeEl("body"),
   documentElement: makeEl("html"),
@@ -105,8 +295,12 @@ global.document = {
   execCommand: function () { return true; }
 };
 global.window = global;
-global.location = { pathname: "/index.html", search: "", hash: "", href: "http://preview.test/index.html" };
+global.location = {
+  pathname: "/index.html", search: "", hash: "", href: "http://preview.test/index.html",
+  replace: function (href) { redirected = href; }
+};
 global.history = { replaceState: function () {} };
+try { Object.defineProperty(global, "navigator", { value: { clipboard: null }, configurable: true }); } catch (error) { /* readonly in newer Node */ }
 global.IntersectionObserver = function () { this.observe = function () {}; this.unobserve = function () {}; };
 global.matchMedia = function () { return { matches: false, addListener: function () {} }; };
 global.requestAnimationFrame = function () { return 0; };
@@ -116,142 +310,249 @@ global.addEventListener = function () {};
 global.removeEventListener = function () {};
 global.setTimeout = setTimeout;
 global.clearTimeout = clearTimeout;
-global.setInterval = setInterval;
-global.clearInterval = clearInterval;
 
-["assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/ui.js", "assets/js/app.js"].forEach(evaluate);
+installStorage();
 
-/* ---------------- Public routes ---------------- */
-var PUBLIC = [
-  ["home", "index.html", ""],
-  ["courses", "courses.html", ""],
-  ["course", "course.html", "?id=math"],
-  ["course", "course.html", "?id=not-a-course"],
-  ["pricing", "pricing.html", ""],
-  ["access", "access.html", ""],
-  ["checkout", "checkout.html", "?pkg=standard"],
-  ["checkout", "checkout.html", "?pkg=unknown"],
-  ["dashboard", "dashboard.html", ""],
-  ["library", "library.html", ""],
-  ["lesson", "lesson.html", "?id=math-1"],
-  ["lesson", "lesson.html", "?id=not-a-lesson"],
-  ["profile", "profile.html", ""],
-  ["search", "search.html", "?q=algebra"],
-  ["announcements", "announcements.html", ""]
-];
-console.log("== Public render smoke ==");
-PUBLIC.forEach(function (entry) {
-  [false, true].forEach(function (hasAccess) {
-    try {
-      clearStore();
-      if (hasAccess) {
-        global.NT.store.mutate(function (state) {
-          state.profile.educationLevel = "university";
-          state.access = "standard";
-          state.accessMeta = { source: "access-code", code: "NT-STANDARD-4826", since: new Date().toISOString() };
-        });
-      }
-      resetDom(entry[0]);
-      global.location = { pathname: "/" + entry[1], search: entry[2], hash: "", href: "http://preview.test/" + entry[1] + entry[2] };
-      runDomReady();
-      var html = collectHtml();
-      var label = entry[1] + entry[2] + (hasAccess ? " [package]" : " [visitor]");
-      ok(html.length > 80, label + " renders markup");
-      ok(html.indexOf("undefined") === -1, label + " contains no undefined values");
-      ok(html.indexOf("NaN") === -1, label + " contains no invalid numbers");
-    } catch (error) {
-      ok(false, entry[1] + entry[2] + (hasAccess ? " [package]" : " [visitor]") + " throws: " + error.stack);
-    }
+["assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/app.js"].forEach(evaluate);
+
+function signIn() {
+  global.NT.store.mutate(function (state) {
+    state.profile.educationLevel = "university";
+    state.profile.universityId = "unza";
+    state.profile.semester = 1;
+    state.access = "standard";
+    state.accessMeta = { source: "access-code", code: "NT-STANDARD-4826", since: new Date().toISOString(), expiresAt: "2027-03-30T00:00:00.000Z" };
   });
-});
-
-/* Ensure old simulated purchases and player records are discarded without
-   dropping locally generated preview codes or lesson-level overrides. */
-console.log("\n== Local-state migration smoke ==");
-try {
-  storage = {
-    nt_demo_state_v1: JSON.stringify({
-      access: "standard",
-      accessMeta: { code: "NT-STANDARD-4826", source: "payment", method: "Mobile wallet", ref: "NTX-2026-12345" },
-      codes: [
-        { code: "NT-STANDARD-4826", pkg: "standard", status: "redeemed" },
-        { code: "NT-BASIC-2026", pkg: "basic", status: "active", seeded: true },
-        { code: "NT-BASIC-9371", pkg: "basic", status: "unused" }
-      ],
-      payments: [{ ref: "NTX-2026-12345" }], students: [{ name: "Sample" }], completed: ["math-1"],
-      recentLessons: ["math-1"], extraLessons: [{ id: "extra" }],
-      videoLevels: { "math-1": "premium" },
-      profile: { name: "Learner", educationLevel: "university", levelId: "old-level", university: "old-university" },
-      settings: { email: "support@nucleartutorials.zm", name: "Old demo", currency: "ZMW" }
-    })
-  };
-  global.localStorage = {
-    getItem: function (key) { return Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null; },
-    setItem: function (key, value) { storage[key] = String(value); },
-    removeItem: function (key) { delete storage[key]; }
-  };
-  evaluate("assets/js/store.js");
-  var migrated = global.NT.store.get();
-  ok(migrated.access === null && migrated.accessMeta === null, "simulated payment access is not carried forward");
-  ok(!migrated.payments && !migrated.students && !migrated.completed && !migrated.extraLessons, "obsolete simulated records are removed");
-  ok(migrated.codes.length === 1 && migrated.codes[0].code === "NT-BASIC-9371", "locally generated preview codes are preserved");
-  ok(migrated.lessonLevels["math-1"] === "premium" && !migrated.videoLevels, "old lesson overrides migrate to the lesson-level field");
-  ok(migrated.profile.educationLevel === "university" && !migrated.profile.levelId && !migrated.profile.university, "education level remains while obsolete profile fields are removed");
-  ok(migrated.settings.email === "" && !migrated.settings.name && !migrated.settings.currency, "fabricated contact and unused settings are removed");
-} catch (error) {
-  ok(false, "local-state migration throws: " + error.stack);
 }
 
-/* Exercise the real education-level + access-code submit handler. */
-console.log("\n== Access flow smoke ==");
-try {
-  clearStore();
-  global.NT.store.addCode("NT-STANDARD-4826", "standard", "unused");
+/* ---------------- public routes ---------------- */
+
+group("Public render smoke");
+var PUBLIC = [
+  ["home", "index.html", "", { visitor: ["Choose your university", "Semester 1", "Semester 2"], access: ["Choose your university"] }],
+  ["courses", "courses.html", "", { visitor: ["Mathematics I", "Semester 1"], access: ["Mathematics I"] }],
+  ["courses", "courses.html", "?university=secondary&semester=2&level=high-school", { visitor: ["Secondary School Programme"] }],
+  ["course", "course.html", "?id=unza-mth1010", { visitor: ["Limits and continuity", "Video lessons", "Start learning"], access: ["Limits and continuity"] }],
+  ["course", "course.html", "?id=not-a-course", { visitor: ["Course not found"] }],
+  ["lesson", "lesson.html", "?id=unza-mth1010-v1", { visitor: ["About this lesson", "Compare packages"], access: ["About this lesson", "Watched"] }],
+  ["lesson", "lesson.html", "?id=not-a-lesson", { visitor: ["Lesson not found"] }],
+  ["library", "library.html", "", { visitor: ["Limits and continuity"], access: ["Limits and continuity"] }],
+  ["dashboard", "dashboard.html", "", { visitor: ["Log in to continue"], access: ["Welcome back", "Last watched", "Recently viewed"] }],
+  ["pricing", "pricing.html", "", { visitor: ["Basic", "Standard", "Premium"], access: ["Standard"] }],
+  ["checkout", "checkout.html", "?pkg=standard", { visitor: ["Standard", "Generate access code"] }],
+  ["checkout", "checkout.html", "?pkg=unknown", { visitor: ["Choose a package first"] }],
+  ["access", "access.html", "", { visitor: ["Choose your level"] }],
+  ["profile", "profile.html", "", { visitor: ["Study preferences", "University of Zambia"], access: ["Study preferences", "Standard"] }],
+  ["search", "search.html", "?q=Mathematics", { visitor: ["Mathematics I"] }],
+  ["announcements", "announcements.html", "", { visitor: ["Semester 2 lessons published"] }]
+];
+
+var chain = Promise.resolve();
+
+if (LIVE) {
+  chain = chain.then(function () {
+    return global.fetch(LIVE + "/api/catalogue").then(function (response) {
+      return response.text();
+    }).then(function (raw) {
+      var payload = JSON.parse(raw);
+      var catalogue = payload.catalogue;
+      var university = catalogue.universities[0];
+      var semesterOne = catalogue.courses.filter(function (course) { return Number(course.semester) === 1; })[0];
+      var semesterTwo = catalogue.courses.filter(function (course) { return Number(course.semester) === 2; })[0];
+      var video = catalogue.videos.filter(function (item) { return item.courseId === semesterOne.id; })[0];
+      PUBLIC = [
+        ["home", "index.html", "", { visitor: [university.name, "Semester 1", "Semester 2"] }],
+        ["courses", "courses.html", "?university=" + university.id + "&semester=1", { visitor: [semesterOne.title, university.name] }],
+        ["courses", "courses.html", "?semester=2", { visitor: [semesterTwo.title] }],
+        ["course", "course.html", "?id=" + semesterOne.id, { visitor: [semesterOne.title, video.title] }],
+        ["course", "course.html", "?id=missing-course", { visitor: ["Course not found"] }],
+        ["lesson", "lesson.html", "?id=" + video.id, { visitor: [video.title, "About this lesson"] }],
+        ["lesson", "lesson.html", "?id=missing-lesson", { visitor: ["Lesson not found"] }],
+        ["library", "library.html", "?course=" + semesterOne.id, { visitor: [video.title] }],
+        ["dashboard", "dashboard.html", "", { visitor: ["Log in to continue"] }],
+        ["pricing", "pricing.html", "", { visitor: ["Basic", "Standard", "Premium"] }],
+        ["checkout", "checkout.html", "?pkg=standard", { visitor: ["Generate access code"] }],
+        ["access", "access.html", "", { visitor: ["Choose your level"] }],
+        ["profile", "profile.html", "", { visitor: ["Study preferences", university.name] }],
+        ["search", "search.html", "?q=" + encodeURIComponent(university.shortName), { visitor: [university.name] }],
+        ["announcements", "announcements.html", "", { visitor: ["Announcements"] }]
+      ];
+      console.log("Live catalogue: " + university.name + " · " + catalogue.courses.length + " courses · " + catalogue.videos.length + " lessons");
+    });
+  });
+}
+
+function renderPublicRoutes() {
+  var steps = Promise.resolve();
+  PUBLIC.forEach(function (entry) {
+    [false, true].forEach(function (hasAccess) {
+      var label = entry[1] + entry[2] + (hasAccess ? " [package]" : " [visitor]");
+      steps = steps.then(function () {
+        try {
+          installStorage();
+          global.NT.store.reset();
+          if (hasAccess) signIn();
+          resetDom(entry[0], "public");
+          global.location.pathname = "/" + entry[1];
+          global.location.search = entry[2];
+          global.location.href = "http://preview.test/" + entry[1] + entry[2];
+          runDomReady();
+          return drain(30).then(function () {
+            var html = collectHtml(entry[1]);
+            ok(html.length > 400, label + " renders markup");
+            ok(html.indexOf("undefined") === -1, label + " contains no undefined values");
+            ok(html.indexOf("NaN") === -1, label + " contains no invalid numbers");
+            var needles = (entry[3] && (hasAccess ? entry[3].access : entry[3].visitor)) || [];
+            needles.forEach(function (needle) {
+              ok(html.indexOf(needle) !== -1, label + " shows " + JSON.stringify(needle));
+            });
+          });
+        } catch (error) {
+          ok(false, label + " throws: " + (error && error.stack));
+          return Promise.resolve();
+        }
+      });
+    });
+  });
+  return steps;
+}
+
+chain = chain.then(renderPublicRoutes);
+
+/* ---------------- access and checkout flows ---------------- */
+
+/* ---------------- access and checkout flows ---------------- */
+
+function drain(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms || 30); }); }
+
+chain = chain.then(function () {
+  if (LIVE) { console.log("\n== Access code flow ==\n  SKIP  covered by scripts/check-flows.js against the live server"); return; }
+  group("Access code flow");
+  installStorage();
+  global.NT.store.reset();
+  fetchLog = [];
   educationRadios = [
     Object.assign(makeEl("input"), { value: "high-school", checked: false }),
     Object.assign(makeEl("input"), { value: "university", checked: false })
   ];
   documentListeners = {};
-  resetDom("access");
-  global.location = { pathname: "/access.html", search: "", hash: "", href: "http://preview.test/access.html" };
+  resetDom("access", "public");
+  global.document.body.dataset.page = "access";
+  global.location.pathname = "/access.html";
+  global.location.search = "";
+  global.location.href = "http://preview.test/access.html";
   evaluate("assets/js/app.js");
   runDomReady();
   var form = byId("codeForm");
   var codeInput = byId("codeInput");
   codeInput.value = "NT-STANDARD-4826";
-  form.dispatch("submit", { preventDefault: function () {} });
+  form.dispatch("submit", { preventDefault: function () {}, currentTarget: form });
   ok(byId("codeMsg").innerHTML.indexOf("Choose your level") !== -1, "submitting without a level is rejected accessibly");
   ok(global.NT.store.get().access === null, "missing level does not grant package access");
 
   educationRadios[1].checked = true;
-  form.dispatch("submit", { preventDefault: function () {} });
+  form.dispatch("submit", { preventDefault: function () {}, currentTarget: form });
+  return drain(60);
+}).then(function () {
+  if (LIVE) return;
   var state = global.NT.store.get();
-  ok(state.profile.educationLevel === "university", "selected education level persists in profile state");
-  ok(state.access === "standard", "valid code retains existing package access behavior");
-  ok(global.NT.store.findCode("NT-STANDARD-4826").status === "redeemed", "code redemption is recorded locally");
-  ok(byId("codeResult").innerHTML.indexOf("courses.html?level=university") !== -1, "success route uses the selected education level");
-} catch (error) {
-  ok(false, "access-code flow throws: " + error.stack);
-}
-
-/* ---------------- Admin preview routes ---------------- */
-console.log("\n== Admin preview render smoke ==");
-var ADMIN = ["home", "courses", "lessons", "announcements", "packages", "codes", "settings"];
-ADMIN.forEach(function (page) {
-  try {
-    clearStore();
-    documentListeners = {};
-    resetDom(page);
-    global.location = { pathname: "/admin/" + (page === "home" ? "index" : page) + ".html", search: "", hash: "", href: "http://preview.test/admin/" + page + ".html" };
-    evaluate("assets/js/admin.js");
-    runDomReady();
-    var html = collectHtml();
-    ok(html.length > 80, "admin/" + page + " renders markup");
-    ok(html.indexOf("undefined") === -1, "admin/" + page + " contains no undefined values");
-  } catch (error) {
-    ok(false, "admin/" + page + " throws: " + error.stack);
-  }
+  ok(state.access === "standard", "redeemed code grants the package returned by the server");
+  ok(state.profile.educationLevel === "university", "selected education level is stored in the student profile");
+  ok(fetchLog.indexOf("POST /api/access/redeem") !== -1, "redemption is validated by the server, not localStorage");
+  ok(byId("codeResult").innerHTML.indexOf("Continue to your courses") !== -1, "success state offers the next learning step");
+  ok(byId("codeResult").innerHTML.indexOf("courses.html?level=university&semester=1") !== -1,
+    "success state routes to Semester 1 of the catalogue for the redeemed level");
+}).catch(function (error) {
+  if (!LIVE) ok(false, "access-code flow throws: " + (error && error.stack));
 });
 
-console.log("\n" + passed + " passed, " + failed + " failed");
-process.exit(failed ? 1 : 0);
+chain = chain.then(function () {
+  if (LIVE) { console.log("\n== Checkout code issue ==\n  SKIP  covered by scripts/check-flows.js against the live server"); return; }
+  group("Checkout code issue");
+  installStorage();
+  global.NT.store.reset();
+  documentListeners = {};
+  resetDom("checkout", "public");
+  global.location.pathname = "/checkout.html";
+  global.location.search = "?pkg=standard";
+  global.location.href = "http://preview.test/checkout.html?pkg=standard";
+  evaluate("assets/js/app.js");
+  runDomReady();
+  byId("generateCode").dispatch("click", { currentTarget: byId("generateCode") });
+  return drain(40);
+}).then(function () {
+  if (LIVE) return;
+  ok(byId("checkoutResult").innerHTML.indexOf("NT-STANDARD-4826") !== -1, "checkout shows the server-issued access code");
+  ok(fetchLog.indexOf("POST /api/codes/issue") !== -1, "checkout issues codes through the API, not localStorage");
+}).catch(function (error) {
+  if (!LIVE) ok(false, "checkout flow throws: " + (error && error.stack));
+});
+
+/* ---------------- admin routes ---------------- */
+
+chain = chain.then(function () {
+  group("Admin render smoke");
+  var ADMIN = LIVE ? [] : ["home", "courses", "lessons", "codes", "announcements", "packages", "settings", "login"];
+  if (LIVE) console.log("  SKIP  admin pages need an administrator session (see check-flows.js)");
+  var steps = Promise.resolve();
+  ADMIN.forEach(function (page) {
+    steps = steps.then(function () {
+      try {
+        installStorage();
+        fetchLog = [];
+        redirected = "";
+        documentListeners = {};
+        resetDom(page, "admin");
+        global.location.pathname = "/admin/" + (page === "home" ? "index" : page) + ".html";
+        global.location.search = "";
+        global.location.href = "http://preview.test/admin/" + page + ".html";
+        evaluate("assets/js/admin.js");
+        runDomReady();
+        return drain(40).then(function () {
+          var html = collectHtml();
+          ok(html.length > 80, "admin/" + page + " renders markup");
+          ok(html.indexOf("undefined") === -1, "admin/" + page + " contains no undefined values");
+          if (page === "lessons") ok(html.indexOf("Add video lesson") !== -1, "admin/lessons shows the add-lesson control");
+          if (page === "courses") ok(html.indexOf("Semester 1") !== -1, "admin/courses shows the semester context");
+          if (page === "home") ok(html.indexOf("Video lessons") !== -1, "admin/home shows real catalogue counts");
+          if (page === "packages") ok(html.indexOf("Access period") !== -1, "admin/packages edits package settings");
+          if (page === "settings") ok(html.indexOf("Administrator password") !== -1, "admin/settings changes the admin password");
+        });
+      } catch (error) {
+        ok(false, "admin/" + page + " throws: " + (error && error.stack));
+        return Promise.resolve();
+      }
+    });
+  });
+  return steps;
+});
+
+/* ------------------------------------------------------------
+   Signed-out admin visits must not render management controls.
+   ------------------------------------------------------------ */
+chain = chain.then(function () {
+  group("Admin gate");
+  process.env.SMOKE_SIGNED_OUT = "1";
+  installStorage();
+  redirected = "";
+  documentListeners = {};
+  resetDom("home", "admin");
+  global.location.pathname = "/admin/index.html";
+  global.location.search = "";
+  evaluate("assets/js/admin.js");
+  runDomReady();
+  return drain(40).then(function () {
+    var html = collectHtml("admin/index.html");
+    ok(redirected.indexOf("login.html") !== -1, "signed-out admin visit redirects to the sign-in page");
+    ok(html.indexOf("adm-nav-link") === -1, "signed-out admin visit renders no management controls");
+    delete process.env.SMOKE_SIGNED_OUT;
+  });
+});
+
+chain = chain.then(function () {
+  console.log("\n" + passed + " passed, " + failed + " failed");
+  process.exit(failed ? 1 : 0);
+}).catch(function (error) {
+  console.error(error);
+  process.exit(1);
+});
