@@ -57,7 +57,7 @@ project subpath such as `/Nuclear-Tutorials/`.
 
 ## Demo walkthrough (student)
 
-1. **Discover** — `index.html`, `courses.html`, `resources.html` and `search.html` (browse the sample course/video catalogue and see lesson access states).
+1. **Discover** — `index.html` and `courses.html` (choose a learning path, browse the sample catalogue); `library.html` shows every lesson and its access state.
 2. **Personalise** — `profile.html` saves optional study preferences locally; it does not create an account.
 3. **Pay** — `pricing.html` → *Get Access* → `checkout.html` (Airtel Money, MTN MoMo,
    Zamtel Money or Card — visual-only fields) → *Pay K… (demo)*.
@@ -65,9 +65,9 @@ project subpath such as `/Nuclear-Tutorials/`.
    in the admin Access Codes list as *Redeemed*.
 5. **Unlock** — or redeem a prepared code on `access.html`:
    `NT-BASIC-2026`, `NT-STANDARD-2026`, `NT-PREMIUM-2026`.
-6. **Learn** — `dashboard.html` (course progress, recently watched, unlocked courses,
-   locked content and package info) and `lesson.html` (internal player with progress,
-   complete-state, prev/next and related lessons).
+6. **Learn** — `dashboard.html` (continue learning, recently accessed, progress and My
+   courses) and `lesson.html` (internal player with course progress, complete-state,
+   course contents and prev/next).
 7. **Prove the model** — `control.html` lets the presenter click
    *View as Basic / Standard / Premium student* and watch the entire platform re-lock
    live. A floating banner ends the demo view.
@@ -100,35 +100,37 @@ The client logo is used as-supplied from `assets/img/logo.jpg` (see
 ## Interface layer
 
 The public UI is one design system (`assets/css/main.css`) plus one admin shell
-(`assets/css/admin.css`); the demo keeps a single visual identity and the same brand
-logo throughout. Recent interface work stayed inside that system:
+(`assets/css/admin.css`). The interface is deliberately quiet: fewer boxes, one accent,
+whitespace instead of nested containers.
 
-- **A closed type and radius scale** — the stylesheets keep to one documented
-  ladder (9–16px text, 18/20/22/26px figures, 1.1/1.3/1.6rem headings, plus fluid
-  `clamp()` display sizes) and one radius ladder (6/8/10/12/16/20px, 999px pills).
-  The rules are written at the top of `main.css`; controls share a 42/48px height
-  and a single focus ring, and `admin.css` uses the same type steps, so the console
-  and the public site read off one system.
-- **Education levels are visible in the UI** — the Courses page opens with a pathway
-  selector (All pathways / High School / University) that drives the same
-  *Education level* filter in the refine panel and keeps the URL in step. Course
-  cards, search results and lesson pages identify a course's pathway with a level
-  chip, and the home page pathway cards show catalogue figures instead of
-  placeholders.
-- **Dashboard personalisation** — the optional local learning profile acts as the
-  student's pathway: the dashboard shows it in the header, labels the study plan and
-  lists pathway courses first. Nothing is inferred — an unset profile simply means
-  no pathway emphasis.
-- **Clearer locked states** — library cards name the package a lesson needs and the
-  lesson page keeps its gate, so the paywall stays obvious without exposing media.
-- **Admin console** — the same nine sections, grouped into Overview, Catalogue,
-  Access, Students and System, with the academic model surfaced on the dashboard.
-- **Shared wording** — `NT.pathwayLabel`, `NT.pathwayChip` and `NT.pathwayCounts`
-  in `assets/js/ui.js` are the single source of pathway wording for both the public
-  site and the admin console, so the two can no longer drift apart.
+- **Public navigation is three destinations.** Courses, Pricing and How it works are the
+  only marketing links in the header. Login (the access-code page) and Get Access sit
+  apart as account actions, and the dashboard appears there only once a student has
+  access. Resources, Announcements, Search, the Library, the profile and the demo tools
+  live in the overflow sheet and the footer, so learning functions never read as
+  marketing navigation.
+- **One idea per section.** The home page is hero → *Choose your learning path* →
+  *Popular courses* → *How it works* → *Access packages*. No statistics strip, no
+  duplicate "why us" block, no second call-to-action band repeating the first.
+- **Courses is the discovery surface.** A pathway selector (All / High School /
+  University) plus one search field, then a clean card grid. Each card carries only the
+  course name, pathway, short description, lesson count and one CTA.
+- **The library shows states, not decoration.** Lessons are grouped by course as plain
+  rows: completed, available ("Watch" / "Review") or the package a locked lesson needs.
+  A single summary line states how many of the 40 lessons the current access includes.
+- **The lesson page is the player.** Under it: lesson title, course, lesson number,
+  duration, level, course progress, Previous / Next and Mark as complete, with the
+  course contents beside it for "what can I watch next".
+- **The dashboard is a workspace.** Continue learning, recently accessed, package
+  progress and My courses — no announcements or marketing panels.
+- **Access stays obvious.** Basic unlocks 15 of 40 lessons, Standard 30 and Premium all
+  40; pricing cards and the comparison table state that difference directly.
+- **Shared wording** — `NT.pathwayLabel`, `NT.coursePathwayNames` and `NT.pathwayCounts`
+  in `assets/js/ui.js` are the single source of pathway wording for both the public site
+  and the admin console, so the two cannot drift apart.
 
-All flows (payment → access package → access code → unlocked content), demo data and
-localStorage state are unchanged.
+All flows (payment → access package → access code → unlocked content), routes, demo
+data, demo codes and `localStorage` state are unchanged.
 
 ## Structure
 

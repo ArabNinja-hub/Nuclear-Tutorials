@@ -11,54 +11,42 @@
 <body data-page="control">
 
 <main>
-<div class="page-head">
-  <div class="container">
-    <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Access Control</div>
-    <div class="page-head-row">
-      <div>
-        <h1>Payment controls access</h1>
-        <p class="lede">A student can watch a lesson when their package level is at least the lesson's access level. Switch between student tiers below — the whole demo platform changes with you.</p>
-      </div>
-      <button class="btn btn-secondary hidden" id="resetView">Reset demo view</button>
-    </div>
-  </div>
-</div>
-
-<section class="section-body">
-  <div class="container stack">
-    <div class="persona-grid" id="personaGrid"></div>
-
-    <div class="card card-pad">
-      <div class="row-between" style="margin-bottom:18px">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Access control</div>
+      <div class="page-head-row">
         <div>
-          <h3>Live library state</h3>
-          <p class="muted small" style="margin-top:4px">Exactly what the current student sees across the platform.</p>
+          <h1>Payment controls access</h1>
+          <p class="lede">A lesson can be watched when the package level is at least the lesson's access level. Switch student tiers below and the whole platform follows.</p>
         </div>
-        <span id="viewState"></span>
-      </div>
-      <div class="split">
-        <div>
-          <div class="table-wrap" style="box-shadow:none">
-            <table class="matrix">
-              <thead><tr><th>Lesson tier</th><th>Basic student</th><th>Standard student</th><th>Premium student</th></tr></thead>
-              <tbody id="matrixBody"></tbody>
-            </table>
-          </div>
-          <p class="tiny muted" style="margin-top:12px">The highlighted experience above is the one currently active in this demo session.</p>
-        </div>
-        <div>
-          <p class="tiny muted" style="margin-bottom:10px">Sample of the video library right now:</p>
-          <div class="lesson-grid" id="previewGrid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))"></div>
-        </div>
-      </div>
-      <div class="row-between" style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
-        <p class="small muted">Want the full picture? Open the library with the current student's eyes.</p>
-        <a class="btn btn-primary" href="library.html">Open full library</a>
+        <button class="btn btn-secondary hidden" id="resetView">Reset demo view</button>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
+  <section class="section-body">
+    <div class="container stack">
+      <div class="persona-grid" id="personaGrid"></div>
+
+      <div class="card card-pad">
+        <div class="row-between" style="margin-bottom:18px">
+          <h2 style="font-size:1.15rem">What the current student sees</h2>
+          <span id="viewState"></span>
+        </div>
+        <div class="table-wrap" style="box-shadow:none;margin-bottom:24px">
+          <table class="matrix">
+            <thead><tr><th>Lesson tier</th><th>Basic student</th><th>Standard student</th><th>Premium student</th></tr></thead>
+            <tbody id="matrixBody"></tbody>
+          </table>
+        </div>
+        <div class="lesson-grid" id="previewGrid"></div>
+        <div class="row-between" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
+          <p class="muted small">Open the library with the current student's eyes.</p>
+          <a class="btn btn-primary" href="library.html">Open full library</a>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script src="assets/js/icons.js"></script>
