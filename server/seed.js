@@ -10,9 +10,9 @@
    Commands:
 
      node server/seed.js --demo     load the sample catalogue into the
-                                    database used by NT_DATA_DIR
-                                    (refused when NODE_ENV=production
-                                    unless NT_ALLOW_DEMO_SEED=1)
+                                    database used by NT_DATA_DIR.
+                                    Refused in production and on any
+                                    deployed host — there is no override.
 
      node server/seed.js --clear    empty the catalogue (universities,
                                     courses and video lessons). Access
@@ -115,9 +115,20 @@ function clearCatalogue() {
   return Object.assign({ cleared: true }, before);
 }
 
+/* Hosts set one of these when the process runs on a deployed platform. */
+function deployedHost() {
+  return !!(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL ||
+    process.env.DYNO || process.env.FLY_APP_NAME || process.env.K_SERVICE ||
+    process.env.WEBSITE_SITE_NAME || process.env.VERCEL || process.env.NETLIFY);
+}
+
+/* Sample content is a development tool. Production can never load it, and
+   neither can a deployed host that forgot to set NODE_ENV. There is
+   deliberately no environment flag that re-enables it. */
 function demoAllowed() {
-  if (process.env.NT_ALLOW_DEMO_SEED === "1") return true;
-  return String(process.env.NODE_ENV || "").toLowerCase() !== "production";
+  if (String(process.env.NODE_ENV || "").toLowerCase() === "production") return false;
+  if (deployedHost()) return false;
+  return true;
 }
 
 function loadDemo(options) {
@@ -130,7 +141,7 @@ function loadDemo(options) {
   if (!demoAllowed()) {
     return {
       seeded: false,
-      reason: "sample content is disabled when NODE_ENV=production (set NT_ALLOW_DEMO_SEED=1 to override for a staging check)",
+      reason: "sample content can only be loaded on a development machine: NODE_ENV=production and deployed hosts are refused with no override",
       universities: 0, courses: 0, videos: 0
     };
   }

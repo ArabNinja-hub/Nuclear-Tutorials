@@ -41,10 +41,10 @@ and vanilla JavaScript.
 | `npm run check:access` | Package access control: the Basic/Standard/Premium matrix and bypass attempts |
 | `npm run test:setup` | First-run admin, empty database, restart persistence and expired codes |
 | `BASE=http://127.0.0.1:8000 npm run check` | Adds HTTP, API and live-flow checks |
-| `npm run check:production` | Everything above against a running server: structure, render, first-run/empty database, package access control and the live flows |
+| `npm run check:production` | The full production verification suite (7 stages, ~1000 assertions) against a running server — structure, render, empty first-run database and isolation, package access control, live pages/API/journeys. `BASE=https://your-app.onrender.com` to point it at a deployment |
 
 Environment (see `.env.example`): `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`,
-`NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`, `NT_ALLOW_DEMO_SEED`.
+`NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`.
 
 The live checks sign in as the administrator, so start the server with
 `NT_ADMIN_PASSWORD` set (a first-run password is rotated by the check itself).
@@ -67,6 +67,20 @@ Open `/admin/login.html`.
 
 Never treat a first-run or sample password as a production credential, and never
 commit `.env` or `NT_ADMIN_PASSWORD` to the repository.
+
+## Deploying
+
+1. Set `NODE_ENV=production`, `NT_DATA_DIR` (the persistent disk mount, e.g.
+   `/var/data`) and `NT_REQUIRE_PERSISTENT_STORAGE=1`; set `NT_ADMIN_PASSWORD`
+   or read the generated first-run password from the service log.
+2. Start the service. It comes up **empty**: no universities, courses, video
+   lessons, codes or announcements — and no sample content can be created on a
+   deployed host.
+3. Sign in at `/admin/login.html`, change the first-run password (required
+   before the admin API unlocks), then add the client's real catalogue.
+
+Then run `npm run check:production` (with `BASE=https://your-app.onrender.com`)
+against the deployment to confirm the live behaviour before handing it over.
 
 ## What students do
 
@@ -166,6 +180,8 @@ works locally but the data lives in `server/data/` and is disposable.
 - Thumbnails are fetched from the video source; when an image cannot load, the
   card falls back to a designed placeholder instead of a broken image.
 - Sample content in `server/seed/content.json` is development data. It is never
-  loaded automatically and `npm run seed:demo` refuses to run when
-  `NODE_ENV=production` (override only for a deliberate staging check with
-  `NT_ALLOW_DEMO_SEED=1`).
+  loaded automatically, and `npm run seed:demo` refuses to run when
+  `NODE_ENV=production` or when the process is on a deployed host (Render,
+  Heroku, Fly, Cloud Run, App Service, Vercel, Netlify). There is no override
+  flag, so a production deployment can never load it — and a production
+  database that somehow contains it logs a warning at start-up.

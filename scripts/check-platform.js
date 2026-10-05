@@ -42,7 +42,7 @@ var SCRIPT_FILES = [
   "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
-  "scripts/check-access.js", "scripts/test-db.js"
+  "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js"
 ];
 var ASSETS = [
   "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
@@ -204,9 +204,13 @@ var renderYaml = read("render.yaml");
 
 check(serverIndex.indexOf("seed.loadDemo") === -1 && serverIndex.indexOf("seed.seed") === -1,
   "the server never loads sample content while starting");
-check(/seeded: false, reason: "no content file"/.test(serverSeed) &&
-  serverSeed.indexOf("production") !== -1 && serverSeed.indexOf("NT_ALLOW_DEMO_SEED") !== -1,
-  "sample content is a development helper that production refuses");
+check(serverSeed.indexOf("NT_ALLOW_DEMO_SEED") === -1 && /function deployedHost/.test(serverSeed) &&
+  /if \(String\(process\.env\.NODE_ENV \|\| ""\)\.toLowerCase\(\) === "production"\) return false;/.test(serverSeed),
+  "sample content is development-only: production and deployed hosts are refused with no override");
+check(envExample.indexOf("NT_ALLOW_DEMO_SEED") === -1 && /development machine/i.test(envExample),
+  "the environment example documents no way to load sample content in production");
+check(read("README.md").indexOf("NT_ALLOW_DEMO_SEED") === -1,
+  "the README documents no override for sample content in production");
 check(serverSeed.indexOf("--clear") !== -1 && serverSeed.indexOf('catalogue_source') !== -1,
   "the catalogue can be emptied and its content source is recorded");
 check(serverDb.indexOf("crypto.randomBytes(18)") !== -1 && serverDb.indexOf('"nuclear-admin"') === -1,
@@ -229,7 +233,7 @@ check(renderYaml.indexOf("NT_REQUIRE_PERSISTENT_STORAGE") !== -1 && serverIndex.
   /process\.exit\(1\)/.test(serverIndex),
   "the server refuses to boot on a host without persistent storage");
 check(envExample.indexOf("NT_DATA_DIR") !== -1 && envExample.indexOf("NT_ADMIN_PASSWORD") !== -1 &&
-  envExample.indexOf("NT_ALLOW_DEMO_SEED") !== -1,
+  envExample.indexOf("NT_REQUIRE_PERSISTENT_STORAGE") !== -1,
   ".env.example documents the production variables");
 check(renderYaml.indexOf("sync: false") !== -1 && !/NT_ADMIN_PASSWORD\s*\n\s*value: \S/.test(renderYaml),
   "the administrator password is not stored in the deployment file");
@@ -240,6 +244,9 @@ PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/ui.js", 
     var source = read(file);
     if (read(file).indexOf("nuclear-admin") !== -1) secretLeaks.push(file);
   });
+check(serverIndex.indexOf("/scripts") !== -1 && /BLOCKED_IN_PRODUCTION/.test(serverIndex) &&
+  serverIndex.indexOf("IS_PRODUCTION") !== -1,
+  "test scripts and deployment files are never served by a production deployment");
 check(secretLeaks.length === 0, "no page or script mentions the shipped default password" +
   (secretLeaks.length ? ": " + secretLeaks.join(", ") : ""));
 check(read("README.md").indexOf("nuclear-admin") === -1, "the README does not publish an administrator password");

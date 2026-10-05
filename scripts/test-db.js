@@ -123,12 +123,28 @@ function startServer(port, extraEnv) {
   };
 }
 
-function queryDatabase(sql, params) {
+function queryFile(file, sql) {
   var { DatabaseSync } = require("node:sqlite");
-  var database = new DatabaseSync(dbFile);
-  var result = database.prepare(sql).all.apply(database.prepare(sql), params || []);
+  var database = new DatabaseSync(file);
+  var rows = database.prepare(sql).all();
   database.close();
-  return result;
+  return rows;
+}
+
+function databaseBytes(dir) {
+  var parts = ["nuclear-tutorials.db", "nuclear-tutorials.db-wal", "nuclear-tutorials.db-shm"];
+  return parts.map(function (name) {
+    var file = path.join(dir, name);
+    return fs.existsSync(file) ? fs.readFileSync(file) : Buffer.alloc(0);
+  }).reduce(function (all, buffer) { return Buffer.concat([all, buffer]); }, Buffer.alloc(0));
+}
+
+/* The development database file itself. The -wal/-shm bookkeeping files are
+   ignored: they belong to whichever process holds the file open. */
+function fingerprint(dir) {
+  var file = path.join(dir, "nuclear-tutorials.db");
+  if (!fs.existsSync(file)) return "missing";
+  return require("crypto").createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
 var server = null;
@@ -305,8 +321,199 @@ freePort().then(function (chosen) {
   return request(port, "POST", "/api/admin/password", { currentPassword: "nuclear-admin", newPassword: "Fresh-Production-2026" });
 }).then(function (response) {
   check(response.status === 401, "the password cannot be rotated without a signed-in session");
-}).then(function () {})
-  .catch(function (error) {
+}).then(function () {
+  /* ============================================================
+     Production isolation: a production deployment shares nothing
+     with this development checkout.
+     ============================================================ */
+  group("Production isolation — development database untouched");
+  var crypto = require("crypto");
+
+  var devDataDir = path.join(ROOT, "server", "data");
+  var devBefore = fingerprint(devDataDir);
+  state.devFingerprint = devBefore;
+  var prodDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "nt-prod-"));
+  state.prodDataDir = prodDataDir;
+
+  /* A host that forgot NT_DATA_DIR while running in production must exit
+     before it can touch the database inside the deploy directory. */
+  return freePort().then(function (guardPort) {
+    var guard = childProcess.spawnSync(process.execPath, [path.join(ROOT, "server/index.js")], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 8000,
+      env: Object.assign({}, process.env, {
+        NODE_ENV: "production", RENDER: "1", NT_REQUIRE_PERSISTENT_STORAGE: "1",
+        PORT: String(guardPort), NT_DATA_DIR: "", NT_DB_FILE: ""
+      })
+    });
+    var guardOutput = (guard.stdout || "") + (guard.stderr || "");
+    check(guard.status === 1, "production refuses to boot when the database would sit in the deploy directory");
+    check(/persistent disk/i.test(guardOutput) && /NT_DATA_DIR/.test(guardOutput),
+      "the refusal explains how to mount persistent storage");
+    check(fingerprint(devDataDir) === devBefore,
+      "the refused boot never opened or migrated the development database");
+    return request(guardPort, "GET", "/api/health").then(function () {
+      check(false, "a production boot without persistent storage must not serve requests");
+    }, function () {
+      check(true, "the refused boot left no server listening");
+    });
+  });
+}).then(function () {
+  group("Production isolation — fresh deployment");
+  var prodDataDir = state.prodDataDir;
+  var prodPort = 0;
+  var previous = server;
+  return previous.stop().then(function () {
+    return freePort();
+  }).then(function (chosen) {
+    prodPort = chosen;
+    server = startServer(prodPort, {
+      NODE_ENV: "production",
+      RENDER: "1",
+      NT_REQUIRE_PERSISTENT_STORAGE: "1",
+      NT_DATA_DIR: prodDataDir
+    });
+    return server.ready;
+  }).then(function () {
+    var prod = server;
+    var prodPassword = prod.password();
+    check(fs.existsSync(path.join(prodDataDir, "nuclear-tutorials.db")),
+      "the production database is created inside NT_DATA_DIR (the /var/data mount)");
+    check(prodPassword.length >= 16 && prodPassword !== "nuclear-admin" && prodPassword !== "Dev-Admin-Password-2026",
+      "production creates its own random first-run password");
+    check(/must be changed/i.test(prod.output()), "production requires the first-run password to be changed");
+
+    var prodFile = path.join(prodDataDir, "nuclear-tutorials.db");
+    var counts = queryFile(prodFile,
+      "SELECT (SELECT COUNT(*) FROM universities) AS universities, (SELECT COUNT(*) FROM courses) AS courses, " +
+      "(SELECT COUNT(*) FROM videos) AS videos, (SELECT COUNT(*) FROM codes) AS codes, " +
+      "(SELECT COUNT(*) FROM progress) AS progress, (SELECT COUNT(*) FROM announcements) AS announcements");
+    var row = counts[0];
+    check(row.universities === 0 && row.courses === 0 && row.videos === 0,
+      "an empty catalogue is seeded: 0 universities, 0 courses, 0 videos");
+    check(row.codes === 0 && row.progress === 0 && row.announcements === 0,
+      "no access codes, student progress or announcements exist yet");
+    var source = queryFile(prodFile, "SELECT value FROM settings WHERE key = 'catalogue_source'")[0];
+    check(!source, "the production database records no sample content source");
+
+    return request(prodPort, "GET", "/api/catalogue");
+  }).then(function (response) {
+    var catalogue = response.json.catalogue;
+    check(catalogue.universities.length === 0 && catalogue.courses.length === 0 && catalogue.videos.length === 0,
+      "the production API serves an empty catalogue");
+    check(!/MIT|OpenCourseWare|Crash Course|University of Zambia|Copperbelt/i.test(response.raw),
+      "no development universities, courses or lessons appear in the production API");
+    return request(prodPort, "POST", "/api/admin/login", { password: "Dev-Admin-Password-2026" });
+  }).then(function (response) {
+    check(response.status === 401, "the development administrator password does not open a production deployment");
+    return request(prodPort, "POST", "/api/admin/login", { password: "nuclear-admin" });
+  }).then(function (response) {
+    check(response.status === 401, "the shipped default password does not open a production deployment");
+    return request(prodPort, "POST", "/api/admin/login", { password: server.password() });
+  }).then(function (response) {
+    check(response.status === 200 && response.json.mustChangePassword === true,
+      "only the freshly generated first-run password signs in, and it must be rotated");
+    return request(prodPort, "GET", "/api/admin/overview", null, { cookie: (response.setCookie || [""])[0].split(";")[0] });
+  }).then(function (response) {
+    check(response.status === 403, "management stays locked until the production password is changed");
+    return request(prodPort, "GET", "/api/videos?status=all");
+  }).then(function (response) {
+    check(response.json.videos.length === 0, "there are no video sources to leak in an empty deployment");
+    /* Development tooling and deployment files are not web-reachable either. */
+    var hidden = ["/scripts/check-flows.js", "/scripts/test-db.js", "/scripts/smoke-render.js",
+      "/server/seed/content.json", "/server/db.js", "/README.md", "/render.yaml", "/.env.example", "/package.json"];
+    return hidden.reduce(function (chain, pathname) {
+      return chain.then(function () {
+        return request(prodPort, "GET", pathname).then(function (response) {
+          check(response.status === 404, "a production deployment does not serve " + pathname);
+        });
+      });
+    }, Promise.resolve());
+  }).then(function () {
+    /* Byte level: the production database holds none of the development data,
+       not even in the write-ahead log. */
+    var prodBytes = databaseBytes(state.prodDataDir);
+    var sampleStrings = ["MIT OpenCourseWare", "Crash Course", "University of Zambia", "Copperbelt", "18.01", "nuclear-admin"];
+    var present = sampleStrings.filter(function (needle) {
+      return prodBytes.indexOf(Buffer.from(needle)) !== -1;
+    });
+    check(present.length === 0, "the production database contains no development content or credentials" +
+      (present.length ? ": " + present.join(", ") : ""));
+    var devBytes = databaseBytes(path.join(ROOT, "server", "data"));
+    check(devBytes.indexOf(Buffer.from("Dev-Admin-Password-2026")) === -1,
+      "the development database does not store the development password in plaintext either");
+    var prodPassword = server.password();
+    check(prodBytes.indexOf(Buffer.from(prodPassword)) === -1,
+      "the production first-run password is stored only as a hash");
+    return server.stop();
+  }).then(function () {
+    var devDataDir = path.join(ROOT, "server", "data");
+    check(fingerprint(devDataDir) === state.devFingerprint,
+      "the production deployment never read from or copied the development database");
+    var prodNames = fs.readdirSync(state.prodDataDir).sort().join(",");
+    check(prodNames.indexOf("nuclear-tutorials.db") !== -1,
+      "the production data lives only in its own persistent directory");
+  });
+}).then(function () {
+  group("Production password provisioning");
+  /* Either the operator supplies NT_ADMIN_PASSWORD, or the server generates
+     one and prints it once. Both paths must work, and neither may fall back
+     to a shipped value. */
+  var providedDir = fs.mkdtempSync(path.join(os.tmpdir(), "nt-provided-"));
+  var providedPort = 0;
+  var providedPassword = "Operator-Chosen-Password-2026";
+  return freePort().then(function (chosen) {
+    providedPort = chosen;
+    server = startServer(providedPort, {
+      NODE_ENV: "production", RENDER: "1", NT_REQUIRE_PERSISTENT_STORAGE: "1",
+      NT_DATA_DIR: providedDir, NT_ADMIN_PASSWORD: providedPassword
+    });
+    return server.ready;
+  }).then(function () {
+    check(server.password() === providedPassword, "NT_ADMIN_PASSWORD is used when the operator sets it");
+    check(!/was not chosen by a human/.test(server.output()), "an operator-chosen password is not described as generated");
+    return request(providedPort, "POST", "/api/admin/login", { password: providedPassword });
+  }).then(function (response) {
+    check(response.status === 200 && response.json.mustChangePassword === true,
+      "the operator-chosen first-run password still has to be rotated once");
+    return server.stop();
+  }).then(function () {
+    fs.rmSync(providedDir, { recursive: true, force: true });
+  });
+}).then(function () {
+  group("Sample content is development-only");
+  var demoDir = fs.mkdtempSync(path.join(os.tmpdir(), "nt-demo-"));
+  function runSeed(env) {
+    return childProcess.spawnSync(process.execPath, [path.join(ROOT, "server/seed.js"), "--demo", "--force"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 20000,
+      env: Object.assign({}, process.env, { NT_DATA_DIR: demoDir }, env || {})
+    });
+  }
+  var inProduction = runSeed({ NODE_ENV: "production" });
+  check(/\"seeded\": false/.test(inProduction.stdout) && /development machine/.test(inProduction.stdout),
+    "NODE_ENV=production refuses the demo seed");
+  check(!fs.existsSync(path.join(demoDir, "nuclear-tutorials.db")) ||
+    queryFile(path.join(demoDir, "nuclear-tutorials.db"), "SELECT COUNT(*) AS c FROM universities")[0].c === 0,
+    "the refused seed wrote no sample records");
+
+  var onHost = runSeed({ RENDER: "1" });
+  check(/\"seeded\": false/.test(onHost.stdout),
+    "a deployed host refuses the demo seed even without NODE_ENV");
+  var overrideAttempt = runSeed({ NODE_ENV: "production", NT_ALLOW_DEMO_SEED: "1", RENDER: "1" });
+  check(/\"seeded\": false/.test(overrideAttempt.stdout),
+    "no environment flag can force sample content into production");
+
+  var inDevelopment = runSeed({ NODE_ENV: "development" });
+  check(/\"seeded\": true/.test(inDevelopment.stdout),
+    "the same command still loads the sample catalogue for local development");
+  check(queryFile(path.join(demoDir, "nuclear-tutorials.db"), "SELECT COUNT(*) AS c FROM videos")[0].c > 0,
+    "the development database does hold the sample lessons");
+  fs.rmSync(demoDir, { recursive: true, force: true });
+  fs.rmSync(state.prodDataDir, { recursive: true, force: true });
+}).catch(function (error) {
     check(false, "setup checks failed: " + (error && error.message));
   })
   .then(function () {

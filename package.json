@@ -17,7 +17,7 @@
     "check:live": "node scripts/check-platform.js && BASE=http://127.0.0.1:8000 node scripts/smoke-render.js",
     "check:flows": "node scripts/check-flows.js",
     "check:access": "node scripts/check-access.js",
-    "check:production": "node scripts/check-platform.js && node scripts/smoke-render.js && node scripts/test-db.js && node scripts/check-access.js && node scripts/check-flows.js",
+    "check:production": "node scripts/check-production.js",
     "test:setup": "node scripts/test-db.js"
   },
   "dependencies": {}

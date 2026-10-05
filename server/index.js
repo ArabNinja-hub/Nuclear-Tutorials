@@ -56,10 +56,20 @@ var MIME = {
 var CACHEABLE = [".css", ".js", ".woff2", ".woff", ".jpg", ".jpeg", ".png", ".webp", ".svg", ".ico"];
 
 /* Files that must never be served, even if they are inside the project. */
-var BLOCKED = ["/server", "/.git", "/package.json", "/package-lock.json", "/node_modules", "/.gitignore"];
+var BLOCKED = [
+  "/server", "/scripts", "/.git", "/package.json", "/package-lock.json",
+  "/node_modules", "/.gitignore", "/.env"
+];
+
+/* Deployment and documentation files that make no sense on a live site and
+   expose the project layout: only served while developing locally. */
+var BLOCKED_IN_PRODUCTION = ["/README.md", "/render.yaml", "/.env.example", "/.env.production"];
+
+var IS_PRODUCTION = String(process.env.NODE_ENV || "").toLowerCase() === "production";
 
 function isBlocked(pathname) {
-  return BLOCKED.some(function (prefix) {
+  var list = IS_PRODUCTION ? BLOCKED.concat(BLOCKED_IN_PRODUCTION) : BLOCKED;
+  return list.some(function (prefix) {
     return pathname === prefix || pathname.indexOf(prefix + "/") === 0;
   });
 }
@@ -157,9 +167,9 @@ function storageWarning() {
 }
 
 function start() {
-  db.connect();
-  db.ensureDefaultSettings();
-
+  /* The storage guard runs before the database is opened, so a production
+     process that is misconfigured can never touch (or migrate) a database
+     that happens to sit inside the deploy directory. */
   var warning = storageWarning();
   if (warning) {
     if (warning.indexOf("warning:") === 0) {
@@ -170,6 +180,9 @@ function start() {
       return;
     }
   }
+
+  db.connect();
+  db.ensureDefaultSettings();
 
   var admin = db.ensureAdmin();
   if (admin.created) {
@@ -187,8 +200,15 @@ function start() {
   if (catalogue.universities === 0) {
     console.log("[catalogue] The catalogue is empty. Add universities, courses and video lessons at /admin/login.html.");
   } else if (catalogue.catalogueSource === "sample") {
-    console.log("[catalogue] Development sample content is loaded (" + catalogue.universities + " institutions, " +
-      catalogue.courses + " courses, " + catalogue.videos + " lessons). Run `npm run seed:clear` before going live.");
+    var message = "[catalogue] Development sample content is loaded (" + catalogue.universities + " institutions, " +
+      catalogue.courses + " courses, " + catalogue.videos + " lessons). Run `npm run seed:clear` before going live.";
+    /* A production database should never hold sample content: say so loudly. */
+    if (String(process.env.NODE_ENV || "").toLowerCase() === "production") {
+      console.warn("[catalogue] WARNING: production is serving development sample content. Empty it with " +
+        "`npm run seed:clear` and add the real catalogue in the admin area.");
+    } else {
+      console.log(message);
+    }
   }
 
   server.listen(PORT, HOST, function () {
