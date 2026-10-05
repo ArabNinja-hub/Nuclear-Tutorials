@@ -190,6 +190,7 @@
     standard: "Core syllabus coverage with exam-style questions and full solutions.",
     premium: "Advanced treatment with harder problems, proofs and extension material."
   };
+  NT.LEVEL_BLURB = LEVEL_BLURB;
 
   /* Build the lesson catalogue */
   var LESSONS = [];

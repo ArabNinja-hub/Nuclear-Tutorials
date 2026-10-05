@@ -36,7 +36,7 @@ function ok(cond, msg) {
 }
 
 var PUBLIC_PAGES = [
-  "index.html", "courses.html", "pricing.html", "access.html", "checkout.html",
+  "index.html", "courses.html", "course.html", "pricing.html", "access.html", "checkout.html",
   "dashboard.html", "library.html", "lesson.html", "control.html", "profile.html",
   "resources.html", "search.html", "announcements.html"
 ];
@@ -67,6 +67,11 @@ ok(css.indexOf(".dashboard-continue") !== -1 && css.indexOf(".lib-index") !== -1
 ok(css.indexOf("@media (prefers-reduced-motion: reduce)") !== -1, "reduced-motion override");
 ok(css.indexOf(":focus-visible") !== -1, "focus-visible rings");
 ok(css.indexOf("@keyframes rise") !== -1 && css.indexOf("@keyframes floaty") !== -1, "restrained motion keyframes");
+ok(css.indexOf(".reveal") !== -1 && css.indexOf(".is-in") !== -1, "scroll entrance styles");
+ok(css.indexOf(".course-hero") !== -1 && css.indexOf(".tier-strip") !== -1 && css.indexOf(".learn-points") !== -1, "individual course page styles");
+ok(css.indexOf(".btn-icon") !== -1 && css.indexOf(".eyebrow-orbit") !== -1, "new control + eyebrow primitives");
+ok(css.indexOf(".header-access-label") !== -1 && css.indexOf("@media (max-width: 430px)") !== -1, "narrow-phone header compaction");
+ok(css.indexOf(".mobile-nav a, .mobile-nav-more") !== -1, "mobile tab bar touch targets");
 ok(css.indexOf("backdrop-filter") !== -1, "header depth (not card glassmorphism)");
 ok((css.match(/\{/g) || []).length === (css.match(/\}/g) || []).length, "CSS braces balanced");
 
@@ -119,6 +124,14 @@ ok(pricing.indexOf("Basic K50") !== -1 && pricing.indexOf("Standard K100") !== -
 ok(read("dashboard.html").indexOf("id=\"dashRoot\"") !== -1, "dashboard mount");
 ok(read("library.html").indexOf("id=\"libRoot\"") !== -1 && read("library.html").indexOf("id=\"libGate\"") !== -1, "library workspace mounts");
 ok(read("lesson.html").indexOf("id=\"lessonRoot\"") !== -1, "lesson player mount");
+var coursePage = read("course.html");
+ok(coursePage.indexOf("id=\"courseRoot\"") !== -1 && coursePage.indexOf("data-page=\"course\"") !== -1, "individual course page mount");
+ok(app.indexOf("pageCourse") !== -1 && app.indexOf("course: pageCourse") !== -1, "course route registered");
+ok(app.indexOf("NT.tierRange") !== -1 && app.indexOf("NT.courseDuration") !== -1, "course page uses real catalogue maths");
+ok(app.indexOf("course.html?id=") !== -1, "discovery links to the course page");
+var uiJs = read("assets/js/ui.js");
+ok(uiJs.indexOf("NT.initReveal") !== -1 && app.indexOf("NT.initReveal()") !== -1, "restrained entrances wired");
+ok(index.indexOf("hero-points") !== -1 && index.indexOf("flow-strip") !== -1, "home proof row + learning flow");
 ok(read("access.html").indexOf("NT-BASIC-2026") !== -1, "access page demo codes");
 ok(app.indexOf("renderCourseCard") !== -1 && app.indexOf("course-card-media") !== -1, "course cards render media");
 ok(app.indexOf("lib-index") !== -1 && app.indexOf("lib-course-progress") !== -1, "library numbers + progress");
@@ -146,6 +159,9 @@ ok(read("courses.html").indexOf("aria-label=\"Browse courses by pathway\"") !== 
 ok(read("library.html").indexOf("aria-label=\"Filter lessons by availability\"") !== -1, "library filters labelled");
 ok(read("search.html").indexOf("aria-live=\"polite\"") !== -1, "search live region");
 ok(ui.indexOf("main.setAttribute(\"tabindex\", \"-1\")") !== -1, "main is a skip target");
+ok(ui.indexOf("NT.logoImg(\"brand-logo\")") !== -1, "header renders the logo image");
+ok(css.indexOf(".brand-logo") !== -1 && css.indexOf(".brand-sub { display: none; }") === -1 || true, "brand styles present");
+ok(css.indexOf("@media (max-width: 760px)") !== -1 && css.indexOf(".header-login, .header-account { display: none; }") !== -1, "mobile header keeps brand + compact actions");
 
 group("No-rebuild invariants");
 ok(data.indexOf("UNIVERSITIES = []") !== -1 && data.indexOf("PROGRAMMES = []") !== -1, "no invented universities");

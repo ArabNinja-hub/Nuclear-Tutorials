@@ -59,6 +59,10 @@ project subpath such as `/Nuclear-Tutorials/`.
 # smoke, flow, journey, admin, accessibility and CSS checks
 python3 -m http.server 8000
 BASE=http://127.0.0.1:8000 node scripts/check-platform.js
+
+# headless render smoke: executes every public + admin route and fails on
+# thrown errors or "undefined"/"NaN" leaking into rendered markup
+node scripts/smoke-render.js
 ```
 
 ## Demo walkthrough (student)
@@ -121,7 +125,12 @@ platform a Nuclear Tutorials identity rather than a blank document look.
   duplicate "why us" block, no second call-to-action band repeating the first.
 - **Courses is the discovery surface.** A pathway selector (All / High School /
   University) plus one search field, then a clean card grid. Each card carries only the
-  course name, pathway, short description, lesson count and one CTA.
+  course visual, name, pathway, short description, lesson count and one CTA.
+- **Every course is its own page (`course.html?id=…`).** An identity band with the
+  lesson count, runtime and the next action; *what you'll learn* as the three honest
+  tier outcomes; the full lesson list with live access/completion states; and an
+  access-requirement strip showing exactly which lessons Basic, Standard and Premium
+  open in that course. Discovery → course → lessons → learning, in that order.
 - **The library shows states, not decoration.** Lessons are grouped by course as plain
   rows: completed, available ("Watch" / "Review") or the package a locked lesson needs.
   A single summary line states how many of the 40 lessons the current access includes.
@@ -135,6 +144,25 @@ platform a Nuclear Tutorials identity rather than a blank document look.
 - **Shared wording** — `NT.pathwayLabel`, `NT.coursePathwayNames` and `NT.pathwayCounts`
   in `assets/js/ui.js` are the single source of pathway wording for both the public site
   and the admin console, so the two cannot drift apart.
+- **Restrained motion.** Sections and cards opt into a single fade-and-rise entrance
+  (`.reveal`, bound by `NT.initReveal()`); hover states lift by a few pixels; the hero
+  preview floats on its orbit. Everything collapses to nothing under
+  `prefers-reduced-motion`.
+- **Mobile is designed, not shrunk.** The sticky mobile header always keeps the logo and
+  wordmark visible and vertically centred, with the access action and menu control
+  beside it (the wordmark compacts, never disappears, at 320px). A four-tab bottom bar
+  carries Courses / Pricing / Dashboard-or-Login / More, and the overflow sheet holds
+  the rest. Touch targets are 40px+ and no page scrolls horizontally at 320px.
+
+## Design reference
+
+The Mighty Axon Tutorials (themightyaxontutorials.com) was studied as a *quality*
+reference for how a serious tutoring platform presents itself — specificity over
+slogans, real catalogue content on marketing surfaces, ordinal wayfinding, factual
+trust signals, mobile-first intent — and then reinterpreted in Nuclear Tutorials' own
+language: navy reactor surfaces, the teal/magenta/amber orbit spectrum from the client
+mark, monospace lesson indices and codes, and orbit-ring ornaments. No layout, copy,
+colour or component is copied from the reference.
 
 All flows (payment → access package → access code → unlocked content), routes, demo
 data, demo codes and `localStorage` state are unchanged.
@@ -142,7 +170,7 @@ data, demo codes and `localStorage` state are unchanged.
 ## Structure
 
 ```
-index.html  courses.html  resources.html  search.html  announcements.html  profile.html
+index.html  courses.html  course.html  resources.html  search.html  announcements.html  profile.html
 pricing.html  access.html  control.html  library.html  dashboard.html  lesson.html  checkout.html
 admin/        index videos courses announcements packages codes students payments settings
 assets/css/   main.css (design system + public UI), admin.css (console shell)
@@ -150,6 +178,7 @@ assets/js/    icons.js data.js store.js ui.js (shared UI + pathway helpers)
               app.js (public routing) admin.js (console routing)
 assets/img/   logo.jpg (client artwork)
 scripts/      check-platform.js (smoke, flow, journey, admin, accessibility, CSS)
+              smoke-render.js (headless render smoke for every route)
 ```
 
 Icons are inline Lucide stroke SVGs (`assets/js/icons.js`) — no CDN, works offline.
