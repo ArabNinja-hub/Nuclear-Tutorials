@@ -55,6 +55,12 @@ python3 -m http.server 8000
 All page and asset links are relative, so the static site also works from a GitHub Pages
 project subpath such as `/Nuclear-Tutorials/`.
 
+```bash
+# smoke, flow, journey, admin, accessibility and CSS checks
+python3 -m http.server 8000
+BASE=http://127.0.0.1:8000 node scripts/check-platform.js
+```
+
 ## Demo walkthrough (student)
 
 1. **Discover** — `index.html` and `courses.html` (choose a learning path, browse the sample catalogue); `library.html` shows every lesson and its access state.
@@ -100,8 +106,9 @@ The client logo is used as-supplied from `assets/img/logo.jpg` (see
 ## Interface layer
 
 The public UI is one design system (`assets/css/main.css`) plus one admin shell
-(`assets/css/admin.css`). The interface is deliberately quiet: fewer boxes, one accent,
-whitespace instead of nested containers.
+(`assets/css/admin.css`). The information architecture stays lean — fewer boxes, no
+duplicate sections — while colour, type, depth and restrained motion give the
+platform a Nuclear Tutorials identity rather than a blank document look.
 
 - **Public navigation is three destinations.** Courses, Pricing and How it works are the
   only marketing links in the header. Login (the access-code page) and Get Access sit
@@ -142,6 +149,7 @@ assets/css/   main.css (design system + public UI), admin.css (console shell)
 assets/js/    icons.js data.js store.js ui.js (shared UI + pathway helpers)
               app.js (public routing) admin.js (console routing)
 assets/img/   logo.jpg (client artwork)
+scripts/      check-platform.js (smoke, flow, journey, admin, accessibility, CSS)
 ```
 
 Icons are inline Lucide stroke SVGs (`assets/js/icons.js`) — no CDN, works offline.

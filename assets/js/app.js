@@ -20,7 +20,8 @@
       }).map(function (f) {
         return "<li>" + NT.icon("check") + "<span>" + NT.esc(f) + "</span></li>";
       }).join("");
-      return '<article class="price-card' + (p.popular ? " popular" : "") + '">' +
+      var actionClass = p.popular ? "btn-primary" : (id === "premium" ? "btn-dark" : "btn-secondary");
+      return '<article class="price-card price-' + id + (p.popular ? " popular" : "") + '">' +
         (p.popular ? '<span class="popular-tag">Most popular</span>' : "") +
         '<span class="price-name t-' + id + '">' + NT.esc(p.name) + "</span>" +
         '<div class="price-amount"><b>' + NT.kwacha(NT.packagePrice(id)) + "</b><span>/ " + s.settings.days + " days</span></div>" +
@@ -29,7 +30,7 @@
         '<ul class="price-feats">' + feats + "</ul>" +
         (current
           ? '<button class="btn btn-secondary btn-block" disabled>' + NT.icon("check-circle") + "Current package</button>"
-          : '<a class="btn ' + (p.popular ? "btn-primary" : "btn-secondary") + ' btn-block" href="' + NT.base() + 'checkout.html?pkg=' + id + '">Get access</a>') +
+          : '<a class="btn ' + actionClass + ' btn-block" href="' + NT.base() + 'checkout.html?pkg=' + id + '">Get access</a>') +
         "</article>";
     }).join("");
   };
@@ -62,13 +63,15 @@
     }
     var href = NT.base() + "library.html?course=" + encodeURIComponent(course.id);
     return '<article class="course-card" id="' + NT.esc(course.id) + '">' +
-      '<div class="course-card-top"><span class="course-icon" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' + NT.icon(course.icon) + "</span></div>" +
+      '<div class="course-card-media" style="--thumb-bg:' + course.thumb + '">' + NT.thumbArt(course) +
+      '<span class="course-icon" style="--tint:' + course.tint + ";--tint-fg:" + course.tintFg + '">' + NT.icon(course.icon) + "</span></div>" +
+      '<div class="course-card-body">' +
       "<h3>" + '<a href="' + href + '">' + NT.esc(course.title) + "</a></h3>" +
-      '<p class="course-path">' + NT.esc(NT.coursePathwayNames(course)) + "</p>" +
+      '<p class="course-path">' + NT.icon(NT.pathwayIcon("high-school"), "icon-sm") + NT.esc(NT.coursePathwayNames(course)) + "</p>" +
       '<p class="desc">' + NT.esc(course.desc) + "</p>" +
       '<div class="course-card-foot"><span class="course-card-meta">' + NT.icon("play-circle", "icon-sm") + NT.esc(meta) + "</span>" +
       '<a class="btn btn-secondary btn-sm" href="' + href + '">View course' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
-      "</article>";
+      "</div></article>";
   };
 
   function lessonRow(l, showCourse) {
@@ -380,7 +383,9 @@
       var cls = done ? "is-complete" : unlocked ? "is-open" : "is-locked";
       var ico = done ? "circle-check" : unlocked ? "play-circle" : "lock";
       var stateText = done ? "Completed" : "";
+      var num = String(l.index == null ? "" : l.index).padStart(2, "0");
       return '<li class="lib-lesson ' + cls + '">' +
+        '<span class="lib-index" aria-hidden="true">' + NT.esc(num) + "</span>" +
         '<span class="lib-state" aria-hidden="true">' + NT.icon(ico) + "</span>" +
         '<span class="lib-lesson-title"><b>' + NT.esc(l.title) + "</b><small>" +
         NT.esc(l.duration) + " · " + D.LEVEL_LABEL[NT.levelOf(l)] + " lesson" + (stateText ? " · " + stateText : "") + "</small></span>" +
@@ -394,7 +399,9 @@
 
     function courseSection(courseRecord, lessons) {
       var all = NT.courseLessons(courseRecord.id);
-      var included = all.filter(function (l) { return NT.isUnlocked(l); }).length;
+      var included = all.filter(function (l) { return NT.isUnlocked(l); });
+      var done = included.filter(function (l) { return NT.store.isComplete(l.id); }).length;
+      var pct = included.length ? Math.round((done / included.length) * 100) : 0;
       var next = lessons.filter(function (l) { return NT.isUnlocked(l) && !NT.store.isComplete(l.id); })[0] ||
         lessons.filter(function (l) { return NT.isUnlocked(l); })[0];
       var access = NT.store.get().access;
@@ -402,10 +409,13 @@
         '<header class="lib-course-head">' +
         '<span class="course-icon" style="--tint:' + courseRecord.tint + ";--tint-fg:" + courseRecord.tintFg + '">' + NT.icon(courseRecord.icon) + "</span>" +
         "<div><h2>" + NT.esc(courseRecord.title) + "</h2><p>" + all.length + " lessons" +
-        (access ? " · " + included + " included with your " + NT.esc(NT.packageDetails(access).name) + " access" : "") + "</p></div>" +
+        (access ? " · " + included.length + " included with your " + NT.esc(NT.packageDetails(access).name) + " access" : "") + "</p></div>" +
         (next ? '<a class="link-arrow" href="' + NT.base() + "lesson.html?id=" + encodeURIComponent(next.id) + '">' +
           (NT.store.isComplete(next.id) ? "Review course" : "Continue") + NT.icon("arrow-right", "icon-sm") + "</a>" : "") +
         "</header>" +
+        (access && included.length
+          ? '<div class="progress lib-course-progress" aria-hidden="true"><i style="width:' + pct + '%"></i></div>'
+          : "") +
         '<ul class="lib-lessons">' + lessons.map(lessonMarkup).join("") + "</ul>" +
         "</section>";
     }
