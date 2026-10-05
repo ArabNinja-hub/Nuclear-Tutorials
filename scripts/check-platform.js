@@ -1,203 +1,183 @@
 #!/usr/bin/env node
-/* Nuclear Tutorials — smoke, flow, journey, admin, accessibility and CSS checks.
-   Run: node scripts/check-platform.js
-   Optional: BASE=http://127.0.0.1:8000 node scripts/check-platform.js
-*/
+/* Structural, flow, accessibility, CSS and optional HTTP checks. */
 "use strict";
 
 var fs = require("fs");
 var path = require("path");
 var http = require("http");
-var { URL } = require("url");
-
+var https = require("https");
+var childProcess = require("child_process");
 var ROOT = path.resolve(__dirname, "..");
-var failed = 0;
 var passed = 0;
-var section = "";
+var failed = 0;
 
-function read(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), "utf8");
+function read(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
+function exists(rel) { return fs.existsSync(path.join(ROOT, rel)); }
+function check(condition, label) {
+  if (condition) { passed++; console.log("  PASS  " + label); }
+  else { failed++; console.error("  FAIL  " + label); }
 }
-function exists(rel) {
-  return fs.existsSync(path.join(ROOT, rel));
-}
-function group(name) {
-  section = name;
-  console.log("\n== " + name + " ==");
-}
-function ok(cond, msg) {
-  if (cond) {
-    passed++;
-    console.log("  PASS  " + msg);
-  } else {
-    failed++;
-    console.log("  FAIL  " + msg);
-  }
-}
+function group(label) { console.log("\n== " + label + " =="); }
 
 var PUBLIC_PAGES = [
   "index.html", "courses.html", "course.html", "pricing.html", "access.html", "checkout.html",
-  "dashboard.html", "library.html", "lesson.html", "control.html", "profile.html",
-  "resources.html", "search.html", "announcements.html"
+  "dashboard.html", "library.html", "lesson.html", "profile.html", "search.html", "announcements.html"
 ];
 var ADMIN_PAGES = [
-  "admin/index.html", "admin/videos.html", "admin/courses.html", "admin/announcements.html",
-  "admin/packages.html", "admin/codes.html", "admin/students.html", "admin/payments.html",
-  "admin/settings.html"
+  "admin/index.html", "admin/courses.html", "admin/lessons.html", "admin/announcements.html",
+  "admin/packages.html", "admin/codes.html", "admin/settings.html"
 ];
 var ASSETS = [
-  "assets/css/main.css", "assets/css/admin.css",
-  "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js",
-  "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js",
-  "assets/img/logo.jpg"
+  "assets/css/main.css", "assets/css/admin.css", "assets/js/icons.js", "assets/js/data.js",
+  "assets/js/store.js", "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js", "assets/img/logo.jpg"
 ];
 
-group("CSS");
-ASSETS.forEach(function (file) { ok(exists(file), "asset exists: " + file); });
-var css = read("assets/css/main.css");
-ok(css.indexOf("--brand:") !== -1 && css.indexOf("--navy:") !== -1, "brand and navy tokens");
-ok(css.indexOf("--hs:") !== -1 && css.indexOf("--uni:") !== -1, "pathway colour tokens");
-ok(/--bg:\s*#(?!ffffff|fff\b)/i.test(css), "page canvas is not pure white");
-ok(css.indexOf(".hero-home") !== -1 && css.indexOf(".hero-preview") !== -1, "hero signature styles");
-ok(css.indexOf(".pathway-hs") !== -1 && css.indexOf(".pathway-uni") !== -1, "distinct pathway panels");
-ok(css.indexOf(".course-card-media") !== -1 && css.indexOf(".course-card-body") !== -1, "richer course cards");
-ok(css.indexOf(".steps::before") !== -1 && css.indexOf(".step-num") !== -1, "how-it-works visual flow");
-ok(css.indexOf(".price-premium") !== -1 && css.indexOf(".price-standard") !== -1, "tiered pricing chrome");
-ok(css.indexOf(".dashboard-continue") !== -1 && css.indexOf(".lib-index") !== -1, "dashboard + library styles");
-ok(css.indexOf("@media (prefers-reduced-motion: reduce)") !== -1, "reduced-motion override");
-ok(css.indexOf(":focus-visible") !== -1, "focus-visible rings");
-ok(css.indexOf("@keyframes rise") !== -1 && css.indexOf("@keyframes floaty") !== -1, "restrained motion keyframes");
-ok(css.indexOf(".reveal") !== -1 && css.indexOf(".is-in") !== -1, "scroll entrance styles");
-ok(css.indexOf(".course-hero") !== -1 && css.indexOf(".tier-strip") !== -1 && css.indexOf(".learn-points") !== -1, "individual course page styles");
-ok(css.indexOf(".btn-icon") !== -1 && css.indexOf(".eyebrow-orbit") !== -1, "new control + eyebrow primitives");
-ok(css.indexOf(".header-access-label") !== -1 && css.indexOf("@media (max-width: 430px)") !== -1, "narrow-phone header compaction");
-ok(css.indexOf(".mobile-nav a, .mobile-nav-more") !== -1, "mobile tab bar touch targets");
-ok(css.indexOf("backdrop-filter") !== -1, "header depth (not card glassmorphism)");
-ok((css.match(/\{/g) || []).length === (css.match(/\}/g) || []).length, "CSS braces balanced");
+function balancedCss(source) {
+  var depth = 0;
+  var quote = "";
+  var comment = false;
+  for (var i = 0; i < source.length; i++) {
+    var c = source[i], next = source[i + 1];
+    if (comment) {
+      if (c === "*" && next === "/") { comment = false; i++; }
+      continue;
+    }
+    if (quote) {
+      if (c === "\\") { i++; continue; }
+      if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "/" && next === "*") { comment = true; i++; continue; }
+    if (c === "\"" || c === "'") { quote = c; continue; }
+    if (c === "{") depth++;
+    if (c === "}" && --depth < 0) return false;
+  }
+  return depth === 0 && !quote && !comment;
+}
 
-group("Smoke");
+group("Files and page shells");
+ASSETS.forEach(function (file) { check(exists(file), file + " exists"); });
 PUBLIC_PAGES.concat(ADMIN_PAGES).forEach(function (file) {
-  ok(exists(file), "page exists: " + file);
+  check(exists(file), file + " exists");
+  if (!exists(file)) return;
   var html = read(file);
-  ok(/<html lang="en">/.test(html), file + " has lang=en");
-  ok(/name="viewport"/.test(html), file + " has viewport");
-  ok(html.indexOf("assets/css/main.css") !== -1, file + " loads main.css");
+  check(/<html lang="en">/.test(html), file + " declares its document language");
+  check(/name="viewport"/.test(html), file + " has a responsive viewport");
+  check(html.indexOf("main.css") !== -1, file + " loads the public design system");
+  if (file.indexOf("admin/") === 0) {
+    check(html.indexOf("admin.css") !== -1 && html.indexOf("admin.js") !== -1, file + " loads preview settings assets");
+  } else {
+    check(html.indexOf("assets/js/app.js") !== -1, file + " loads public behavior");
+  }
 });
-var index = read("index.html");
-ok(index.indexOf("data-page=\"home\"") !== -1, "home data-page");
-ok(index.indexOf("Learn smarter.") !== -1 && index.indexOf("Go further.") !== -1, "home headline preserved");
-ok(index.indexOf("Explore Courses") !== -1 && index.indexOf("How it works") !== -1, "home CTAs preserved");
-ok((index.match(/<section/g) || []).length === 5, "home still has five sections");
-ok(index.indexOf("id=\"learning-paths\"") !== -1, "learning paths section");
-ok(index.indexOf("id=\"popular-courses\"") !== -1, "popular courses section");
-ok(index.indexOf("id=\"how-it-works\"") !== -1, "how it works section");
-ok(index.indexOf("id=\"access\"") !== -1, "access section");
-ok(index.indexOf("id=\"courseGrid\"") !== -1 && index.indexOf("id=\"accessList\"") !== -1, "home mounts");
-ok(index.indexOf("testimonial") === -1 && index.indexOf("students enrolled") === -1, "no invented social proof");
 
-group("Flow");
+var htmlPages = PUBLIC_PAGES.concat(ADMIN_PAGES);
+var brokenLinks = [];
+htmlPages.forEach(function (file) {
+  var source = read(file);
+  var match;
+  var refs = /\b(?:href|src)="([^"]+)"/g;
+  while ((match = refs.exec(source))) {
+    var ref = match[1];
+    if (!ref || /^(?:[a-z]+:|\/\/|#)/i.test(ref)) continue;
+    var target = ref.split(/[?#]/)[0];
+    if (!target) continue;
+    var resolved = path.resolve(ROOT, path.dirname(file), target);
+    if (!fs.existsSync(resolved)) brokenLinks.push(file + " → " + ref);
+  }
+});
+check(brokenLinks.length === 0, "static page and asset links resolve" + (brokenLinks.length ? ": " + brokenLinks.join(", ") : ""));
+
+var syntaxFiles = ["assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js", "scripts/check-platform.js", "scripts/smoke-render.js"];
+syntaxFiles.forEach(function (file) {
+  var result = childProcess.spawnSync(process.execPath, ["--check", path.join(ROOT, file)], { encoding: "utf8" });
+  check(result.status === 0, file + " parses" + (result.status === 0 ? "" : ": " + (result.stderr || result.stdout).trim()));
+});
+
+var iconSource = read("assets/js/icons.js");
+var iconKeys = (iconSource.match(/^\s*"([^"]+)":/gm) || []).map(function (entry) { return entry.match(/"([^"]+)"/)[1]; });
+var iconReferences = [];
+["assets/js/app.js", "assets/js/ui.js", "assets/js/admin.js", "assets/js/data.js"].forEach(function (file) {
+  var source = read(file), match;
+  var direct = /NT\.icon\(\s*["']([^"']+)["']/g;
+  while ((match = direct.exec(source))) iconReferences.push(match[1]);
+  var properties = /\bicon\s*:\s*["']([^"']+)["']/g;
+  while ((match = properties.exec(source))) iconReferences.push(match[1]);
+  var sheetLinks = /sheetLink\(\s*["'][^"']*["']\s*,\s*["']([^"']+)["']/g;
+  while ((match = sheetLinks.exec(source))) iconReferences.push(match[1]);
+  var badgeIcons = source.match(/var icons\s*=\s*\{([^}]+)\}/);
+  if (badgeIcons) iconReferences = iconReferences.concat((badgeIcons[1].match(/"([^"]+)"/g) || []).map(function (entry) { return entry.slice(1, -1); }));
+});
+iconReferences = iconReferences.concat(["check-circle", "circle-alert", "info", "lock", "unlock", "shield", "graduation-cap", "book-open"]);
+var missingIcons = iconReferences.filter(function (name, index) { return iconKeys.indexOf(name) === -1 && iconReferences.indexOf(name) === index; });
+var unusedIcons = iconKeys.filter(function (name) { return iconReferences.indexOf(name) === -1; });
+check(missingIcons.length === 0 && unusedIcons.length === 0, "icon library contains only referenced icons" + (missingIcons.length ? "; missing: " + missingIcons.join(", ") : "") + (unusedIcons.length ? "; unused: " + unusedIcons.join(", ") : ""));
+
+var css = read("assets/css/main.css");
+var adminCss = read("assets/css/admin.css");
+check(balancedCss(css), "public CSS braces, strings and comments are balanced");
+check(balancedCss(adminCss), "admin CSS braces, strings and comments are balanced");
+check(css.indexOf(".hero-home") !== -1 && css.indexOf(".hero-preview") === -1, "hero styles do not include a floating preview card");
+check(css.indexOf(".level-choice") !== -1 && css.indexOf(":focus-visible") !== -1, "level options and visible keyboard focus are styled");
+check(css.indexOf("@media (max-width: 640px)") !== -1 && css.indexOf(".tier-strip { grid-template-columns: 1fr; }") !== -1, "course access breakdown adapts to small screens");
+check(css.indexOf("@media (prefers-reduced-motion: reduce)") !== -1, "reduced-motion preference is respected");
+check(css.indexOf(".course-card-media") === -1 && css.indexOf(".popular-tag") === -1, "removed course artwork and popularity treatment have no styles");
+check(adminCss.indexOf(".adm-stats") === -1 && adminCss.indexOf(".rev-bars") === -1 && adminCss.indexOf(".upload-zone") === -1, "admin styles exclude fake metrics and upload UI");
+
+var home = read("index.html");
+check((home.match(/<section\b/g) || []).length === 3, "home has only the hero, course preview and access steps");
+check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1, "home has no floating card or invented social proof");
+check(home.indexOf("Course outlines for") !== -1 && home.indexOf("Browse courses") !== -1, "home copy describes the catalogue and offers one primary path");
+
+var accessHtml = read("access.html");
+check(/<fieldset[^>]*>[\s\S]*?<legend>Choose your level<\/legend>/.test(accessHtml), "access level choices use a labelled fieldset");
+check((accessHtml.match(/type="radio" name="educationLevel"/g) || []).length === 2, "access form offers exactly two education levels");
+check(accessHtml.indexOf("value=\"high-school\"") !== -1 && accessHtml.indexOf("value=\"university\"") !== -1, "High School and University choices are present");
+check(accessHtml.indexOf("id=\"codeInput\"") > accessHtml.indexOf("Choose your level") && accessHtml.indexOf("type=\"submit\">Continue") > accessHtml.indexOf("id=\"codeInput\""), "level selection comes before code entry and Continue");
+
+var app = read("assets/js/app.js");
 var data = read("assets/js/data.js");
 var store = read("assets/js/store.js");
-var app = read("assets/js/app.js");
-ok(data.indexOf("price: 50") !== -1 && data.indexOf("price: 100") !== -1 && data.indexOf("price: 200") !== -1, "Basic K50 / Standard K100 / Premium K200");
-ok(data.indexOf('name: "Basic"') !== -1 && data.indexOf('name: "Standard"') !== -1 && data.indexOf('name: "Premium"') !== -1, "package names");
-ok(/LEVELS = \["basic", "standard", "premium"\]/.test(data), "access hierarchy ids");
-ok(data.indexOf("basic: 1") !== -1 && data.indexOf("standard: 2") !== -1 && data.indexOf("premium: 3") !== -1, "level ranks");
-ok(store.indexOf("NT-BASIC-2026") !== -1 && store.indexOf("NT-STANDARD-2026") !== -1 && store.indexOf("NT-PREMIUM-2026") !== -1, "demo access codes");
-ok(store.indexOf("nt_demo_state_v1") !== -1, "localStorage key");
-ok(store.indexOf("packages: { basic: 50, standard: 100, premium: 200 }") !== -1, "store default prices");
-ok(app.indexOf("pageCheckout") !== -1 && app.indexOf("pageAccess") !== -1 && app.indexOf("pageLesson") !== -1, "checkout / access / lesson flows");
-ok(app.indexOf("NT.store.setAccess") !== -1 && app.indexOf("NT.isUnlocked") !== -1, "access unlock wiring");
-ok((data.match(/id: "math"|id: "phys"|id: "chem"|id: "cs"|id: "bio"/g) || []).length >= 5, "five-course catalogue");
-ok(data.indexOf('["Number Systems", "12:40"]') !== -1, "Mathematics lesson 1 unchanged");
-ok(index.indexOf("Number Systems") !== -1 && index.indexOf("12:40") !== -1, "hero preview uses catalogue content");
+check(app.indexOf("state.profile.educationLevel = choice.value") !== -1, "access flow saves the selected level in the existing profile");
+check(app.indexOf("NT.store.setAccess(record.pkg") !== -1, "access flow preserves package redemption");
+check(app.indexOf("courses.html?level=") !== -1 && app.indexOf("profile.educationLevel") !== -1, "selected level determines the course view");
+check(data.indexOf("educationLevel: level.id") !== -1 && data.indexOf("lessonLevels") !== -1, "course pathways and lesson access use shared catalogue data");
+check(store.indexOf("educationLevel: \"\"") !== -1 && store.indexOf("delete cache.payments") !== -1, "local profile is canonical and legacy simulated records are removed");
+check(/email:\s*""/.test(store) && /cache\.settings\.email === "support@nucleartutorials\.zm"/.test(store) && /supportEmail\s*\?/.test(read("assets/js/ui.js")), "no fabricated default support contact is shown; legacy contact is cleared");
+check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.indexOf("Generate preview access code") !== -1, "checkout is explicitly a local preview, not a payment flow");
+check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1 && app.indexOf("Lesson materials are not hosted in this preview") !== -1, "lesson pages do not promise unavailable video content");
 
-group("Journey");
-ok(index.indexOf("pathway-hs") !== -1 && index.indexOf("pathway-uni") !== -1, "two pathway panels");
-ok(index.indexOf("Browse High School courses") !== -1 && index.indexOf("Browse University courses") !== -1, "pathway CTAs");
-ok(index.indexOf("Choose a course") !== -1 && index.indexOf("Get access") !== -1 && index.indexOf("Start learning") !== -1, "three how-it-works steps");
-var courses = read("courses.html");
-ok(courses.indexOf("id=\"pathwayTabs\"") !== -1 && courses.indexOf("id=\"courseList\"") !== -1, "courses discovery surface");
-var pricing = read("pricing.html");
-ok(pricing.indexOf("id=\"pricingGrid\"") !== -1 && pricing.indexOf("id=\"cmpBody\"") !== -1, "pricing grid + comparison");
-ok(pricing.indexOf("Basic K50") !== -1 && pricing.indexOf("Standard K100") !== -1 && pricing.indexOf("Premium K200") !== -1, "pricing meta still states amounts");
-ok(read("dashboard.html").indexOf("id=\"dashRoot\"") !== -1, "dashboard mount");
-ok(read("library.html").indexOf("id=\"libRoot\"") !== -1 && read("library.html").indexOf("id=\"libGate\"") !== -1, "library workspace mounts");
-ok(read("lesson.html").indexOf("id=\"lessonRoot\"") !== -1, "lesson player mount");
-var coursePage = read("course.html");
-ok(coursePage.indexOf("id=\"courseRoot\"") !== -1 && coursePage.indexOf("data-page=\"course\"") !== -1, "individual course page mount");
-ok(app.indexOf("pageCourse") !== -1 && app.indexOf("course: pageCourse") !== -1, "course route registered");
-ok(app.indexOf("NT.tierRange") !== -1 && app.indexOf("NT.courseDuration") !== -1, "course page uses real catalogue maths");
-ok(app.indexOf("course.html?id=") !== -1, "discovery links to the course page");
-var uiJs = read("assets/js/ui.js");
-ok(uiJs.indexOf("NT.initReveal") !== -1 && app.indexOf("NT.initReveal()") !== -1, "restrained entrances wired");
-ok(index.indexOf("hero-points") !== -1 && index.indexOf("flow-strip") !== -1, "home proof row + learning flow");
-ok(read("access.html").indexOf("NT-BASIC-2026") !== -1, "access page demo codes");
-ok(app.indexOf("renderCourseCard") !== -1 && app.indexOf("course-card-media") !== -1, "course cards render media");
-ok(app.indexOf("lib-index") !== -1 && app.indexOf("lib-course-progress") !== -1, "library numbers + progress");
-ok(app.indexOf("price-card price-'") !== -1 || app.indexOf("price-card price-") !== -1, "pricing cards carry tier class");
-ok(app.indexOf("Continue learning") !== -1 && app.indexOf("dashboard-continue") !== -1, "dashboard continue-learning block");
-
-group("Admin");
-ADMIN_PAGES.forEach(function (file) {
-  var html = read(file);
-  ok(html.indexOf("assets/css/admin.css") !== -1, file + " loads admin.css");
-  ok(html.indexOf("assets/js/admin.js") !== -1, file + " loads admin.js");
-});
 var adminJs = read("assets/js/admin.js");
-ok(adminJs.indexOf("data-admin") !== -1 || adminJs.length > 500, "admin behaviour present");
-ok(read("assets/css/admin.css").indexOf("--adm-side") !== -1, "admin shell tokens");
-
-group("Accessibility");
-var ui = read("assets/js/ui.js");
-ok(ui.indexOf("skip-link") !== -1 && ui.indexOf("Skip to main content") !== -1, "skip link");
-ok(ui.indexOf("aria-label=\"Primary\"") !== -1, "primary nav label");
-ok(ui.indexOf("NT.logoImg") !== -1 && ui.indexOf("alt=") !== -1, "logo alt text helper");
-ok(css.indexOf("outline: 2px solid var(--brand-500)") !== -1, "visible focus outline");
-ok(index.indexOf("aria-hidden=\"true\"") !== -1, "decorative hero is hidden from AT");
-ok(read("courses.html").indexOf("aria-label=\"Browse courses by pathway\"") !== -1, "pathway tabs labelled");
-ok(read("library.html").indexOf("aria-label=\"Filter lessons by availability\"") !== -1, "library filters labelled");
-ok(read("search.html").indexOf("aria-live=\"polite\"") !== -1, "search live region");
-ok(ui.indexOf("main.setAttribute(\"tabindex\", \"-1\")") !== -1, "main is a skip target");
-ok(ui.indexOf("NT.logoImg(\"brand-logo\")") !== -1, "header renders the logo image");
-ok(css.indexOf(".brand-logo") !== -1 && css.indexOf(".brand-sub { display: none; }") === -1 || true, "brand styles present");
-ok(css.indexOf("@media (max-width: 760px)") !== -1 && css.indexOf(".header-login, .header-account { display: none; }") !== -1, "mobile header keeps brand + compact actions");
-
-group("No-rebuild invariants");
-ok(data.indexOf("UNIVERSITIES = []") !== -1 && data.indexOf("PROGRAMMES = []") !== -1, "no invented universities");
-ok(index.indexOf("1284") === -1 && index.indexOf("activeAccess") === -1, "home has no statistics strip");
-ok(index.indexOf("Why") === -1 || index.indexOf("id=\"why\"") === -1, "no extra why-us section");
-["testimonials", "as seen in", "trusted by"].forEach(function (phrase) {
-  ok(index.toLowerCase().indexOf(phrase) === -1, "home does not contain “" + phrase + "”");
+ADMIN_PAGES.forEach(function (file) {
+  var source = read(file);
+  var route = (source.match(/data-admin="([^"]+)"/) || [])[1];
+  check(route && adminJs.indexOf(route + ": page") !== -1, file + " maps to an implemented admin route");
 });
+check(adminJs.indexOf("lessonLevels[id]") !== -1 && adminJs.indexOf("payment processor") !== -1, "admin controls are local and describe their preview scope");
+check(read("README.md").indexOf("lesson materials are not hosted") !== -1 && read("README.md").indexOf("does not contact a payment provider") !== -1, "README states the preview limitations");
 
 function fetchHttp(url) {
   return new Promise(function (resolve, reject) {
-    var req = http.get(url, function (res) {
-      var chunks = [];
-      res.on("data", function (c) { chunks.push(c); });
-      res.on("end", function () {
-        resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString("utf8") });
-      });
+    var parsed = new URL(url);
+    var client = parsed.protocol === "https:" ? https : http;
+    var req = client.get(parsed, function (res) {
+      res.resume();
+      res.on("end", function () { resolve(res.statusCode); });
     });
     req.on("error", reject);
-    req.setTimeout(5000, function () { req.destroy(new Error("timeout " + url)); });
+    req.setTimeout(5000, function () { req.destroy(new Error("timeout")); });
   });
 }
 
 function runHttp(base) {
   group("HTTP smoke (" + base + ")");
-  var paths = PUBLIC_PAGES.concat(ADMIN_PAGES).concat(ASSETS);
+  var paths = htmlPages.concat(ASSETS);
   return paths.reduce(function (chain, rel) {
     return chain.then(function () {
-      var url = base.replace(/\/$/, "") + "/" + rel;
-      return fetchHttp(url).then(function (res) {
-        ok(res.status === 200, res.status + " " + rel);
-        if (rel.endsWith(".html") && res.status === 200) {
-          ok(res.body.indexOf("<script") !== -1, rel + " served with scripts");
-        }
-      }).catch(function (err) {
-        ok(false, rel + " fetch failed: " + err.message);
+      return fetchHttp(base.replace(/\/$/, "") + "/" + rel).then(function (status) {
+        check(status === 200, status + " " + rel);
+      }).catch(function (error) {
+        check(false, rel + " fetch failed: " + error.message);
       });
     });
   }, Promise.resolve());
@@ -208,7 +188,7 @@ var done = base ? runHttp(base) : Promise.resolve();
 done.then(function () {
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exit(failed ? 1 : 0);
-}).catch(function (err) {
-  console.error(err);
+}).catch(function (error) {
+  console.error(error);
   process.exit(1);
 });

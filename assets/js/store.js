@@ -1,7 +1,6 @@
 /* ============================================================
-   NUCLEAR TUTORIALS — Demo state store (localStorage)
-   Keeps access level, completions, codes, payments and admin
-   edits consistent across every page of the demo.
+   NUCLEAR TUTORIALS — Local preview state
+   Access codes and preferences persist in this browser only.
    ============================================================ */
 (function () {
   window.NT = window.NT || {};
@@ -9,36 +8,16 @@
 
   function defaults() {
     return {
-      access: null,                 // 'basic' | 'standard' | 'premium'
-      accessMeta: null,             // { code, source, method, ref, since }
-      completed: [],                // lesson ids
-      recentLessons: [],            // most recently watched lesson ids
-      codes: [
-        { code: "NT-BASIC-2026", pkg: "basic", status: "active", created: "2026-01-05", seeded: true },
-        { code: "NT-STANDARD-2026", pkg: "standard", status: "active", created: "2026-01-05", seeded: true },
-        { code: "NT-PREMIUM-2026", pkg: "premium", status: "active", created: "2026-01-05", seeded: true }
-      ],
-      payments: NT.data.SEED_PAYMENTS.slice(),
-      students: NT.data.SEED_STUDENTS.slice(),
-      videoLevels: {},              // lessonId -> level override (admin)
-      extraLessons: [],             // lessons added via admin "Upload Video"
-      extraCourses: [],             // draft courses created in admin
-      extraPackages: [],            // draft package options created in admin
-      announcements: [],             // admin-authored notices (local demo only)
-      profile: {
-        name: "",
-        educationLevel: "",
-        levelId: "",
-        university: "",
-        programme: "",
-        subjectId: ""
-      },
+      access: null,
+      accessMeta: null,
+      codes: [],
+      lessonLevels: {},
+      announcements: [],
+      profile: { name: "", educationLevel: "", subjectId: "" },
       packages: { basic: 50, standard: 100, premium: 200 },
-      packageDetails: {},            // optional admin-managed label, tagline and feature overrides
+      packageDetails: {},
       settings: {
-        name: "Nuclear Tutorials",
-        email: "support@nucleartutorials.zm",
-        currency: "Zambian Kwacha (K)",
+        email: "",
         days: 30
       }
     };
@@ -48,91 +27,107 @@
 
   function load() {
     if (cache) return cache;
+    var base = defaults();
     try {
       var raw = localStorage.getItem(KEY);
       if (raw) {
-        var parsed = JSON.parse(raw);
-        cache = Object.assign(defaults(), parsed);
-        cache.settings = Object.assign(defaults().settings, parsed.settings || {});
-        cache.packages = Object.assign(defaults().packages, parsed.packages || {});
+        var parsed = JSON.parse(raw) || {};
+        cache = Object.assign(base, parsed);
+        cache.settings = Object.assign({}, base.settings, parsed.settings || {});
+        if (cache.settings.email === "support@nucleartutorials.zm") cache.settings.email = "";
+        delete cache.settings.name;
+        delete cache.settings.currency;
+        cache.packages = Object.assign({}, base.packages, parsed.packages || {});
         cache.packageDetails = Object.assign({}, parsed.packageDetails || {});
-        cache.profile = Object.assign({}, defaults().profile, parsed.profile || {});
-        cache.announcements = Array.isArray(cache.announcements) ? cache.announcements : [];
-        cache.completed = Array.isArray(cache.completed) ? cache.completed : [];
-        cache.recentLessons = Array.isArray(cache.recentLessons) ? cache.recentLessons : [];
-        cache.codes = Array.isArray(cache.codes) ? cache.codes : defaults().codes;
-        cache.payments = Array.isArray(cache.payments) ? cache.payments : defaults().payments;
-        cache.students = Array.isArray(cache.students) ? cache.students : defaults().students;
-        cache.videoLevels = cache.videoLevels || {};
-        cache.extraLessons = Array.isArray(cache.extraLessons) ? cache.extraLessons : [];
-        cache.extraCourses = Array.isArray(cache.extraCourses) ? cache.extraCourses : [];
-        cache.extraPackages = Array.isArray(cache.extraPackages) ? cache.extraPackages : [];
+        cache.profile = {
+          name: String((parsed.profile && parsed.profile.name) || ""),
+          educationLevel: String((parsed.profile && parsed.profile.educationLevel) || ""),
+          subjectId: String((parsed.profile && parsed.profile.subjectId) || "")
+        };
+        var oldAccessMeta = parsed.accessMeta && typeof parsed.accessMeta === "object" ? parsed.accessMeta : null;
+        var oldCode = oldAccessMeta && String(oldAccessMeta.code || "").trim().toUpperCase();
+        var seededCode = /^NT-(BASIC|STANDARD|PREMIUM)-2026$/.test(oldCode || "");
+        var simulatedAccess = oldAccessMeta && (oldAccessMeta.source === "payment" || oldAccessMeta.source === "persona" || oldAccessMeta.method || oldAccessMeta.ref);
+        var discardedCode = seededCode || simulatedAccess ? oldCode : "";
+        if (seededCode || simulatedAccess) {
+          cache.access = null;
+          cache.accessMeta = null;
+        } else if (oldAccessMeta) {
+          cache.accessMeta = {};
+          ["code", "source", "since", "educationLevel"].forEach(function (key) {
+            if (oldAccessMeta[key] != null) cache.accessMeta[key] = String(oldAccessMeta[key]);
+          });
+        } else {
+          cache.accessMeta = null;
+        }
+        cache.codes = (Array.isArray(parsed.codes) ? parsed.codes : []).filter(function (record) {
+          return record && record.code && !record.seeded && String(record.code).toUpperCase() !== discardedCode;
+        });
+        cache.announcements = Array.isArray(parsed.announcements) ? parsed.announcements : [];
+        cache.lessonLevels = parsed.lessonLevels && typeof parsed.lessonLevels === "object"
+          ? parsed.lessonLevels
+          : (parsed.videoLevels && typeof parsed.videoLevels === "object" ? parsed.videoLevels : {});
+        /* Migrate old lesson-access overrides and discard obsolete simulated records. */
+        delete cache.videoLevels;
+        delete cache.payments;
+        delete cache.students;
+        delete cache.completed;
+        delete cache.recentLessons;
+        delete cache.extraLessons;
+        delete cache.extraCourses;
+        delete cache.extraPackages;
       } else {
-        cache = defaults();
+        cache = base;
       }
     } catch (e) {
-      cache = defaults();
+      cache = base;
     }
     return cache;
   }
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) { /* private mode */ }
+    try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (e) { /* private browsing */ }
   }
 
   NT.store = {
     get: function () { return load(); },
     save: save,
-    mutate: function (fn) { var s = load(); fn(s); save(); return s; },
+    mutate: function (fn) { var state = load(); fn(state); save(); return state; },
     reset: function () { cache = defaults(); save(); },
 
     setAccess: function (level, meta) {
-      NT.store.mutate(function (s) {
-        s.access = level;
-        s.accessMeta = Object.assign({ since: new Date().toISOString() }, meta || {});
+      NT.store.mutate(function (state) {
+        state.access = level;
+        state.accessMeta = Object.assign({ since: new Date().toISOString() }, meta || {});
       });
     },
-    clearAccess: function () {
-      NT.store.mutate(function (s) { s.access = null; s.accessMeta = null; });
-    },
-    toggleComplete: function (lessonId, done) {
-      NT.store.mutate(function (s) {
-        var i = s.completed.indexOf(lessonId);
-        if (done && i === -1) s.completed.push(lessonId);
-        if (!done && i !== -1) s.completed.splice(i, 1);
-      });
-    },
-    isComplete: function (lessonId) { return load().completed.indexOf(lessonId) !== -1; },
-    recordLessonVisit: function (lessonId) {
-      NT.store.mutate(function (s) {
-        s.recentLessons = [lessonId].concat((s.recentLessons || []).filter(function (id) { return id !== lessonId; })).slice(0, 10);
-      });
-    },
-
     findCode: function (code) {
-      var c = String(code || "").trim().toUpperCase();
-      return load().codes.filter(function (x) { return x.code === c; })[0] || null;
+      var normalized = String(code || "").trim().toUpperCase();
+      return load().codes.filter(function (record) {
+        return String(record.code || "").toUpperCase() === normalized;
+      })[0] || null;
     },
     addCode: function (code, pkg, status) {
-      NT.store.mutate(function (s) {
-        s.codes.unshift({ code: code, pkg: pkg, status: status || "unused", created: new Date().toISOString().slice(0, 10), seeded: false });
+      NT.store.mutate(function (state) {
+        state.codes.unshift({
+          code: String(code).toUpperCase(),
+          pkg: pkg,
+          status: status || "unused",
+          created: new Date().toISOString().slice(0, 10)
+        });
       });
     },
     redeemCode: function (code) {
-      NT.store.mutate(function (s) {
-        var c = s.codes.filter(function (x) { return x.code === code; })[0];
-        if (c) c.status = "redeemed";
+      NT.store.mutate(function (state) {
+        var record = state.codes.filter(function (item) {
+          return String(item.code || "").toUpperCase() === String(code || "").toUpperCase();
+        })[0];
+        if (record) record.status = "redeemed";
       });
     },
-    addPayment: function (p) {
-      NT.store.mutate(function (s) { s.payments.unshift(Object.assign({ seeded: false }, p)); });
-    },
-    addStudent: function (st) {
-      NT.store.mutate(function (s) { s.students.unshift(Object.assign({ seeded: false }, st)); });
-    },
     addAnnouncement: function (announcement) {
-      NT.store.mutate(function (s) {
-        s.announcements.unshift(Object.assign({
+      NT.store.mutate(function (state) {
+        state.announcements.unshift(Object.assign({
           id: "notice-" + Date.now(),
           status: "draft",
           created: new Date().toISOString()
@@ -140,23 +135,19 @@
       });
     },
     updateAnnouncement: function (id, updates) {
-      NT.store.mutate(function (s) {
-        var item = s.announcements.filter(function (notice) { return notice.id === id; })[0];
+      NT.store.mutate(function (state) {
+        var item = state.announcements.filter(function (notice) { return notice.id === id; })[0];
         if (item) Object.assign(item, updates || {});
       });
     },
     removeAnnouncement: function (id) {
-      NT.store.mutate(function (s) {
-        s.announcements = s.announcements.filter(function (notice) { return notice.id !== id; });
+      NT.store.mutate(function (state) {
+        state.announcements = state.announcements.filter(function (notice) { return notice.id !== id; });
       });
     },
     genCode: function (pkg) {
-      var n = Math.floor(1000 + Math.random() * 9000);
-      return "NT-" + pkg.toUpperCase() + "-" + n;
-    },
-    genRef: function () {
-      var n = Math.floor(10000 + Math.random() * 90000);
-      return "NTX-2026-" + n;
+      var number = Math.floor(1000 + Math.random() * 9000);
+      return "NT-" + String(pkg || "").toUpperCase() + "-" + number;
     }
   };
 })();
