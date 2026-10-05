@@ -12,13 +12,45 @@
 
 <main>
   <section class="hero-home">
-    <div class="container hero-copy-column">
-      <span class="eyebrow">High School · University</span>
-      <h1>Learn smarter. <em>Go further.</em></h1>
-      <p class="hero-copy">Structured video courses for high-school and university study — choose a pathway, get access and start learning.</p>
-      <div class="hero-ctas">
-        <a class="btn btn-primary btn-lg" href="courses.html">Explore Courses</a>
-        <a class="btn btn-ghost btn-lg" href="#how-it-works">How it works</a>
+    <div class="hero-atmosphere" aria-hidden="true">
+      <span class="hero-orb hero-orb-a"></span>
+      <span class="hero-orb hero-orb-b"></span>
+      <span class="hero-orb hero-orb-c"></span>
+      <svg class="hero-orbit" viewBox="0 0 480 480" fill="none">
+        <ellipse cx="240" cy="240" rx="168" ry="62" stroke="rgba(110,203,232,.35)" stroke-width="1.6"/>
+        <ellipse cx="240" cy="240" rx="168" ry="62" stroke="rgba(224,33,138,.22)" stroke-width="1.6" transform="rotate(60 240 240)"/>
+        <ellipse cx="240" cy="240" rx="168" ry="62" stroke="rgba(244,123,32,.22)" stroke-width="1.6" transform="rotate(120 240 240)"/>
+        <circle cx="240" cy="240" r="8" fill="rgba(255,255,255,.9)"/>
+        <circle cx="240" cy="240" r="18" stroke="rgba(255,255,255,.25)" stroke-width="1.2"/>
+      </svg>
+    </div>
+    <div class="container hero-layout">
+      <div class="hero-copy-column">
+        <div class="hero-brand-mark">
+          <img class="hero-logo" src="assets/img/logo.jpg" alt="">
+          <span class="eyebrow">High School · University</span>
+        </div>
+        <h1>Learn smarter. <em>Go further.</em></h1>
+        <p class="hero-copy">Structured video courses for high-school and university study — choose a pathway, get access and start learning.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary btn-lg" href="courses.html">Explore Courses</a>
+          <a class="btn btn-outline-light btn-lg" href="#how-it-works">How it works</a>
+        </div>
+      </div>
+      <div class="hero-stage" aria-hidden="true">
+        <article class="hero-preview">
+          <div class="hero-preview-screen">
+            <span class="hero-preview-glow"></span>
+            <span class="hero-play"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="9 7 18 12 9 17 9 7"/></svg></span>
+            <span class="hero-preview-tag">Mathematics</span>
+            <span class="hero-preview-dur">12:40</span>
+          </div>
+          <div class="hero-preview-meta">
+            <b>Number Systems</b>
+            <small>Lesson 1 of 8 · Mathematics</small>
+          </div>
+        </article>
+        <div class="hero-preview-shadow"></div>
       </div>
     </div>
   </section>
@@ -30,14 +62,14 @@
         <p>Every course in the catalogue is offered on both pathways, so you can start where you study.</p>
       </div>
       <div class="pathway-grid">
-        <article class="pathway-card">
+        <article class="pathway-card pathway-hs">
           <span class="pathway-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
           <span class="pathway-label">High School</span>
           <h3>Subjects by grade or form</h3>
           <p>School subjects organised by grade, form or level, with the lessons listed in order from the start of the course.</p>
           <a class="link-arrow" href="courses.html?level=high-school">Browse High School courses <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
         </article>
-        <article class="pathway-card">
+        <article class="pathway-card pathway-uni">
           <span class="pathway-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
           <span class="pathway-label">University</span>
           <h3>Courses for university study</h3>
@@ -48,7 +80,7 @@
     </div>
   </section>
 
-  <section class="section" id="popular-courses">
+  <section class="section section-courses" id="popular-courses">
     <div class="container">
       <div class="section-head section-head-row">
         <div>
@@ -87,14 +119,14 @@
     </div>
   </section>
 
-  <section class="section section-alt" id="access">
+  <section class="section section-access" id="access">
     <div class="container access-band">
       <div>
         <h2>Access packages, kept simple</h2>
         <p>One payment, <span id="accessDays">30</span> days of access. Each package unlocks more of every course — nothing else changes.</p>
         <div class="btns">
-          <a class="btn btn-primary btn-lg" href="pricing.html">Compare packages</a>
-          <a class="btn btn-ghost btn-lg" href="access.html">Redeem a code</a>
+          <a class="btn btn-invert btn-lg" href="pricing.html">Compare packages</a>
+          <a class="btn btn-outline-light btn-lg" href="access.html">Redeem a code</a>
         </div>
       </div>
       <div class="access-list" id="accessList"></div>

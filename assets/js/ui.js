@@ -369,16 +369,36 @@
   /* ---------- thumbnail art (SVG per course, deterministic) ---------- */
   NT.thumbArt = function (course) {
     var c = course || NT.data.COURSES[0];
+    var id = c.id || "course";
+    var motif = {
+      math: '<path d="M16 128 C 70 70, 130 150, 210 78 S 300 36, 336 62" stroke="#ffffff" stroke-opacity=".4" fill="none" stroke-width="2"/>' +
+        '<g stroke="#ffffff" stroke-opacity=".14" stroke-width="1">' +
+        '<path d="M0 60h320M0 90h320M0 120h320M40 0v180M80 0v180M120 0v180M160 0v180M200 0v180M240 0v180M280 0v180"/></g>',
+      phys: '<g fill="none" stroke="#ffffff" stroke-opacity=".38" stroke-width="1.5">' +
+        '<ellipse cx="246" cy="64" rx="72" ry="26"/>' +
+        '<ellipse cx="246" cy="64" rx="72" ry="26" transform="rotate(60 246 64)"/>' +
+        '<ellipse cx="246" cy="64" rx="72" ry="26" transform="rotate(120 246 64)"/></g>' +
+        '<circle cx="246" cy="64" r="6" fill="#ffffff" fill-opacity=".85"/>',
+      chem: '<g fill="none" stroke="#ffffff" stroke-opacity=".34" stroke-width="1.4">' +
+        '<circle cx="238" cy="52" r="18"/><circle cx="278" cy="78" r="14"/><circle cx="214" cy="90" r="12"/>' +
+        '<path d="M252 62l18 12M226 66l-8 16"/></g>' +
+        '<circle cx="238" cy="52" r="5" fill="#ffffff" fill-opacity=".7"/>' +
+        '<circle cx="278" cy="78" r="4" fill="#ffffff" fill-opacity=".55"/>',
+      cs: '<g fill="none" stroke="#ffffff" stroke-opacity=".32" stroke-width="1.3">' +
+        '<rect x="208" y="28" width="36" height="24" rx="4"/><rect x="258" y="62" width="36" height="24" rx="4"/>' +
+        '<rect x="208" y="96" width="36" height="24" rx="4"/><path d="M226 52v44M244 40h32l0 22"/></g>' +
+        '<circle cx="226" cy="74" r="3.5" fill="#ffffff" fill-opacity=".7"/>',
+      bio: '<g fill="none" stroke="#ffffff" stroke-opacity=".34" stroke-width="1.4">' +
+        '<ellipse cx="244" cy="70" rx="54" ry="38"/><ellipse cx="244" cy="70" rx="22" ry="16"/>' +
+        '<path d="M244 32c18 18 8 40 0 76"/></g>' +
+        '<circle cx="258" cy="62" r="5" fill="#ffffff" fill-opacity=".65"/>'
+    };
     return '<svg class="thumb-art" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
-      '<defs><linearGradient id="g-' + c.id + '" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0" stop-color="#ffffff" stop-opacity=".12"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>' +
-      '<rect width="320" height="180" fill="url(#g-' + c.id + ')"/>' +
-      '<g fill="none" stroke="#ffffff" stroke-opacity=".16" stroke-width="1.2">' +
-      '<circle cx="262" cy="34" r="46"/><circle cx="262" cy="34" r="72"/><circle cx="262" cy="34" r="98"/>' +
-      '<path d="M-10 150 C 60 120, 110 168, 180 138 S 300 150, 340 120"/>' +
-      '<path d="M-10 168 C 60 140, 110 186, 180 156 S 300 168, 340 140"/>' +
-      "</g>" +
-      '<g stroke="#ffffff" stroke-opacity=".2" stroke-width="1"><path d="M24 26h54M24 40h38M24 54h46"/></g>' +
+      '<defs><linearGradient id="g-' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="#ffffff" stop-opacity=".14"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>' +
+      '<rect width="320" height="180" fill="url(#g-' + id + ')"/>' +
+      (motif[id] || '<circle cx="262" cy="34" r="72" fill="none" stroke="#ffffff" stroke-opacity=".16"/>') +
+      '<g stroke="#ffffff" stroke-opacity=".2" stroke-width="1"><path d="M22 24h50M22 38h34M22 52h42"/></g>' +
       "</svg>";
   };
 })();
