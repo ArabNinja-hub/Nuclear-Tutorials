@@ -266,7 +266,7 @@ main[tabindex="-1"]:focus { outline: none; }
 .header-login { font-size: 14px; font-weight: 500; }
 .header-account { color: var(--success); }
 .header-account .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.header-search-btn { display: none; }
+
 .nav-toggle {
   display: none; place-items: center; width: 44px; height: 44px;
   border: 1px solid var(--line); border-radius: var(--r-sm);
@@ -274,7 +274,7 @@ main[tabindex="-1"]:focus { outline: none; }
 }
 .nav-toggle:hover { background: var(--surface-2); color: var(--ink); }
 .header-access-link { flex: none; }
-@media (min-width: 981px) { .header-search-btn { display: inline-grid; } }
+
 
 /* Mobile sheet */
 .mobile-sheet { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
@@ -1116,4 +1116,417 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   .btn:hover, .price-card:hover, .video-card:hover, .course-card:hover, .pager-link:hover, .semester-cell:hover { transform: none !important; }
   .video-card:hover .thumb img { transform: none !important; }
+}
+
+/* ---------- Ordered lesson rows ---------- */
+.course-card-heading { flex: 1; min-width: 0; }
+.course-card-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.lesson-list { display: flex; flex-direction: column; gap: 10px; }
+.lesson-row {
+  display: grid; grid-template-columns: 42px minmax(0,1fr) auto 24px; align-items: center;
+  gap: 14px; min-height: 84px; padding: 15px 17px; text-decoration: none; color: var(--ink);
+}
+.lesson-row:hover { color: var(--ink); transform: translateY(-1px); }
+.lesson-row .video-card-index { width: 38px; height: 38px; min-width: 38px; border-radius: 10px; font-size: 12px; }
+.lesson-row-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.lesson-row-course { color: var(--muted-2); font-size: 11px; line-height: 1.35; }
+.lesson-row-title { color: var(--ink); font-size: 15px; font-weight: 650; line-height: 1.35; }
+.lesson-row-details { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.lesson-row-details .icon { width: 14px; height: 14px; }
+.lesson-row-dot { color: var(--line-strong); }
+.lesson-row-access { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; }
+.lesson-row-access .badge { min-height: 27px; }
+.lesson-row-watched { font-size: 10.5px; }
+.lesson-row-arrow { display: grid; place-items: center; color: var(--muted-2); }
+
+/* ============================================================
+   MOBILE APP REFINEMENT
+   Phone layouts are composed deliberately rather than scaled down.
+   ============================================================ */
+@media (max-width: 760px) {
+  :root {
+    --header-h: 58px;
+    --mobile-nav-h: 64px;
+  }
+
+  html, body { width: 100%; min-width: 320px; overflow-x: clip; }
+  body { font-size: 15px; line-height: 1.6; }
+  body.has-mobile-nav { padding-bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px)); }
+  main, section, .container, .section, .section-body { min-width: 0; }
+  .container { padding-right: 18px; padding-left: 18px; }
+  [id] { scroll-margin-top: calc(var(--header-h) + env(safe-area-inset-top,0px) + 14px); }
+
+  h1 { font-size: clamp(1.85rem, 7.2vw, 2.35rem); line-height: 1.08; letter-spacing: -.035em; }
+  h2 { font-size: clamp(1.35rem, 5.7vw, 1.7rem); line-height: 1.16; }
+  h1, h2, h3, h4 { overflow-wrap: anywhere; }
+  .course-hero-ident > div { min-width: 0; max-width: 100%; }
+  .course-hero-path, .course-hero-desc, .lesson-topic, .lesson-context a,
+  .lesson-row-title, .video-card h3, .search-result-copy > p, .search-result-copy > small,
+  .filter-chip, .announcement-item-body h2, .checkout-summary b { overflow-wrap: anywhere; }
+  .lede { max-width: 42ch; font-size: 15px; line-height: 1.62; }
+  .eyebrow { font-size: 10.5px; letter-spacing: .13em; }
+  .section { padding: 42px 0; }
+  .section-tight { padding: 18px 0 24px; }
+  .section-body { padding: 22px 0 34px; }
+  .dashboard-body { padding-top: 20px; }
+  .section-head { margin-bottom: 22px; }
+  .section-head p { font-size: 14px; line-height: 1.58; }
+  .section-head-row { gap: 12px; }
+
+  .btn { min-height: 46px; font-size: 14px; }
+  .btn-sm { min-height: 44px; }
+  .btn-lg { min-height: 50px; }
+  .btn-icon { width: 44px; height: 44px; }
+  .input, select.input, textarea.input { min-height: 48px; font-size: 16px; }
+  textarea.input { min-height: 110px; }
+
+  /* Compact sticky brand bar with a page-aware, one-tap action. */
+  .site-header { padding-top: env(safe-area-inset-top,0px); background: rgba(255,255,255,.97); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .header-inner { height: var(--header-h); justify-content: flex-start; gap: 10px; }
+  .brand { gap: 9px; }
+  .brand-logo { width: 34px; height: 34px; border-radius: 10px; box-shadow: none; }
+  .brand-name { font-size: 14.5px; line-height: 1.12; }
+  .brand-sub { display: none; }
+  .header-actions { gap: 6px; margin-left: auto; }
+  .header-login, .header-account, .header-access-link, .nav-toggle { display: none !important; }
+  .header-context-action { display: inline-grid; place-items: center; }
+  .header-context-action .icon { width: 19px; height: 19px; }
+
+  /* The More destination becomes a restrained bottom sheet on phones. */
+  .mobile-sheet { z-index: 100; }
+  .mobile-sheet .scrim { background: rgba(5, 20, 31, .42); }
+  .mobile-sheet .sheet {
+    top: auto; right: 0; bottom: 0; left: 0;
+    width: 100%; max-height: 86vh; max-height: min(86dvh, 720px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border: 1px solid rgba(219,229,236,.9); border-bottom: 0;
+    border-radius: 22px 22px 0 0; box-shadow: 0 -18px 56px rgba(4,16,26,.2);
+    transform: translateY(102%); transition: transform .22s cubic-bezier(.32,.72,.28,1);
+    overscroll-behavior: contain;
+  }
+  .mobile-sheet.open .sheet { transform: translateY(0); }
+  .sheet-head { position: sticky; top: 0; z-index: 1; padding: 18px 20px 14px; background: #fff; }
+  .sheet-head .modal-x { width: 44px; height: 44px; }
+  .sheet-head h2 { margin-top: 3px; font-size: 19px; }
+  .sheet-kicker { color: var(--brand-700); font-size: 10px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+  .sheet-nav { padding: 6px 14px 14px; gap: 3px; }
+  .sheet-label { padding: 12px 10px 4px; }
+  .sheet-nav a { min-height: 50px; padding: 10px 12px; font-size: 14px; }
+  .sheet-foot { padding: 12px 20px 18px; }
+  .sheet-status { font-size: 12px; }
+
+  /* Persistent five-stop app navigation; padding accounts for home indicators. */
+  .mobile-nav {
+    position: fixed; z-index: 72; right: 0; bottom: 0; left: 0;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch; gap: 2px;
+    min-height: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: rgba(255,255,255,.98);
+    box-shadow: 0 -5px 18px rgba(6,23,35,.045);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .mobile-nav a, .mobile-nav-more {
+    display: flex; min-width: 0; min-height: 52px; align-items: center; justify-content: center;
+    flex-direction: column; gap: 3px; padding: 4px 1px;
+    border: 0; border-radius: 12px; background: transparent; color: var(--muted-2);
+    font: 600 10px/1.1 var(--font); text-align: center; text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-nav a .icon, .mobile-nav-more .icon { width: 19px; height: 19px; stroke-width: 1.9; }
+  .mobile-nav a.active, .mobile-nav-more.is-current, .mobile-nav-more[aria-expanded="true"] {
+    color: var(--brand-800); background: var(--brand-50);
+  }
+  .mobile-nav a.active .icon, .mobile-nav-more.is-current .icon, .mobile-nav-more[aria-expanded="true"] .icon { color: var(--brand-700); }
+  .mobile-nav-more { cursor: pointer; }
+
+  /* Purposeful, left-aligned small-screen hero. */
+  .hero-home { padding: 34px 0 27px; background: var(--navy); }
+  .hero-home::after { display: none; }
+  .hero-copy-column { max-width: 38rem; }
+  .hero-home .eyebrow {
+    display: inline-flex; align-items: center; width: fit-content; max-width: 100%;
+    margin-bottom: 16px; padding: 7px 10px; border: 1px solid rgba(143,216,232,.18);
+    border-radius: 999px; background: rgba(143,216,232,.08); color: #a8e4ef;
+    font-size: 9.5px; letter-spacing: .1em;
+  }
+  .hero-home h1 { max-width: 14ch; margin-bottom: 13px; font-size: clamp(2.05rem, 8vw, 2.55rem); line-height: 1.04; }
+  .hero-home h1 em { color: #8fd8e8; }
+  .hero-home .hero-copy { max-width: 38ch; color: #c5d6e2; font-size: 14.5px; line-height: 1.62; }
+  .hero-ctas { display: block; margin-top: 20px; }
+  .hero-ctas .btn-primary { display: flex; width: 100%; justify-content: space-between; }
+  .hero-ctas .btn-outline-light { display: none; }
+  .hero-path { gap: 5px; margin-top: 17px; color: #a5bac7; font-size: 10px; line-height: 1.2; }
+  .hero-path span { gap: 4px; }
+  .hero-path .path-arrow { color: #6c8797; }
+
+  /* Compact proof points and calmer content rhythm. */
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .stat-card { min-width: 0; align-items: center; gap: 9px; padding: 12px; border-radius: 14px; }
+  .stat-icon { width: 34px; height: 34px; border-radius: 10px; }
+  .stat-icon .icon { width: 17px; height: 17px; }
+  .stat-card b { font-size: 1.12rem; }
+  .stat-card span { font-size: 11.5px; line-height: 1.25; }
+  .stat-card small { font-size: 10px; line-height: 1.3; }
+  .institution-grid, .video-grid, .video-grid-compact { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .university-card { gap: 12px; padding: 16px; border-radius: 16px; }
+  .university-card-head { gap: 11px; }
+  .university-mark { width: 40px; height: 40px; border-radius: 11px; }
+  .university-card h3 { font-size: 1rem; line-height: 1.28; }
+  .university-card-meta { margin-top: 5px; font-size: 11px; line-height: 1.4; }
+  .university-card-summary { font-size: 13px; line-height: 1.52; }
+  .semester-split { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .semester-cell { min-width: 0; min-height: 58px; justify-content: center; gap: 2px; padding: 8px 10px; }
+  .semester-name { gap: 5px; font-size: 12px; white-space: nowrap; }
+  .semester-name .icon { width: 14px; height: 14px; }
+  .semester-count { font-size: 11px; }
+
+  /* Thumb-friendly semester control and discovery filters. */
+  .semester-switch {
+    display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 3px; padding: 4px; border-radius: 15px; box-shadow: none;
+  }
+  .semester-option {
+    min-width: 0; min-height: 58px; align-items: center; justify-content: center;
+    gap: 2px; padding: 7px 4px; border-radius: 11px; text-align: center;
+    font-size: 12px; line-height: 1.15;
+  }
+  .semester-option > span { justify-content: center; gap: 4px; white-space: nowrap; }
+  .semester-option .icon { width: 14px; height: 14px; }
+  .semester-option small { padding-left: 0; font-size: 9.5px; line-height: 1.1; }
+  .semester-option.active { box-shadow: none; }
+  .discovery-head { padding-top: 22px; }
+  .discovery-head .eyebrow { margin-top: 0 !important; }
+  .discovery-head h1 { max-width: 18ch; margin-top: 8px; font-size: clamp(1.75rem, 7vw, 2.2rem); }
+  .discovery-head .lede { margin-top: 9px; }
+  .discovery-toolbar { margin-top: 17px; padding-top: 16px; }
+  .toolbar-row { align-items: stretch; gap: 12px; }
+  .pathway-tabs { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .pathway-tab {
+    min-width: 0; min-height: 44px; justify-content: center; gap: 0;
+    padding: 8px 4px; border-radius: 12px; font-size: 11px; white-space: nowrap;
+  }
+  .pathway-tab .icon { display: none; }
+  .toolbar-row-right { display: grid; width: 100%; grid-template-columns: minmax(0,1fr); gap: 9px; }
+  .toolbar-row-right .field, .toolbar-row-right .search-field { width: 100%; min-width: 0; max-width: none; }
+  .search-field { max-width: none; }
+  .filter-row { margin: 12px 0 16px; }
+  .filter-chip { max-width: 100%; overflow-wrap: anywhere; }
+  .filter-chip button { width: 44px; height: 44px; }
+  .lib-toolbar .segmented button { min-height: 44px; padding-right: 12px; padding-left: 12px; }
+  .modal-x { width: 44px; height: 44px; }
+  .course-results-head { align-items: flex-start; margin: 18px 0 14px; font-size: 13px; }
+  .inline-notice { align-items: flex-start; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
+
+  /* Cards surface the actual course identifiers and student action. */
+  .course-grid, .course-catalog-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .course-card { border-radius: 16px; }
+  .course-card-head { align-items: flex-start; gap: 11px; padding: 15px 15px 0; }
+  .course-icon { width: 40px; height: 40px; border-radius: 11px; }
+  .course-icon .icon { width: 19px; height: 19px; }
+  .course-card-heading { flex: 1; min-width: 0; }
+  .course-card h3 { font-size: 1rem; line-height: 1.32; overflow-wrap: anywhere; }
+  .course-card .desc, .university-card-summary { overflow-wrap: anywhere; }
+  .course-path { gap: 4px; margin: 0 0 4px; font-size: 11px; line-height: 1.3; overflow-wrap: anywhere; }
+  .course-path .icon { width: 13px; height: 13px; margin-right: 0; }
+  .course-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .course-card-tags .badge { min-height: 25px; padding: 4px 8px; font-size: 10.5px; }
+  .course-code { overflow-wrap: anywhere; white-space: normal; }
+  .course-card-body { gap: 11px; padding: 12px 15px 15px; }
+  .course-card .desc { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 12.5px; line-height: 1.5; }
+  .course-card-foot { align-items: center; gap: 10px; padding-top: 10px; }
+  .course-card-meta { font-size: 11px; }
+  .course-card-foot .progress { min-width: 0; flex: 1; }
+  .course-card-foot .btn { flex: none; }
+
+  /* Ordered lessons become clean full-row targets rather than tiny cards. */
+  .lesson-list { display: flex; flex-direction: column; gap: 8px; }
+  .lesson-row {
+    display: grid; grid-template-columns: 38px minmax(0,1fr) auto 20px; align-items: center;
+    gap: 10px; min-height: 74px; padding: 11px 12px;
+    border-radius: 14px; box-shadow: none; color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lesson-row:hover { transform: none; color: var(--ink); }
+  .lesson-row .video-card-index { width: 34px; height: 34px; min-width: 34px; border-radius: 10px; font-size: 11px; }
+  .lesson-row-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+  .lesson-row-course { overflow: hidden; color: var(--muted-2); font-size: 10px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+  .lesson-row-title { display: -webkit-box; overflow: hidden; color: var(--ink); font-size: 13px; font-weight: 650; line-height: 1.35; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .lesson-row-details { display: flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; color: var(--muted-2); font-size: 10.5px; line-height: 1.25; white-space: nowrap; }
+  .lesson-row-details .icon { width: 13px; height: 13px; }
+  .lesson-row-dot { color: var(--line-strong); }
+  .lesson-row-access { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .lesson-row-access .badge { justify-content: center; max-width: 94px; min-height: 25px; padding: 4px 7px; font-size: 10px; line-height: 1.15; white-space: normal; text-align: center; }
+  .lesson-row-access .badge .icon { width: 11px; height: 11px; }
+  .lesson-row-watched { display: none !important; }
+  .lesson-row-arrow { display: grid; place-items: center; color: var(--muted-2); }
+  .lesson-row-arrow .icon { width: 16px; height: 16px; }
+
+  /* Course and lesson screens keep the learning surface close to the header. */
+  .course-hero { padding: 17px 0 24px; }
+  .course-hero .crumbs { display: none; }
+  .course-hero-copy { margin-top: 0; }
+  .course-hero-ident { gap: 10px; margin-bottom: 13px; }
+  .course-hero-icon { width: 42px; height: 42px; border-radius: 12px; }
+  .course-hero-icon .icon { width: 21px; height: 21px; }
+  .course-hero-ident > div { gap: 6px; }
+  .course-hero-path { font-size: 11px; }
+  .course-hero-chip { padding: 4px 8px; font-size: 10.5px; }
+  .course-hero h1 { max-width: 22ch; font-size: clamp(1.65rem, 7vw, 2.1rem); line-height: 1.08; }
+  .course-hero .course-hero-desc { margin-top: 9px; font-size: 13.5px; line-height: 1.55; }
+  .course-meta-row { gap: 7px 13px; margin-top: 13px; font-size: 11.5px; }
+  .course-hero-actions { display: grid; grid-template-columns: minmax(0,1fr); gap: 8px; margin-top: 17px; }
+  .course-hero-actions .btn { width: 100%; min-height: 48px; }
+  .course-progress-card { padding: 15px; }
+
+  .lesson-shell { max-width: none; padding-right: 18px; padding-left: 18px; }
+  .lesson-page { display: flex; flex-direction: column; gap: 0; padding-top: 14px; }
+  .lesson-page > .crumbs { display: none; }
+  .lesson-page .lesson-head { display: contents; }
+  .lesson-page > .player { order: 1; width: 100%; max-width: 100%; margin: 0 0 16px; border-radius: 13px; box-shadow: none; }
+  .lesson-page .lesson-head h1 { order: 2; margin: 0; font-size: clamp(1.45rem, 6vw, 1.85rem); line-height: 1.15; }
+  .lesson-page .lesson-topic { order: 3; margin-top: 6px; font-size: 10.5px; }
+  .lesson-page .lesson-context { order: 4; gap: 6px; margin: 11px 0 0; }
+  .lesson-page .lesson-context a { min-height: 44px; padding: 8px 10px; font-size: 11px; }
+  .lesson-page .lesson-meta { order: 5; gap: 7px 10px; margin-top: 10px; font-size: 11.5px; }
+  .lesson-page .lesson-actions { order: 6; gap: 8px; margin-top: 13px; }
+  .lesson-page .player iframe, .lesson-page .player video { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; }
+  .player-lock-overlay { gap: 6px; padding: 12px; }
+  .player-lock-overlay h2 { display: none; }
+  .player-lock-overlay p { max-width: 34ch; font-size: 11px; line-height: 1.28; }
+  .player-lock-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; margin-top: 2px; }
+  .player-lock-actions .btn { width: 100%; min-width: 0; min-height: 44px; padding: 6px 8px; font-size: 10.5px; white-space: normal; }
+  .lesson-page .lesson-description { order: 7; margin-top: 21px; }
+  .lesson-page .lesson-description h2 { font-size: 1.05rem; }
+  .lesson-page .lesson-description p { font-size: 14px; line-height: 1.65; }
+  .lesson-page .lesson-source { order: 8; margin-top: 14px; font-size: 11px; overflow-wrap: anywhere; }
+  .lesson-pager { gap: 8px; margin-top: 20px; }
+  .lesson-pager .pager-link { flex: 1 1 100%; min-height: 60px; padding: 11px 13px; }
+  .pager-link b { font-size: 12.5px; }
+  .lesson-notice { padding: 18px; }
+
+  /* Dashboard: the next lesson is the first useful action, then real data. */
+  .dashboard-page { gap: 22px; }
+  .dashboard-heading { align-items: flex-start; gap: 12px; }
+  .dashboard-heading h1 { margin-top: 5px; font-size: clamp(1.65rem, 7vw, 2rem); }
+  .dashboard-heading p { font-size: 12px; line-height: 1.5; }
+  .dashboard-actions { width: 100%; gap: 8px; }
+  .dashboard-actions .btn { flex: 1; }
+  .dashboard-continue { grid-template-columns: 76px minmax(0,1fr); align-items: start; gap: 12px; padding: 14px; border-radius: 16px; }
+  .dashboard-continue-media { width: 76px; max-width: none; margin-top: 2px; border-radius: 10px; }
+  .dashboard-continue-copy { min-width: 0; gap: 6px; }
+  .dashboard-continue-copy .eyebrow { font-size: 10.5px; }
+  .dashboard-continue-copy h2 { font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
+  .dashboard-continue-copy p { font-size: 11.5px; line-height: 1.45; }
+  .dashboard-continue-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; margin-top: 3px; }
+  .dashboard-continue-actions .btn { width: 100%; min-height: 44px; padding: 9px 10px; font-size: 12px; }
+  .dashboard-start { grid-template-columns: minmax(0,1fr); padding: 18px; }
+  .dashboard-start .dashboard-continue-copy h2 { font-size: 1.2rem; }
+  .dashboard-start .dashboard-continue-copy p { font-size: 13px; }
+  .dashboard-page > .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .dashboard-section .section-head-row { align-items: flex-start; }
+  .dashboard-section .section-head p { font-size: 12.5px; }
+  .dashboard-section .video-grid-compact .video-card { display: grid; grid-template-columns: 92px minmax(0,1fr); align-items: center; }
+  .dashboard-section .video-grid-compact .video-card-media { align-self: start; margin: 9px 0 9px 9px; border-radius: 9px; }
+  .dashboard-section .video-grid-compact .video-card-body { min-width: 0; gap: 5px; padding: 9px 10px; }
+  .dashboard-section .video-grid-compact .video-card-top { justify-content: flex-start; }
+  .dashboard-section .video-grid-compact .video-card-topic { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .dashboard-section .video-grid-compact .video-card h3 { font-size: 12px; line-height: 1.3; }
+  .dashboard-section .video-grid-compact .video-card-context { font-size: 10.5px; }
+  .dashboard-section .video-grid-compact .video-card-foot { gap: 5px; padding-top: 3px; }
+  .dashboard-section .video-grid-compact .video-card-foot .badge { display: none; }
+  .dashboard-section .video-grid-compact .video-card-foot .btn { min-height: 44px; padding: 8px 9px; font-size: 11px; }
+
+  /* Search stays prominent and results scan as compact, stacked cards. */
+  .page-head { padding: 22px 0 0; }
+  .page-head h1 { margin-top: 8px; font-size: clamp(1.75rem, 7vw, 2.15rem); }
+  .page-head .lede { margin-top: 9px; }
+  .crumbs { gap: 5px; font-size: 11px; line-height: 1.4; }
+  .search-global-field { min-height: 58px; gap: 10px; margin: 0 0 12px; padding: 5px 14px; border-radius: 15px; }
+  .search-global-field input { min-height: 46px; padding: 10px 0; font-size: 16px; }
+  .search-toolbar { gap: 9px; margin-bottom: 15px; }
+  .search-tabs { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; }
+  .search-tabs button { min-height: 44px; padding: 8px 10px; border-radius: 11px; font-size: 12px; }
+  .search-summary { font-size: 12px; }
+  .search-result-section + .search-result-section { margin-top: 22px; }
+  .search-result { align-items: flex-start; gap: 10px; margin-bottom: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .search-result-icon { width: 38px; height: 38px; }
+  .search-result-icon .icon { width: 18px; height: 18px; }
+  .search-result-thumb { display: none; }
+  .search-result-copy { flex: 1 1 calc(100% - 54px); min-width: 0; }
+  .search-result-copy h3 { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+  .search-result-copy > p { font-size: 12px; line-height: 1.45; }
+  .search-result-copy > small, .search-result-meta { font-size: 10px; line-height: 1.4; }
+  .search-result .btn, .search-result .search-result-link { width: 100%; min-height: 44px; flex: 1 1 100%; }
+  .search-start, .search-empty { padding: 28px 12px; }
+  .search-suggestions { gap: 6px; }
+  .search-suggestion { min-height: 44px; padding: 8px 11px; font-size: 12px; }
+
+  /* Account, profile and package forms are finger-friendly and keyboard safe. */
+  .access-container { max-width: 100%; }
+  .access-panel, .checkout-preview-card { padding: 18px; border-radius: 16px; }
+  .level-choice-grid { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .level-choice-card { min-height: 54px; padding: 11px 13px; }
+  .access-code-field { margin-top: 18px; }
+  .access-current { margin-bottom: 16px; padding: 12px; }
+  .access-current-actions { flex-direction: column; }
+  .access-current-actions .btn { width: 100%; }
+  .access-packages-link { line-height: 1.55; }
+  .profile-layout { gap: 14px; }
+  .profile-form-card, .profile-summary-card { padding: 17px; }
+  .profile-form-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .profile-form-actions .btn { width: 100%; }
+  .price-grid, .package-strip { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .price-card { padding: 21px 18px; border-radius: 17px; }
+  .price-feats { margin-bottom: 14px; }
+  .checkout-summary { grid-template-columns: minmax(0,1fr); gap: 9px; }
+
+  /* Smaller footer and contained one-handed actions. */
+  .footer-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 22px 14px; padding: 32px 0 22px; }
+  .footer-grid > :first-child { grid-column: 1 / -1; }
+  .footer-col { gap: 7px; }
+  .footer-col a { min-height: 44px; display: inline-flex; align-items: center; font-size: 12px; overflow-wrap: anywhere; }
+  .footer-bottom { gap: 7px; padding-bottom: 14px; font-size: 11px; }
+  .toast-wrap { top: calc(var(--header-h) + env(safe-area-inset-top,0px) + 8px); right: 10px; left: 10px; }
+  .toast { padding: 11px 13px; }
+
+  /* Skip entrances on touch devices: content appears immediately and smoothly. */
+  .reveal, .reveal.is-in { opacity: 1; transform: none; transition: none; }
+  .sk-thumb, .sk-line { animation: none; background: var(--bg-soft); }
+}
+
+@media (max-width: 430px) {
+  .container { padding-right: 16px; padding-left: 16px; }
+  .lesson-shell { padding-right: 16px; padding-left: 16px; }
+  .hero-home { padding-top: 31px; }
+  .hero-home h1 { max-width: 13.5ch; }
+  .hero-path { font-size: 9.5px; }
+  .mobile-nav { padding-right: 4px; padding-left: 4px; }
+  .mobile-nav a, .mobile-nav-more { font-size: 9.5px; }
+  .mobile-nav a .icon, .mobile-nav-more .icon { width: 18px; height: 18px; }
+  .lesson-row { grid-template-columns: 34px minmax(0,1fr) auto 16px; gap: 7px; padding-right: 9px; padding-left: 9px; }
+  .lesson-row .video-card-index { width: 32px; min-width: 32px; height: 32px; }
+  .lesson-row-access .badge { max-width: 80px; }
+  .dashboard-continue { grid-template-columns: 64px minmax(0,1fr); gap: 10px; padding: 12px; }
+  .dashboard-continue-media { width: 64px; }
+}
+
+@media (max-width: 360px) {
+  .container { padding-right: 16px; padding-left: 16px; }
+  .lesson-shell { padding-right: 16px; padding-left: 16px; }
+  .hero-home { padding-top: 27px; }
+  .hero-home h1 { font-size: 1.98rem; }
+  .hero-path { gap: 4px; font-size: 8.7px; }
+  .hero-path span { gap: 3px; }
+  .mobile-nav a, .mobile-nav-more { font-size: 9px; }
+  .mobile-nav a .icon, .mobile-nav-more .icon { width: 17px; height: 17px; }
+  .stat-card { gap: 7px; padding: 10px; }
+  .stat-icon { width: 30px; height: 30px; }
+  .pathway-tab { font-size: 10px; }
+  .lesson-row { grid-template-columns: 30px minmax(0,1fr) auto 14px; gap: 6px; padding: 9px 8px; }
+  .lesson-row .video-card-index { width: 28px; min-width: 28px; height: 28px; font-size: 10px; }
+  .lesson-row-access .badge { max-width: 72px; padding: 4px 5px; font-size: 8.5px; }
+  .dashboard-page > .stat-row { grid-template-columns: minmax(0,1fr); }
+  .dashboard-continue { grid-template-columns: 1fr; }
+  .dashboard-continue-media { display: none; }
 }

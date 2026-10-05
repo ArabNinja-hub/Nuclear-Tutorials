@@ -10,6 +10,26 @@
   var D = NT.data;
   var root = document.getElementById("adminRoot");
 
+  /* Add real column labels before admin tables become compact mobile cards. */
+  function labelAdminTables(scope) {
+    if (!scope) return;
+    scope.querySelectorAll("table.nt-table").forEach(function (table) {
+      var headers = Array.prototype.slice.call(table.querySelectorAll("thead th")).map(function (cell) {
+        return cell.textContent.trim();
+      });
+      table.querySelectorAll("tbody tr").forEach(function (row) {
+        Array.prototype.slice.call(row.cells).forEach(function (cell, index) {
+          if (headers[index]) cell.setAttribute("data-label", headers[index]);
+        });
+      });
+      table.setAttribute("data-mobile-labelled", "true");
+    });
+  }
+
+  if (root && window.MutationObserver) {
+    new MutationObserver(function () { labelAdminTables(root); }).observe(root, { childList: true, subtree: true });
+  }
+
   var NAV = [
     { route: "home", href: "index.html", label: "Overview", icon: "layout-dashboard" },
     { route: "courses", href: "courses.html", label: "Universities & courses", icon: "building" },
@@ -180,7 +200,7 @@
   /* ------------------------------------------------------------ overview */
 
   function pageHome() {
-    shell("home", loading(), '<a class="btn btn-primary btn-sm" href="lessons.html">' + NT.icon("plus") + "Add a video lesson</a>");
+    shell("home", loading(), '<a class="btn btn-primary btn-sm" href="lessons.html" aria-label="Add a video lesson" title="Add a video lesson">' + NT.icon("plus") + "<span>Add a video lesson</span></a>");
     var host = document.getElementById("admContent");
     NT.api.admin.overview().then(function (payload) {
       var totals = payload.totals || {};
@@ -692,7 +712,7 @@
               '<div class="field"><label for="vTopic">Topic</label>' +
               '<input class="input" id="vTopic" value="' + NT.esc(existing.topic || "") + '" placeholder="e.g. MIT 18.01 · Lecture 2"></div>' +
               '<div class="field"><label for="vSource">Video URL</label>' +
-              '<input class="input" id="vSource" value="' + NT.esc(existing.sourceUrl || "") + '" placeholder="https://www.youtube.com/watch?v=…" required>' +
+              '<input class="input" id="vSource" type="url" inputmode="url" autocapitalize="none" spellcheck="false" value="' + NT.esc(existing.sourceUrl || "") + '" placeholder="https://www.youtube.com/watch?v=…" required>' +
               '<span class="field-hint">YouTube and Vimeo links play inside the lesson page. The platform detects the provider and thumbnail automatically.</span></div>' +
               '<div class="adm-form-row">' +
               '<div class="field"><label for="vLevel">Package level</label><select class="input" id="vLevel">' + levelOptions(existing.level) + "</select></div>" +
@@ -700,7 +720,7 @@
               '<input class="input" id="vDuration" value="' + NT.esc(existing.duration || "") + '" placeholder="e.g. 48:12 or 2892"></div>' +
               "</div>" +
               '<div class="field"><label for="vThumb">Thumbnail URL <span class="muted">(optional)</span></label>' +
-              '<input class="input" id="vThumb" value="' + NT.esc(existing.thumbnailUrl || "") + '" placeholder="Leave blank to use the platform thumbnail"></div>' +
+              '<input class="input" id="vThumb" type="url" inputmode="url" autocapitalize="none" spellcheck="false" value="' + NT.esc(existing.thumbnailUrl || "") + '" placeholder="Leave blank to use the platform thumbnail"></div>' +
               '<div class="field"><label for="vDesc">Description</label>' +
               '<textarea class="input" id="vDesc" rows="4" placeholder="What the lesson covers, and any attribution for the video source.">' + NT.esc(existing.description || "") + "</textarea></div>" +
               '<label class="adm-check"><input type="checkbox" id="vPublished"' + (existing.published === false ? "" : " checked") + ">" +
@@ -722,7 +742,7 @@
               published: modal.querySelector("#vPublished").checked ? 1 : 0
             };
             if (!body.title) return NT.toast("Give the lesson a title", "error");
-            if (!body.source_url) return NT.toast("Paste the video URL", "error");
+            if (!body.sourceUrl) return NT.toast("Paste the video URL", "error");
             button.disabled = true;
             var request = id ? NT.api.admin.updateVideo(id, body) : NT.api.admin.createVideo(body);
             request.then(function () {
@@ -826,8 +846,8 @@
   /* ------------------------------------------------------------ announcements */
 
   function pageAnnouncements() {
-    shell("announcements", loading(), '<button class="btn btn-primary btn-sm" type="button" id="newAnnouncement">' +
-      NT.icon("plus") + "New announcement</button>");
+    shell("announcements", loading(), '<button class="btn btn-primary btn-sm" type="button" id="newAnnouncement" aria-label="Create an announcement" title="Create an announcement">' +
+      NT.icon("plus") + "<span>New announcement</span></button>");
     var host = document.getElementById("admContent");
 
     function load() {

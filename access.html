@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Login with an Access Code — Nuclear Tutorials</title>
 <meta name="description" content="Choose High School or University, then enter your Nuclear Tutorials access code.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
@@ -45,7 +45,7 @@
 
           <div class="field access-code-field">
             <label for="codeInput">Access code</label>
-            <input class="input" id="codeInput" name="accessCode" placeholder="Enter your access code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" required>
+            <input class="input" id="codeInput" name="accessCode" type="text" inputmode="text" enterkeyhint="go" placeholder="Enter your access code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" required>
             <span class="field-hint" id="codeHelp">Enter the code issued with your access package.</span>
           </div>
           <div id="codeMsg" class="access-message" role="alert" aria-live="polite"></div>
