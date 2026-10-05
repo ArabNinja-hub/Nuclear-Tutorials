@@ -3,38 +3,37 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Courses — Nuclear Tutorials</title>
-<meta name="description" content="Browse listed course outlines for High School and University, with lesson access requirements.">
+<title>Universities — Nuclear Tutorials</title>
+<meta name="description" content="Choose your university, then pick Semester 1 or Semester 2 to reach its courses and video lessons.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
-<body data-page="courses">
+<body data-page="universities">
 
 <main>
   <section class="discovery-head">
     <div class="container">
-      <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Courses</div>
-      <span class="eyebrow" style="margin-top:14px">Course catalogue</span>
-      <h1>Choose your learning path</h1>
-      <p class="lede">Pick a pathway, open a course and see every lesson before you commit to anything.</p>
+      <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Universities</div>
+      <span class="eyebrow" style="margin-top:14px">Video lessons</span>
+      <h1>Choose your university</h1>
+      <p class="lede">Pick the institution you study at, then choose Semester 1 or Semester 2 to open its courses and video lessons.</p>
       <div class="discovery-toolbar">
-        <div class="pathway-tabs" id="pathwayTabs" role="group" aria-label="Browse courses by pathway"></div>
         <div class="search search-field">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input class="input" id="courseSearch" type="search" placeholder="Search courses" aria-label="Search courses">
+          <input class="input" id="universitySearch" type="search" placeholder="Search universities or cities" aria-label="Search universities" autocomplete="off">
         </div>
+        <a class="btn btn-ghost" href="library.html">Browse all video lessons</a>
       </div>
     </div>
   </section>
 
   <section class="section-body">
     <div class="container">
-      <div class="course-results-head" id="courseResults" aria-live="polite"></div>
-      <div id="activeFilters" class="filter-row hidden" aria-live="polite"></div>
-      <div class="course-catalog-grid" id="courseList"></div>
+      <div class="course-results-head" id="universitySummary" aria-live="polite"></div>
+      <div class="uni-grid" id="universityList"></div>
     </div>
   </section>
 </main>

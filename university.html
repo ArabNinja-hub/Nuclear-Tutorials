@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>University — Nuclear Tutorials</title>
+<meta name="description" content="Switch between Semester 1 and Semester 2 to see the courses and video lessons published for your university.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="university">
+
+<main>
+  <div id="universityRoot"></div>
+
+  <section class="section-body university-body" id="universityBody">
+    <div class="container">
+      <div id="semesterSwitch"></div>
+      <div class="discovery-toolbar semester-toolbar">
+        <div class="search search-field">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="input" id="universityCourseSearch" type="search" placeholder="Search courses, codes or lecturers" aria-label="Search courses in this semester" autocomplete="off">
+        </div>
+        <div class="course-results-head" id="universityCourseResults" aria-live="polite"></div>
+      </div>
+      <div class="course-catalog-grid" id="universityCourseGrid"></div>
+    </div>
+  </section>
+</main>
+
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/video.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nuclear Tutorials — High School and University Courses</title>
-<meta name="description" content="Browse Nuclear Tutorials course outlines, lesson lists and access requirements for High School and University.">
+<title>Nuclear Tutorials — University Video Lessons by Semester</title>
+<meta name="description" content="Video lessons organised by university, semester and course, plus course outlines and package access for High School and University.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="home">
@@ -14,14 +17,35 @@
   <section class="hero-home">
     <div class="container">
       <div class="hero-copy-column">
-        <span class="eyebrow">Course catalogue</span>
-        <h1>Course outlines for <em>High School and University.</em></h1>
-        <p class="hero-copy">Browse course outlines, lesson lists and package access requirements before choosing a learning path.</p>
+        <span class="eyebrow">University video lessons</span>
+        <h1>Every semester, <em>one video lesson at a time.</em></h1>
+        <p class="hero-copy">Choose your university, pick Semester 1 or Semester 2, open a course and start watching. Course outlines for High School and University are available too.</p>
         <div class="hero-ctas">
-          <a class="btn btn-primary btn-lg" href="courses.html">Browse courses</a>
-          <a class="btn btn-outline-light btn-lg" href="#how-it-works">How access works</a>
+          <a class="btn btn-primary btn-lg" href="universities.html">Choose your university</a>
+          <a class="btn btn-outline-light btn-lg" href="library.html">Browse video lessons</a>
         </div>
+        <ol class="hero-path" aria-label="How students reach a lesson">
+          <li><span>1</span> University</li>
+          <li><span>2</span> Semester</li>
+          <li><span>3</span> Course</li>
+          <li><span>4</span> Video lesson</li>
+        </ol>
       </div>
+    </div>
+  </section>
+
+  <section class="section section-universities" id="universities">
+    <div class="container">
+      <div class="section-head section-head-row reveal">
+        <div>
+          <span class="eyebrow">Start learning</span>
+          <h2>Universities and semesters</h2>
+          <p>Each university lists its Semester 1 and Semester 2 courses, and every course lists its video lessons.</p>
+        </div>
+        <a class="link-arrow" href="universities.html">All universities <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+      </div>
+      <div id="homeStats"></div>
+      <div class="uni-grid" id="universityPreview"></div>
     </div>
   </section>
 
@@ -29,8 +53,8 @@
     <div class="container">
       <div class="section-head section-head-row reveal">
         <div>
-          <span class="eyebrow">Course catalogue</span>
-          <h2>Explore courses</h2>
+          <span class="eyebrow">Course outlines</span>
+          <h2>Explore course outlines</h2>
           <p>Open a course to see its lesson sequence and the content included with each access package.</p>
         </div>
         <a class="link-arrow" href="courses.html">Browse all courses <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
@@ -43,23 +67,23 @@
     <div class="container">
       <div class="section-head reveal">
         <span class="eyebrow">Access and learning</span>
-        <h2>From course to lesson</h2>
+        <h2>From university to video lesson</h2>
       </div>
       <div class="steps">
         <article class="step reveal">
           <span class="step-num">01</span>
-          <h3>Choose a course</h3>
-          <p>Review the lesson list and see which lessons each package includes.</p>
+          <h3>Choose university and semester</h3>
+          <p>Pick your institution, then switch between Semester 1 and Semester 2 to find your courses.</p>
         </article>
         <article class="step reveal" data-delay="1">
           <span class="step-num">02</span>
           <h3>Get an access code</h3>
-          <p>Choose a package or use a code that has already been issued to you.</p>
+          <p>Choose a package or use a code that has already been issued to you. Each video lesson shows the package that includes it.</p>
         </article>
         <article class="step reveal" data-delay="2">
           <span class="step-num">03</span>
-          <h3>Choose your level</h3>
-          <p>On the login page, select High School or University, enter your code and continue to the matching course view.</p>
+          <h3>Watch and keep going</h3>
+          <p>Open a lesson, follow the course playlist and mark lessons as watched to see your progress build up.</p>
         </article>
       </div>
     </div>
@@ -69,7 +93,9 @@
 <script src="assets/js/icons.js"></script>
 <script src="assets/js/data.js"></script>
 <script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
 <script src="assets/js/ui.js"></script>
+<script src="assets/js/video.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

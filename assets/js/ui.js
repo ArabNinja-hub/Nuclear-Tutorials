@@ -67,9 +67,10 @@
      The desktop header surfaces Courses, Pricing and How it works. Learning
      tools stay in the navigation sheet and footer rather than crowding the bar. */
   var PUBLIC_NAV = [
+    { id: "universities", page: "universities", label: "Universities", href: "universities.html" },
+    { id: "library", page: "library", label: "Video library", href: "library.html" },
     { id: "courses", page: "courses", label: "Courses", href: "courses.html" },
-    { id: "pricing", page: "pricing", label: "Pricing", href: "pricing.html" },
-    { id: "how", page: "", label: "How it works", href: "index.html#how-it-works" }
+    { id: "pricing", page: "pricing", label: "Pricing", href: "pricing.html" }
   ];
 
   function brandHtml(showSub) {
@@ -91,7 +92,11 @@
     var page = document.body.dataset.page || "";
     var s = NT.store.get();
 
-    function navIsActive(item) { return item.page && page === item.page; }
+    /* The university detail page keeps "Universities" active, and a watch page
+       keeps "Video library" active, so the header always shows where you are. */
+    var pageGroup = { university: "universities", video: "library" };
+    var grouped = pageGroup[page] || page;
+    function navIsActive(item) { return !!item.page && grouped === item.page; }
 
     var links = PUBLIC_NAV.map(function (n) {
       return '<a href="' + NT.base() + n.href + '" class="' + (navIsActive(n) ? "active" : "") + '"' +
@@ -106,10 +111,12 @@
       ? sheetLink("dashboard.html", "layout-dashboard", "Dashboard", page === "dashboard")
       : sheetLink("access.html", "key", "Login with access code", page === "access");
 
+    var watched = NT.progress ? NT.progress.watchedCount() : 0;
     var statusCard = s.access
-      ? "<b>" + NT.esc(NT.packageDetails(s.access).name) + " preview package selected.</b> " +
-        NT.availableFor(s.access) + " of " + NT.counts().total + " listed lessons included."
-      : "<b>No preview package selected.</b> Generate a local code from Access packages or redeem an existing code.";
+      ? "<b>" + NT.esc(NT.packageDetails(s.access).name) + " package active.</b> " +
+        NT.availableFor(s.access) + " of " + NT.counts().total + " listed lessons included." +
+        (watched ? " " + watched + " video lesson" + (watched === 1 ? "" : "s") + " watched on this device." : "")
+      : "<b>No access package yet.</b> Choose a package or redeem the code you were given, then pick your university and semester.";
 
     var html =
       '<a class="skip-link" href="#main">Skip to main content</a>' +
@@ -129,12 +136,14 @@
       '<button class="modal-x" data-close-sheet aria-label="Close navigation">' + NT.icon("x") + "</button></div>" +
       '<nav class="sheet-nav" aria-label="All pages">' +
       '<span class="sheet-label">Learn</span>' +
-      sheetLink("courses.html", "book-open", "Courses", page === "courses") +
+      sheetLink("universities.html", "building", "Universities", grouped === "universities") +
+      sheetLink("library.html", "video", "Video library", grouped === "library") +
+      sheetLink("courses.html", "book-open", "Course outlines", page === "courses") +
       sheetLink("pricing.html", "layers", "Pricing", page === "pricing") +
       sheetLink("index.html#how-it-works", "target", "How it works", false) +
       '<span class="sheet-label">Your learning</span>' +
       accountSheetPrimary +
-      sheetLink("library.html", "book-open", "Library", page === "library") +
+      sheetLink("dashboard.html", "layout-dashboard", "Dashboard", page === "dashboard") +
       sheetLink("profile.html", "circle-user", "Profile", page === "profile") +
       '<span class="sheet-label">More</span>' +
       sheetLink("announcements.html", "bell", "Announcements", page === "announcements") +
@@ -143,8 +152,9 @@
       '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("info") + "<span>" + statusCard + "</span></p>" +
       "</div></div></div>" +
       '<nav class="mobile-nav" aria-label="Mobile navigation">' +
+      '<a href="' + NT.base() + 'universities.html" class="' + (grouped === "universities" ? "active" : "") + '">' + NT.icon("building") + "<span>Universities</span></a>" +
+      '<a href="' + NT.base() + 'library.html" class="' + (grouped === "library" ? "active" : "") + '">' + NT.icon("video") + "<span>Videos</span></a>" +
       '<a href="' + NT.base() + 'courses.html" class="' + (page === "courses" ? "active" : "") + '">' + NT.icon("book-open") + "<span>Courses</span></a>" +
-      '<a href="' + NT.base() + 'pricing.html" class="' + (page === "pricing" ? "active" : "") + '">' + NT.icon("layers") + "<span>Pricing</span></a>" +
       (s.access
         ? '<a href="' + NT.base() + 'dashboard.html" class="' + (page === "dashboard" ? "active" : "") + '">' + NT.icon("layout-dashboard") + "<span>Dashboard</span></a>"
         : '<a href="' + NT.base() + 'access.html" class="' + (page === "access" ? "active" : "") + '">' + NT.icon("key") + "<span>Login</span></a>") +
@@ -207,18 +217,19 @@
     footer.innerHTML =
       '<div class="container"><div class="footer-grid">' +
       '<div class="footer-brand">' + brandHtml() +
-      "<p>Course outlines and lesson-access preview for High School and University.</p>" +
-      '<p class="footer-note">Preview build. Payments are not processed; access codes are stored in this browser.</p></div>' +
+      "<p>Video lessons organised by university, semester and course, plus course outlines for High School and University.</p>" +
+      '<p class="footer-note">Payments are not processed on this site; access codes are stored in this browser.</p></div>' +
       '<div class="footer-col"><h4>Learn</h4>' +
-      '<a href="' + base + 'courses.html">Courses</a>' +
+      '<a href="' + base + 'universities.html">Universities</a>' +
+      '<a href="' + base + 'library.html">Video library</a>' +
+      '<a href="' + base + 'courses.html">Course outlines</a>' +
       '<a href="' + base + 'courses.html?level=high-school">High School</a>' +
-      '<a href="' + base + 'courses.html?level=university">University</a>' +
       '<a href="' + base + 'pricing.html">Access packages</a>' +
       '<a href="' + base + 'index.html#how-it-works">How it works</a></div>' +
       '<div class="footer-col"><h4>Your learning</h4>' +
       '<a href="' + base + 'dashboard.html">Dashboard</a>' +
-      '<a href="' + base + 'library.html">Lesson library</a>' +
       '<a href="' + base + 'profile.html">Learning profile</a>' +
+      '<a href="' + base + 'search.html">Search lessons</a>' +
       '<a href="' + base + 'access.html">Log in with an access code</a></div>' +
       '<div class="footer-col"><h4>Updates</h4>' +
       '<a href="' + base + 'announcements.html">Announcements</a>' +
@@ -259,6 +270,127 @@
     document.addEventListener("keydown", onKey);
     scrim.close = close;
     return scrim;
+  };
+
+  /* ---------- breadcrumbs ----------
+     One implementation so every page reads
+     Home › Universities › Campus › Semester 1 › Course the same way. */
+  NT.crumbs = function (items) {
+    var list = (items || []).filter(Boolean);
+    if (!list.length) return "";
+    return '<nav class="crumbs" aria-label="Breadcrumb">' + list.map(function (item, index) {
+      var last = index === list.length - 1;
+      var separator = index ? NT.icon("chevron-right", "icon-sm") : "";
+      if (last || !item.href) {
+        return separator + (last ? '<span aria-current="page">' + NT.esc(item.label) + "</span>" : "<span>" + NT.esc(item.label) + "</span>");
+      }
+      return separator + '<a href="' + item.href + '">' + NT.esc(item.label) + "</a>";
+    }).join("") + "</nav>";
+  };
+
+  /* ---------- loading states ----------
+     Skeletons match the real card geometry so nothing jumps when data lands. */
+  NT.loadingState = function (options) {
+    var opts = options || {};
+    var label = opts.label || "Loading";
+    var count = opts.count || 3;
+    var kind = opts.kind || "card";
+    var skeletons = [];
+    for (var i = 0; i < count; i++) {
+      if (kind === "video") {
+        skeletons.push('<div class="skeleton skeleton-video"><span class="skeleton-thumb shimmer"></span>' +
+          '<span class="skeleton-line w-40 shimmer"></span><span class="skeleton-line w-90 shimmer"></span>' +
+          '<span class="skeleton-line w-70 shimmer"></span></div>');
+      } else if (kind === "rows") {
+        skeletons.push('<div class="skeleton skeleton-row"><span class="skeleton-dot shimmer"></span>' +
+          '<span class="skeleton-line w-70 shimmer"></span><span class="skeleton-line w-20 shimmer"></span></div>');
+      } else if (kind === "uni") {
+        skeletons.push('<div class="skeleton skeleton-uni"><span class="skeleton-dot skeleton-dot-lg shimmer"></span>' +
+          '<span class="skeleton-line w-60 shimmer"></span><span class="skeleton-line w-90 shimmer"></span>' +
+          '<span class="skeleton-line w-40 shimmer"></span></div>');
+      } else {
+        skeletons.push('<div class="skeleton skeleton-card"><span class="skeleton-line w-40 shimmer"></span>' +
+          '<span class="skeleton-line w-90 shimmer"></span><span class="skeleton-line w-70 shimmer"></span>' +
+          '<span class="skeleton-line w-30 shimmer"></span></div>');
+      }
+    }
+    return '<div class="skeleton-grid" role="status" aria-busy="true" aria-live="polite">' +
+      '<span class="sr-only">' + NT.esc(label) + "…</span>" + skeletons.join("") + "</div>";
+  };
+
+  NT.spinner = function (label) {
+    return '<span class="spinner" role="status" aria-live="polite">' + NT.icon("loader") +
+      "<span>" + NT.esc(label || "Working") + "…</span></span>";
+  };
+
+  /* ---------- empty states ----------
+     Honest copy: no invented counts, testimonials or placeholders. */
+  NT.emptyState = function (options) {
+    var opts = options || {};
+    var action = opts.action
+      ? '<a class="btn ' + (opts.actionStyle || "btn-primary") + '" href="' + opts.action.href + '">' +
+        NT.icon(opts.action.icon || "arrow-right") + NT.esc(opts.action.label) + "</a>"
+      : (opts.button ? '<button class="btn ' + (opts.actionStyle || "btn-secondary") + '" type="button" id="' + opts.button.id + '">' +
+        NT.icon(opts.button.icon || "rotate") + NT.esc(opts.button.label) + "</button>" : "");
+    return '<div class="empty-state' + (opts.compact ? " empty-state-compact" : "") + '">' +
+      '<span class="empty-state-icon">' + NT.icon(opts.icon || "search", "icon-lg") + "</span>" +
+      "<h2>" + NT.esc(opts.title || "Nothing here yet") + "</h2>" +
+      (opts.body ? "<p>" + NT.esc(opts.body) + "</p>" : "") +
+      (opts.note ? '<p class="empty-state-note">' + NT.icon("info", "icon-sm") + NT.esc(opts.note) + "</p>" : "") +
+      (action ? '<div class="empty-state-actions">' + action + "</div>" : "") + "</div>";
+  };
+
+  /* ---------- error / offline state ----------
+     The content service is required for the video catalogue, so a failure is
+     reported plainly with a retry instead of showing an empty screen. */
+  NT.errorState = function (message, options) {
+    var opts = options || {};
+    return '<div class="empty-state empty-state-error" role="alert">' +
+      '<span class="empty-state-icon">' + NT.icon(opts.icon || "wifi-off", "icon-lg") + "</span>" +
+      "<h2>" + NT.esc(opts.title || "Cannot load this content") + "</h2>" +
+      "<p>" + NT.esc(message || "The content service did not respond.") + "</p>" +
+      '<div class="empty-state-actions"><button class="btn btn-secondary" type="button" data-retry>' +
+      NT.icon("rotate") + "Try again</button>" +
+      (opts.helpHref ? '<a class="link-arrow" href="' + opts.helpHref + '">' + NT.esc(opts.helpLabel || "How access works") + NT.icon("arrow-right", "icon-sm") + "</a>" : "") +
+      "</div></div>";
+  };
+
+  /* ---------- semester switcher ----------
+     Two large, distinct tap targets. Semester 1 uses the brand cyan, semester 2
+     a deep slate, so the current semester is obvious at a glance on a phone. */
+  NT.semesterSwitcher = function (options) {
+    var opts = options || {};
+    var current = Number(opts.current) === 2 ? 2 : 1;
+    var label = opts.label || "Choose a semester";
+    return '<div class="semester-switch">' +
+      '<span class="semester-switch-label" id="semesterSwitchLabel">' + NT.icon("calendar-days", "icon-sm") + NT.esc(label) + "</span>" +
+      '<div class="semester-switch-options" role="group" aria-labelledby="semesterSwitchLabel">' +
+      NT.data.SEMESTERS.map(function (semester) {
+        var stats = (opts.semesters || []).filter(function (item) { return Number(item.semester) === semester.id; })[0] || {};
+        var courses = Number(stats.courses || 0);
+        var videos = Number(stats.videos || 0);
+        var active = current === semester.id;
+        return '<button type="button" class="semester-option semester-' + semester.id + (active ? " active" : "") + '"' +
+          ' data-semester="' + semester.id + '" aria-pressed="' + active + '"' +
+          (active ? ' aria-current="true"' : "") + ">" +
+          '<span class="semester-option-head">' + NT.icon(semester.id === 1 ? "calendar-days" : "layers") +
+          "<b>" + NT.esc(semester.label) + "</b>" +
+          (active ? '<span class="semester-option-check">' + NT.icon("check", "icon-sm") + "</span>" : "") + "</span>" +
+          "<span class=\"semester-option-stats\">" +
+          (courses
+            ? courses + (courses === 1 ? " course" : " courses") + " · " + videos + (videos === 1 ? " video lesson" : " video lessons")
+            : "No courses published yet") +
+          "</span></button>";
+      }).join("") + "</div></div>";
+  };
+
+  /* Small labelled metric used on dashboards and university heroes. */
+  NT.metric = function (options) {
+    var opts = options || {};
+    return '<div class="metric' + (opts.tone ? " metric-" + opts.tone : "") + '">' +
+      (opts.icon ? '<span class="metric-icon">' + NT.icon(opts.icon) + "</span>" : "") +
+      '<span class="metric-copy"><b>' + NT.esc(String(opts.value == null ? "" : opts.value)) + "</b>" +
+      "<small>" + NT.esc(opts.label || "") + "</small></span></div>";
   };
 
   /* ---------- shared catalogue helpers ---------- */

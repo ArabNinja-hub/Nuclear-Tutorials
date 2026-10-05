@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin Sign-in — Nuclear Tutorials</title>
+<link rel="icon" type="image/jpeg" href="../assets/img/logo.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/css/main.css">
+<link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body class="admin admin-login-page" data-admin="login">
+<main class="admin-login" id="adminLoginRoot">
+  <div class="admin-login-card">
+    <div class="admin-login-brand" id="adminLoginBrand"></div>
+    <h1>Administrator sign-in</h1>
+    <p class="admin-login-copy">Manage universities, semesters, courses and video lessons. Students never see this area.</p>
+    <form id="adminLoginForm" class="settings-form" novalidate>
+      <div class="field">
+        <label for="adminEmail">Email</label>
+        <input class="input" id="adminEmail" type="email" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="adminPassword">Password</label>
+        <input class="input" id="adminPassword" type="password" autocomplete="current-password" required>
+      </div>
+      <div id="adminLoginMessage" class="access-message" role="alert" aria-live="polite"></div>
+      <button class="btn btn-primary btn-block" type="submit" id="adminLoginSubmit">Sign in</button>
+    </form>
+    <p class="admin-login-note" id="adminLoginNote"></p>
+    <a class="admin-login-back" href="../index.html">Back to the student site</a>
+  </div>
+</main>
+<script src="../assets/js/icons.js"></script>
+<script src="../assets/js/data.js"></script>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/api.js"></script>
+<script src="../assets/js/ui.js"></script>
+<script src="../assets/js/video.js"></script>
+<script src="../assets/js/admin.js"></script>
+</body>
+</html>

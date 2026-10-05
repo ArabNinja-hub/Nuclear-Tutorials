@@ -12,6 +12,12 @@
     { id: "high-school", label: "High School" },
     { id: "university", label: "University" }
   ];
+  /* University study is organised into two semesters. The ids are the numbers
+     stored on each course row in the content database. */
+  var SEMESTERS = [
+    { id: 1, label: "Semester 1", short: "S1", blurb: "First semester courses" },
+    { id: 2, label: "Semester 2", short: "S2", blurb: "Second semester courses" }
+  ];
   var SUBJECTS = [
     { id: "math", title: "Mathematics", icon: "sigma" },
     { id: "phys", title: "Physics", icon: "atom" },
@@ -148,6 +154,7 @@
     LEVEL_RANK: LEVEL_RANK,
     LEVEL_LABEL: LEVEL_LABEL,
     EDUCATION_LEVELS: EDUCATION_LEVELS,
+    SEMESTERS: SEMESTERS,
     SUBJECTS: SUBJECTS,
     PACKAGES: PACKAGES,
     COURSES: COURSES,
@@ -160,6 +167,25 @@
   };
   NT.subject = function (id) {
     return SUBJECTS.filter(function (x) { return x.id === id; })[0] || null;
+  };
+  /* Semester helpers keep the wording identical across every page. */
+  NT.semester = function (id) {
+    var value = Number(id);
+    return SEMESTERS.filter(function (x) { return x.id === value; })[0] || null;
+  };
+  NT.semesterLabel = function (id) {
+    var found = NT.semester(id);
+    return found ? found.label : "";
+  };
+  NT.isSemester = function (id) {
+    return !!NT.semester(id);
+  };
+  /* Brand tints for the built-in subjects, reused by university courses so a
+     Computer Science course looks the same wherever it appears. */
+  var TINT_FALLBACK = { tint: "#eef2f6", tintFg: "#40566d" };
+  NT.subjectTint = function (subjectId) {
+    var match = COURSES.filter(function (course) { return course.subjectId === subjectId || course.id === subjectId; })[0];
+    return match ? { tint: match.tint, tintFg: match.tintFg } : TINT_FALLBACK;
   };
   NT.coursePathways = function (course) {
     return (course && course.offerings) || [];

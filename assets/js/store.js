@@ -1,10 +1,30 @@
 /* ============================================================
    NUCLEAR TUTORIALS — Local preview state
-   Access codes and preferences persist in this browser only.
+   ------------------------------------------------------------
+   This file holds *per-student, per-device* state only: access
+   codes, learning preferences and which video lessons this
+   browser has watched. The catalogue itself — universities,
+   semesters, courses and video lessons — lives in the server
+   database and is read through assets/js/api.js, so no shared
+   content is ever stored here.
    ============================================================ */
 (function () {
   window.NT = window.NT || {};
   var KEY = "nt_demo_state_v1";
+
+  var RECENT_LIMIT = 12;
+
+  function defaultProgress() {
+    return {
+      /* Video lessons finished in this browser: { videoId: { courseId, at } } */
+      watched: {},
+      /* Most recently opened video lessons, newest first. */
+      recent: [],
+      /* Last university / semester / course the student browsed, so
+         "continue learning" can be rebuilt from real activity. */
+      context: { universityId: "", semester: null, courseId: "" }
+    };
+  }
 
   function defaults() {
     return {
@@ -13,7 +33,8 @@
       codes: [],
       lessonLevels: {},
       announcements: [],
-      profile: { name: "", educationLevel: "", subjectId: "" },
+      progress: defaultProgress(),
+      profile: { name: "", educationLevel: "", subjectId: "", universityId: "", semester: null },
       packages: { basic: 50, standard: 100, premium: 200 },
       packageDetails: {},
       settings: {
@@ -42,7 +63,35 @@
         cache.profile = {
           name: String((parsed.profile && parsed.profile.name) || ""),
           educationLevel: String((parsed.profile && parsed.profile.educationLevel) || ""),
-          subjectId: String((parsed.profile && parsed.profile.subjectId) || "")
+          subjectId: String((parsed.profile && parsed.profile.subjectId) || ""),
+          /* Preferred university and semester, chosen by the student. */
+          universityId: String((parsed.profile && parsed.profile.universityId) || ""),
+          semester: [1, 2].indexOf(Number(parsed.profile && parsed.profile.semester)) !== -1
+            ? Number(parsed.profile.semester)
+            : null
+        };
+        var storedProgress = parsed.progress && typeof parsed.progress === "object" ? parsed.progress : {};
+        var storedWatched = storedProgress.watched && typeof storedProgress.watched === "object" ? storedProgress.watched : {};
+        var watched = {};
+        Object.keys(storedWatched).forEach(function (videoId) {
+          var entry = storedWatched[videoId];
+          if (!entry) return;
+          watched[videoId] = typeof entry === "string"
+            ? { courseId: "", at: entry }
+            : { courseId: String(entry.courseId || ""), at: String(entry.at || "") };
+        });
+        cache.progress = {
+          watched: watched,
+          recent: Array.isArray(storedProgress.recent)
+            ? storedProgress.recent.filter(function (item) { return item && item.id; }).slice(0, RECENT_LIMIT)
+            : [],
+          context: {
+            universityId: String((storedProgress.context && storedProgress.context.universityId) || ""),
+            semester: [1, 2].indexOf(Number(storedProgress.context && storedProgress.context.semester)) !== -1
+              ? Number(storedProgress.context.semester)
+              : null,
+            courseId: String((storedProgress.context && storedProgress.context.courseId) || "")
+          }
         };
         var oldAccessMeta = parsed.accessMeta && typeof parsed.accessMeta === "object" ? parsed.accessMeta : null;
         var oldCode = oldAccessMeta && String(oldAccessMeta.code || "").trim().toUpperCase();
@@ -148,6 +197,94 @@
     genCode: function (pkg) {
       var number = Math.floor(1000 + Math.random() * 9000);
       return "NT-" + String(pkg || "").toUpperCase() + "-" + number;
+    }
+  };
+
+  /* ---------- video-lesson progress (this device only) ----------
+     A truthful record of what this browser actually watched. Every progress
+     number shown in the interface is derived from these entries plus the
+     catalogue returned by the server — never invented. */
+  NT.progress = {
+    watched: function (videoId) {
+      return !!NT.store.get().progress.watched[String(videoId || "")];
+    },
+    watchedAt: function (videoId) {
+      var entry = NT.store.get().progress.watched[String(videoId || "")];
+      return entry ? entry.at : "";
+    },
+    watchedIds: function () {
+      return Object.keys(NT.store.get().progress.watched);
+    },
+    watchedCount: function () {
+      return NT.progress.watchedIds().length;
+    },
+    watchedInCourse: function (courseId) {
+      var watched = NT.store.get().progress.watched;
+      var id = String(courseId || "");
+      return Object.keys(watched).filter(function (videoId) {
+        return watched[videoId].courseId === id;
+      }).length;
+    },
+    /* Pass the whole video record so the course link is stored with it. */
+    setWatched: function (video, watched) {
+      var id = String((video && video.id) || "");
+      if (!id) return false;
+      var next = watched === undefined ? !NT.progress.watched(id) : !!watched;
+      NT.store.mutate(function (state) {
+        if (next) {
+          state.progress.watched[id] = { courseId: String(video.courseId || ""), at: new Date().toISOString() };
+        } else {
+          delete state.progress.watched[id];
+        }
+      });
+      return next;
+    },
+    /* Remember an opened lesson so "continue learning" stays accurate. */
+    recordView: function (video) {
+      if (!video || !video.id) return;
+      NT.store.mutate(function (state) {
+        var entry = {
+          id: String(video.id),
+          title: String(video.title || ""),
+          topic: String(video.topic || ""),
+          courseId: String(video.courseId || ""),
+          courseTitle: String(video.courseTitle || ""),
+          semester: video.semester == null ? null : Number(video.semester),
+          universityId: String(video.universityId || ""),
+          universityName: String(video.universityName || ""),
+          thumbnail: String(video.thumbnail || ""),
+          durationSeconds: video.durationSeconds == null ? null : Number(video.durationSeconds),
+          level: String(video.level || "basic"),
+          at: new Date().toISOString()
+        };
+        state.progress.recent = [entry].concat(state.progress.recent.filter(function (item) {
+          return item.id !== entry.id;
+        })).slice(0, RECENT_LIMIT);
+        state.progress.context = {
+          universityId: entry.universityId,
+          semester: entry.semester,
+          courseId: entry.courseId
+        };
+      });
+    },
+    recent: function (limit) {
+      return NT.store.get().progress.recent.slice(0, limit || RECENT_LIMIT);
+    },
+    last: function () {
+      return NT.store.get().progress.recent[0] || null;
+    },
+    setContext: function (context) {
+      NT.store.mutate(function (state) {
+        state.progress.context = Object.assign({}, state.progress.context, context || {});
+      });
+    },
+    context: function () {
+      return NT.store.get().progress.context;
+    },
+    reset: function () {
+      NT.store.mutate(function (state) {
+        state.progress = defaultProgress();
+      });
     }
   };
 })();

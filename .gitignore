@@ -1,0 +1,14 @@
+# Runtime content database (universities, courses, video lessons, admin accounts).
+# Created automatically on first start; never commit student or admin data.
+data/
+
+# Node / tooling
+node_modules/
+npm-debug.log*
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

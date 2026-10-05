@@ -1,0 +1,19 @@
+{
+  "name": "nuclear-tutorials",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Nuclear Tutorials — video lesson platform organised by university, semester and course, with a server-backed content database and protected admin area.",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
+    "check": "node scripts/check-platform.js",
+    "smoke": "node scripts/smoke-render.js",
+    "flows": "node --disable-warning=ExperimentalWarning scripts/test-flows.js",
+    "test": "node scripts/check-platform.js && node scripts/smoke-render.js && node --disable-warning=ExperimentalWarning scripts/test-flows.js"
+  },
+  "dependencies": {},
+  "license": "UNLICENSED"
+}
