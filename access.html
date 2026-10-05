@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Login with an Access Code — Nuclear Tutorials</title>
-<meta name="description" content="Choose High School or University, then enter your Nuclear Tutorials access code.">
+<title>Login — Nuclear Tutorials</title>
+<meta name="description" content="Select your education level and enter your access code to continue to Nuclear Tutorials.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="access">
 
 <main>
-  <section class="page-head">
-    <div class="container">
+  <section class="access-page-head">
+    <div class="container access-container">
       <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Login</div>
-      <h1>Log in with your access code</h1>
-      <p class="lede">Choose your education level, then enter your access code to continue.</p>
+      <h1>Sign in to Nuclear Tutorials</h1>
+      <p class="lede">Choose your education level and enter your access code to continue.</p>
     </div>
   </section>
 
-  <section class="section-body">
+  <section class="section-body access-body">
     <div class="container access-container">
       <div class="panel access-panel">
         <div id="currentAccess" class="access-current hidden" role="status">
@@ -29,24 +29,37 @@
         <form id="codeForm" novalidate>
           <fieldset class="level-choice-fieldset" aria-describedby="levelHelp">
             <legend>Choose your level</legend>
-            <p class="field-hint" id="levelHelp">This sets your course view. You can change it later in your learning profile.</p>
+            <p class="field-hint" id="levelHelp">This sets your course view. You can change it later in your profile.</p>
             <div class="level-choice-grid">
               <label class="level-choice">
                 <input type="radio" name="educationLevel" value="high-school" required>
-                <span class="level-choice-card"><span class="level-choice-radio" aria-hidden="true"></span><span>High School</span></span>
+                <span class="level-choice-card">
+                  <span class="level-choice-radio" aria-hidden="true"></span>
+                  <span class="level-choice-label">
+                    <span class="level-choice-title">High School</span>
+                    <span class="level-choice-sub">Secondary school curriculum</span>
+                  </span>
+                </span>
               </label>
               <label class="level-choice">
                 <input type="radio" name="educationLevel" value="university" required>
-                <span class="level-choice-card"><span class="level-choice-radio" aria-hidden="true"></span><span>University</span></span>
+                <span class="level-choice-card">
+                  <span class="level-choice-radio" aria-hidden="true"></span>
+                  <span class="level-choice-label">
+                    <span class="level-choice-title">University</span>
+                    <span class="level-choice-sub">Tertiary-level courses</span>
+                  </span>
+                </span>
               </label>
             </div>
           </fieldset>
 
           <div class="field access-code-field">
             <label for="codeInput">Access code</label>
-            <input class="input" id="codeInput" name="accessCode" placeholder="Enter your access code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" required>
+            <input class="input input-code" id="codeInput" name="accessCode" placeholder="Enter your access code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" required>
             <span class="field-hint" id="codeHelp">Enter the code issued with your access package.</span>
           </div>
+
           <div id="codeMsg" class="access-message" role="alert" aria-live="polite"></div>
           <button class="btn btn-primary btn-lg btn-block" type="submit">Continue</button>
         </form>

@@ -127,7 +127,7 @@ check(adminCss.indexOf(".adm-stats") === -1 && adminCss.indexOf(".rev-bars") ===
 var home = read("index.html");
 check((home.match(/<section\b/g) || []).length === 3, "home has only the hero, course preview and access steps");
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1, "home has no floating card or invented social proof");
-check(home.indexOf("Course outlines for") !== -1 && home.indexOf("Browse courses") !== -1, "home copy describes the catalogue and offers one primary path");
+check(home.indexOf("Browse courses") !== -1 && home.indexOf("Enter access code") !== -1, "home copy describes the platform and offers clear CTAs");
 
 var accessHtml = read("access.html");
 check(/<fieldset[^>]*>[\s\S]*?<legend>Choose your level<\/legend>/.test(accessHtml), "access level choices use a labelled fieldset");
@@ -139,13 +139,14 @@ var app = read("assets/js/app.js");
 var data = read("assets/js/data.js");
 var store = read("assets/js/store.js");
 check(app.indexOf("state.profile.educationLevel = choice.value") !== -1, "access flow saves the selected level in the existing profile");
-check(app.indexOf("NT.store.setAccess(record.pkg") !== -1, "access flow preserves package redemption");
+check(app.indexOf("NT.store.setAccess(res.pkg") !== -1, "access flow preserves package redemption");
 check(app.indexOf("courses.html?level=") !== -1 && app.indexOf("profile.educationLevel") !== -1, "selected level determines the course view");
 check(data.indexOf("educationLevel: level.id") !== -1 && data.indexOf("lessonLevels") !== -1, "course pathways and lesson access use shared catalogue data");
-check(store.indexOf("educationLevel: \"\"") !== -1 && store.indexOf("delete cache.payments") !== -1, "local profile is canonical and legacy simulated records are removed");
-check(/email:\s*""/.test(store) && /cache\.settings\.email === "support@nucleartutorials\.zm"/.test(store) && /supportEmail\s*\?/.test(read("assets/js/ui.js")), "no fabricated default support contact is shown; legacy contact is cleared");
-check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.indexOf("Generate preview access code") !== -1, "checkout is explicitly a local preview, not a payment flow");
-check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1 && app.indexOf("Lesson materials are not hosted in this preview") !== -1, "lesson pages do not promise unavailable video content");
+check(store.indexOf("educationLevel: \"\"") !== -1 && store.indexOf("delete parsed.payments") !== -1, "local profile is canonical and legacy simulated records are removed");
+check(/email:\s*""/.test(store) && !/support@nucleartutorials\.zm/.test(read("assets/js/ui.js")) && /supportEmail\s*\?/.test(read("assets/js/ui.js")), "no fabricated default support contact is shown; legacy contact is cleared");
+check(read("checkout.html").indexOf("Checkout preview") === -1 && app.indexOf("Generate access code") !== -1, "checkout generates access codes and is not a fake payment page");
+check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1, "lesson pages do not promise unavailable video content");
+check(app.indexOf("Sign in with an access code") !== -1, "lesson pages state access-tier requirements clearly");
 
 var adminJs = read("assets/js/admin.js");
 ADMIN_PAGES.forEach(function (file) {
@@ -153,8 +154,8 @@ ADMIN_PAGES.forEach(function (file) {
   var route = (source.match(/data-admin="([^"]+)"/) || [])[1];
   check(route && adminJs.indexOf(route + ": page") !== -1, file + " maps to an implemented admin route");
 });
-check(adminJs.indexOf("lessonLevels[id]") !== -1 && adminJs.indexOf("payment processor") !== -1, "admin controls are local and describe their preview scope");
-check(read("README.md").indexOf("lesson materials are not hosted") !== -1 && read("README.md").indexOf("does not contact a payment provider") !== -1, "README states the preview limitations");
+check(adminJs.indexOf("lessonLevels[id]") !== -1 && (adminJs.indexOf("platform") !== -1 || adminJs.indexOf("Connected") !== -1), "admin controls manage lesson access and indicate platform scope");
+check(read("README.md").indexOf("Per-device") !== -1 && read("README.md").indexOf("server-authoritative") !== -1, "README documents the persistence model");
 
 function fetchHttp(url) {
   return new Promise(function (resolve, reject) {

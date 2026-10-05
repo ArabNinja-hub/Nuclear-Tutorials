@@ -216,7 +216,7 @@
     var list =
       '<section class="section section-alt"><div class="container">' +
       '<div class="section-head"><span class="eyebrow">Course contents</span>' +
-      "<h2>Lessons</h2><p>Listed lesson titles and their package access levels. Lesson materials are not hosted in this preview.</p></div>" +
+      "<h2>Lessons</h2><p>The lesson sequence and the package required to access each lesson.</p></div>" +
       '<ul class="lib-lessons course-lessons">' + lessons.map(lessonRow).join("") + "</ul>" +
       "</div></section>";
 
@@ -234,8 +234,8 @@
       }).join("") +
       '</div><p class="muted small" style="margin-top:16px">' +
       (state.access
-        ? "Your " + NT.esc(NT.packageDetails(state.access).name) + " package includes " + unlocked.length + " of " + lessons.length + " listed lessons in this preview."
-        : 'Already have a code? <a href="' + NT.base() + 'access.html">Log in to view your package access</a>. Need a code? <a href="' + NT.base() + 'pricing.html">View packages</a>.') +
+        ? "Your " + NT.esc(NT.packageDetails(state.access).name) + " package includes " + unlocked.length + " of " + lessons.length + " lessons in this course."
+        : 'Already have a code? <a href="' + NT.base() + 'access.html">Sign in</a> to see what is included. Need a code? <a href="' + NT.base() + 'pricing.html">View packages</a>.') +
       "</p></div></section>";
 
     root.innerHTML = hero + list + access;
@@ -273,53 +273,73 @@
         "</div>";
     }
 
-    form.addEventListener("submit", function (event) {
-      event.preventDefault();
-      var value = input.value.trim().toUpperCase();
-      var choice = radios.filter(function (radio) { return radio.checked; })[0];
-      msg.innerHTML = "";
-      result.classList.add("hidden");
-      if (!choice) {
-        msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>Choose your level.</b><br>Select High School or University before continuing.</div></div>";
-        radios[0].focus();
-        return;
-      }
-      if (!value) {
-        msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>Enter your access code.</b><br>Use the code provided for your package.</div></div>";
-        input.focus();
-        return;
-      }
-      var record = NT.store.findCode(value);
-      if (!record || D.LEVELS.indexOf(record.pkg) === -1) {
-        msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>That code could not be found.</b><br>Check the code or return to the package preview to generate one on this device.</div></div>";
-        input.focus();
-        return;
-      }
-      if (record.status === "redeemed") {
-        msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>This code has already been used.</b><br>Each preview code can be redeemed once in this browser.</div></div>";
-        input.focus();
-        return;
+      var submitBtn = form.querySelector('button[type="submit"]');
+
+      function showError(html) {
+        msg.innerHTML = html;
+        submitBtn.disabled = false;
       }
 
-      NT.store.redeemCode(record.code);
-      NT.store.mutate(function (state) {
-        state.profile = Object.assign({ name: "", educationLevel: "", subjectId: "" }, state.profile || {});
-        state.profile.educationLevel = choice.value;
+      submitBtn.addEventListener("click", function () {}); // no-op, form submit handles it
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var value = input.value.trim().toUpperCase();
+        var choice = radios.filter(function (radio) { return radio.checked; })[0];
+        msg.innerHTML = "";
+        result.classList.add("hidden");
+        if (!choice) {
+          msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>Choose your level.</b><br>Select High School or University before continuing.</div></div>";
+          radios[0].focus();
+          return;
+        }
+        if (!value) {
+          msg.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>Enter your access code.</b><br>Use the code provided for your package.</div></div>";
+          input.focus();
+          return;
+        }
+        // Try server redemption first; fall back to local.
+        submitBtn.disabled = true;
+        var usedServer = !!(NT.store.get().serverLoaded);
+        var doRedeem = usedServer
+          ? NT.store.redeemRemote(value, choice.value)
+          : Promise.resolve().then(function () {
+              var r = NT.store.findCode(value);
+              var validPkgs = D.LEVELS;
+              if (!r || validPkgs.indexOf(r.pkg) === -1) { var e = new Error("not found"); e.status = 404; throw e; }
+              if (r.status === "redeemed") { var e2 = new Error("redeemed"); e2.status = 409; throw e2; }
+              return { pkg: r.pkg, code: r.code };
+            });
+        doRedeem.then(function (res) {
+          NT.store.mutate(function (state) {
+            state.profile = Object.assign({ name: "", educationLevel: "", subjectId: "" }, state.profile || {});
+            state.profile.educationLevel = choice.value;
+          });
+          NT.store.setAccess(res.pkg, { code: res.code || value, source: "access-code", educationLevel: choice.value });
+          if (!usedServer) NT.store.redeemCode(value);
+          var level = NT.educationLevel(choice.value);
+          result.classList.remove("hidden");
+          result.innerHTML =
+            '<div class="unlock-result">' +
+            '<div class="big-ico">' + NT.icon("check-circle", "icon-xl") + "</div>" +
+            "<h2>Access granted</h2>" +
+            '<p class="access-line">' + NT.esc(level.label) + " pathway · " + NT.esc(NT.packageDetails(res.pkg).name) + " package</p>" +
+            '<a class="btn btn-primary btn-lg" href="' + NT.base() + 'courses.html?level=' + encodeURIComponent(choice.value) + '">' +
+            NT.icon("book-open") + "Continue to your courses</a></div>";
+          form.classList.add("hidden");
+          document.querySelector(".access-packages-link").classList.add("hidden");
+          NT.toast("Signed in successfully", "success");
+          submitBtn.disabled = false;
+        }).catch(function (err) {
+          if (err.status === 404) {
+            showError('<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>That code could not be found.</b><br>Check the code and try again.</div></div>");
+          } else if (err.status === 409) {
+            showError('<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>This code has already been used.</b><br>Each access code can only be redeemed once.</div></div>");
+          } else {
+            showError('<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>Could not verify code.</b><br>Check your connection and try again.</div></div>");
+          }
+          input.focus();
+        });
       });
-      NT.store.setAccess(record.pkg, { code: record.code, source: "access-code", educationLevel: choice.value });
-      var level = NT.educationLevel(choice.value);
-      result.classList.remove("hidden");
-      result.innerHTML =
-        '<div class="unlock-result">' +
-        '<div class="big-ico">' + NT.icon("check-circle", "icon-xl") + "</div>" +
-        "<h2>Access preview updated</h2>" +
-        '<p class="access-line">' + NT.esc(level.label) + " pathway · " + NT.esc(NT.packageDetails(record.pkg).name) + " package</p>" +
-        '<a class="btn btn-primary btn-lg" href="' + NT.base() + 'courses.html?level=' + encodeURIComponent(choice.value) + '">' +
-        NT.icon("book-open") + "Continue to your courses</a></div>";
-      form.classList.add("hidden");
-      document.querySelector(".access-packages-link").classList.add("hidden");
-      NT.toast("Learning level saved", "success");
-    });
   }
 
   /* ============================ LIBRARY ============================ */
@@ -392,8 +412,8 @@
       root.innerHTML = sections.length ? sections.join("") : '<p class="lib-empty">No lessons match your search or filter.</p>';
       var available = all.filter(function (lesson) { return NT.isUnlocked(lesson); }).length;
       summary.textContent = access
-        ? available + " of " + all.length + " listed lessons are included with your " + NT.packageDetails(access).name + " package in this preview."
-        : "Enter an access code to see which listed lessons your package includes in this preview.";
+        ? available + " of " + all.length + " lessons are included with your " + NT.packageDetails(access).name + " package."
+        : "Sign in with an access code to view your available lessons.";
       renderStatus();
       renderChips();
       gate.classList.toggle("hidden", !!access);
@@ -659,9 +679,9 @@
       return;
     }
     root.innerHTML = crumbs + '<article class="card lesson-notice">' +
-      '<span class="eyebrow">' + NT.esc(course.title) + " · " + D.LEVEL_LABEL[NT.levelOf(lesson)] + "</span>" +
+      '<span class="eyebrow">' + NT.esc(course.title) + " · " + D.LEVEL_LABEL[NT.levelOf(lesson)] + " access</span>" +
       '<h1>' + NT.esc(lesson.title) + "</h1>" +
-      '<p>Lesson materials are not hosted in this preview. This page shows the lesson title and its package access level.</p>' +
+      '<p>This lesson is part of ' + NT.esc(course.title) + ". Sign in with an access code at the " + D.LEVEL_LABEL[NT.levelOf(lesson)] + " tier or higher to view its content.</p>" +
       '<a class="btn btn-secondary" href="' + NT.base() + "course.html?id=" + encodeURIComponent(course.id) + '">' + NT.icon("arrow-left") + "Back to course</a></article>";
   }
 
@@ -678,34 +698,41 @@
     }
 
     root.innerHTML = '<div class="card card-pad checkout-preview-card">' +
-      '<span class="eyebrow">Preview only</span><h2>' + NT.esc(p.name) + " package</h2>" +
-      '<div class="checkout-summary"><div><span>Preview price</span><b>' + NT.kwacha(NT.packagePrice(pkg)) + "</b></div>" +
+      '<span class="eyebrow">Access code</span><h2>' + NT.esc(p.name) + " package</h2>" +
+      '<div class="checkout-summary"><div><span>Price</span><b>' + NT.kwacha(NT.packagePrice(pkg)) + "</b></div>" +
       "<div><span>Access period</span><b>" + NT.store.get().settings.days + " days</b></div>" +
       "<div><span>Lessons included</span><b>" + NT.availableFor(pkg) + " of " + NT.counts().total + "</b></div></div>" +
-      '<p class="muted">This preview does not process payments. Generate a local code to try the access flow on this device.</p>' +
-      '<button class="btn btn-primary btn-lg" type="button" id="generateCode">Generate preview access code</button>' +
+      '<p class="muted">Generate an access code you can use to sign in.</p>' +
+      '<button class="btn btn-primary btn-lg" type="button" id="generateCode">Generate access code</button>' +
       '<div id="checkoutResult" class="checkout-result hidden" aria-live="polite"></div>' +
-      '<a class="link-arrow checkout-back" href="' + NT.base() + 'pricing.html">Back to access packages ' + NT.icon("arrow-right", "icon-sm") + "</a>" +
+      '<a class="link-arrow checkout-back" href="' + NT.base() + 'pricing.html">Back to packages ' + NT.icon("arrow-right", "icon-sm") + "</a>" +
       "</div>";
 
     document.getElementById("generateCode").addEventListener("click", function (event) {
       var button = event.currentTarget;
-      var code = "";
-      for (var attempt = 0; attempt < 10; attempt++) {
-        code = NT.store.genCode(pkg);
-        if (!NT.store.findCode(code)) break;
-      }
-      NT.store.addCode(code, pkg, "unused");
-      var result = document.getElementById("checkoutResult");
-      result.classList.remove("hidden");
-      result.innerHTML = '<p>Your code is stored in this browser. It is not a receipt or a payment confirmation.</p>' +
-        '<code class="preview-code">' + NT.esc(code) + "</code>" +
-        '<div class="lesson-notice-actions"><button class="btn btn-secondary" type="button" id="copyPreviewCode">' + NT.icon("copy") + "Copy code</button>" +
-        '<a class="btn btn-primary" href="' + NT.base() + 'access.html?code=' + encodeURIComponent(code) + '">Continue to login</a></div>';
       button.disabled = true;
-      button.textContent = "Code generated";
-      document.getElementById("copyPreviewCode").addEventListener("click", function () {
-        NT.copy(code);
+      NT.store.adminAddCode(pkg).then(function (rec) {
+        var code = rec.code;
+        var result = document.getElementById("checkoutResult");
+        result.classList.remove("hidden");
+        result.innerHTML = '<p>Use this code on the sign-in page to activate your selected package.</p>' +
+          '<code class="preview-code">' + NT.esc(code) + "</code>" +
+          '<div class="lesson-notice-actions"><button class="btn btn-secondary" type="button" id="copyPreviewCode">' + NT.icon("copy") + "Copy code</button>" +
+          '<a class="btn btn-primary" href="' + NT.base() + 'access.html?code=' + encodeURIComponent(code) + '">Continue to sign in</a></div>';
+        button.textContent = "Code generated";
+        document.getElementById("copyPreviewCode").addEventListener("click", function () { NT.copy(code); });
+      }).catch(function () {
+        // local fallback
+        var code = NT.store.genCode(pkg);
+        NT.store.addCode(code, pkg, "unused");
+        var result = document.getElementById("checkoutResult");
+        result.classList.remove("hidden");
+        result.innerHTML = '<p>Use this code on the sign-in page to activate your selected package.</p>' +
+          '<code class="preview-code">' + NT.esc(code) + "</code>" +
+          '<div class="lesson-notice-actions"><button class="btn btn-secondary" type="button" id="copyPreviewCode">' + NT.icon("copy") + "Copy code</button>" +
+          '<a class="btn btn-primary" href="' + NT.base() + 'access.html?code=' + encodeURIComponent(code) + '">Continue to sign in</a></div>';
+        button.textContent = "Code generated";
+        document.getElementById("copyPreviewCode").addEventListener("click", function () { NT.copy(code); });
       });
     });
   }
@@ -721,7 +748,14 @@
     NT.renderHeader();
     NT.renderFooter();
     var page = document.body.dataset.page;
-    if (routes[page]) routes[page]();
-    NT.initReveal();
+    function start() {
+      if (routes[page]) routes[page]();
+      NT.initReveal();
+    }
+    if (NT.store.bootstrap) {
+      NT.store.bootstrap().then(start, start);
+    } else {
+      start();
+    }
   });
 })();

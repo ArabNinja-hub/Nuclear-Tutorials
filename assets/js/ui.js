@@ -64,12 +64,12 @@
   };
 
   /* ---------- navigation ----------
-     The desktop header surfaces Courses, Pricing and How it works. Learning
-     tools stay in the navigation sheet and footer rather than crowding the bar. */
+     Desktop header keeps a focused primary nav. Learning and admin tools live in
+     the account menu, mobile sheet and footer so they remain reachable. */
   var PUBLIC_NAV = [
     { id: "courses", page: "courses", label: "Courses", href: "courses.html" },
     { id: "pricing", page: "pricing", label: "Pricing", href: "pricing.html" },
-    { id: "how", page: "", label: "How it works", href: "index.html#how-it-works" }
+    { id: "library", page: "library", label: "Library", href: "library.html" }
   ];
 
   function brandHtml(showSub) {
@@ -84,7 +84,7 @@
       return '<a class="btn btn-ghost header-account ' + cls + '" href="' + NT.base() + 'dashboard.html">' +
         '<span class="dot" aria-hidden="true"></span>Dashboard</a>';
     }
-    return '<a class="btn btn-ghost header-login ' + cls + '" href="' + NT.base() + 'access.html">Login</a>';
+    return '<a class="btn btn-ghost header-login ' + cls + '" href="' + NT.base() + 'access.html">Sign in</a>';
   }
 
   NT.renderHeader = function () {
@@ -107,9 +107,9 @@
       : sheetLink("access.html", "key", "Login with access code", page === "access");
 
     var statusCard = s.access
-      ? "<b>" + NT.esc(NT.packageDetails(s.access).name) + " preview package selected.</b> " +
-        NT.availableFor(s.access) + " of " + NT.counts().total + " listed lessons included."
-      : "<b>No preview package selected.</b> Generate a local code from Access packages or redeem an existing code.";
+      ? "<b>" + NT.esc(NT.packageDetails(s.access).name) + " package active.</b> " +
+        NT.availableFor(s.access) + " of " + NT.counts().total + " lessons available."
+      : "<b>No package active.</b> Redeem an access code or generate one from Access packages to begin.";
 
     var html =
       '<a class="skip-link" href="#main">Skip to main content</a>' +
@@ -117,9 +117,12 @@
       brandHtml() +
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
       '<div class="header-actions">' +
-      accountLink(s, "") +
       '<a class="btn-icon header-search-btn" href="' + NT.base() + 'search.html" aria-label="Search the catalogue">' + NT.icon("search") + "</a>" +
-      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'pricing.html">Get Access</a>' +
+      accountLink(s, "") +
+      (s.access
+        ? '<a class="btn btn-ghost header-login" href="' + NT.base() + 'profile.html" aria-label="Your profile">' + NT.icon("circle-user") + "Profile</a>"
+        : "") +
+      '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'access.html">' + (s.access ? "Enter code" : "Get started") + "</a>" +
       '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>" +
       "</div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
@@ -129,16 +132,17 @@
       '<button class="modal-x" data-close-sheet aria-label="Close navigation">' + NT.icon("x") + "</button></div>" +
       '<nav class="sheet-nav" aria-label="All pages">' +
       '<span class="sheet-label">Learn</span>' +
+      sheetLink("index.html", "home", "Home", page === "home") +
       sheetLink("courses.html", "book-open", "Courses", page === "courses") +
+      sheetLink("library.html", "library", "Library", page === "library") +
       sheetLink("pricing.html", "layers", "Pricing", page === "pricing") +
-      sheetLink("index.html#how-it-works", "target", "How it works", false) +
-      '<span class="sheet-label">Your learning</span>' +
+      '<span class="sheet-label">Your account</span>' +
       accountSheetPrimary +
-      sheetLink("library.html", "book-open", "Library", page === "library") +
       sheetLink("profile.html", "circle-user", "Profile", page === "profile") +
-      '<span class="sheet-label">More</span>' +
       sheetLink("announcements.html", "bell", "Announcements", page === "announcements") +
+      '<span class="sheet-label">More</span>' +
       sheetLink("search.html", "search", "Search", page === "search") +
+      '<a href="' + NT.base() + 'admin/index.html">' + NT.icon("settings") + "<span>Admin console</span></a>" +
       "</nav>" +
       '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("info") + "<span>" + statusCard + "</span></p>" +
       "</div></div></div>" +
@@ -207,8 +211,8 @@
     footer.innerHTML =
       '<div class="container"><div class="footer-grid">' +
       '<div class="footer-brand">' + brandHtml() +
-      "<p>Course outlines and lesson-access preview for High School and University.</p>" +
-      '<p class="footer-note">Preview build. Payments are not processed; access codes are stored in this browser.</p></div>' +
+      "<p>Structured courses and learning resources for High School and University students across Mathematics, the Sciences and Computer Science.</p>" +
+      '<p class="footer-note">Access codes are issued by Nuclear Tutorials and redeemed on this platform.</p></div>' +
       '<div class="footer-col"><h4>Learn</h4>' +
       '<a href="' + base + 'courses.html">Courses</a>' +
       '<a href="' + base + 'courses.html?level=high-school">High School</a>' +
@@ -220,9 +224,10 @@
       '<a href="' + base + 'library.html">Lesson library</a>' +
       '<a href="' + base + 'profile.html">Learning profile</a>' +
       '<a href="' + base + 'access.html">Log in with an access code</a></div>' +
-      '<div class="footer-col"><h4>Updates</h4>' +
+      '<div class="footer-col"><h4>Platform</h4>' +
       '<a href="' + base + 'announcements.html">Announcements</a>' +
-      '<a href="' + base + 'search.html">Search the catalogue</a></div>' +
+      '<a href="' + base + 'search.html">Search the catalogue</a>' +
+      '<a href="' + base + 'admin/index.html">Admin console</a></div>' +
       '</div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + ' Nuclear Tutorials</span>' +
       (contactLink ? '<span>Support: ' + contactLink + '</span>' : "") + '</div></div>';
     document.body.appendChild(footer);

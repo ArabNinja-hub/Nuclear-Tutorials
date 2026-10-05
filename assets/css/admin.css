@@ -123,3 +123,17 @@ body.side-open .scrim-side { opacity: 1; pointer-events: auto; }
   .adm-toolbar select.input { flex: 1; }
   .package-admin-name { display: block; margin: 4px 0 0; }
 }
+
+/* Admin login screen */
+.admin-login-body { min-height: 100vh; display: grid; place-items: center; background: #f2f5f8; padding: 24px; }
+.admin-login-wrap { width: 100%; max-width: 420px; }
+.admin-login-card { padding: 32px; }
+.admin-login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.admin-login-brand .brand-logo { width: 40px; height: 40px; }
+.admin-login-brand .brand-name { font-size: 16px; font-weight: 800; letter-spacing: -0.03em; }
+.admin-login-brand .brand-name span { color: var(--brand-600); }
+.admin-login-brand .brand-sub { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted-2); }
+.admin-login-card h1 { font-size: 1.4rem; margin-bottom: 4px; }
+.side-nav-logout { margin-top: auto; display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 9px 12px; border-radius: 9px; color: #c3d0d8; font-size: 13px; font-weight: 600; background: transparent; border: 0; cursor: pointer; text-align: left; width: 100%; font-family: inherit; transition: background .14s ease, color .14s ease; }
+.side-nav-logout .icon { width: 17px; height: 17px; color: #a1b1bc; }
+.side-nav-logout:hover { background: rgba(255,255,255,.07); color: #fff; }
