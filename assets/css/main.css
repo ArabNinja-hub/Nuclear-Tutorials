@@ -1158,6 +1158,11 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 
   h1 { font-size: clamp(1.85rem, 7.2vw, 2.35rem); line-height: 1.08; letter-spacing: -.035em; }
   h2 { font-size: clamp(1.35rem, 5.7vw, 1.7rem); line-height: 1.16; }
+  h1, h2, h3, h4 { overflow-wrap: anywhere; }
+  .course-hero-ident > div { min-width: 0; max-width: 100%; }
+  .course-hero-path, .course-hero-desc, .lesson-topic, .lesson-context a,
+  .lesson-row-title, .video-card h3, .search-result-copy > p, .search-result-copy > small,
+  .filter-chip, .announcement-item-body h2, .checkout-summary b { overflow-wrap: anywhere; }
   .lede { max-width: 42ch; font-size: 15px; line-height: 1.62; }
   .eyebrow { font-size: 10.5px; letter-spacing: .13em; }
   .section { padding: 42px 0; }
@@ -1306,7 +1311,9 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .toolbar-row-right .field, .toolbar-row-right .search-field { width: 100%; min-width: 0; max-width: none; }
   .search-field { max-width: none; }
   .filter-row { margin: 12px 0 16px; }
-  .filter-chip button { width: 34px; height: 34px; }
+  .filter-chip { max-width: 100%; overflow-wrap: anywhere; }
+  .filter-chip button { width: 44px; height: 44px; }
+  .lib-toolbar .segmented button { min-height: 44px; padding-right: 12px; padding-left: 12px; }
   .modal-x { width: 44px; height: 44px; }
   .course-results-head { align-items: flex-start; margin: 18px 0 14px; font-size: 13px; }
   .inline-notice { align-items: flex-start; border-radius: 12px; padding: 10px 12px; font-size: 12px; }
@@ -1349,7 +1356,7 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .lesson-row-details .icon { width: 13px; height: 13px; }
   .lesson-row-dot { color: var(--line-strong); }
   .lesson-row-access { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .lesson-row-access .badge { justify-content: center; max-width: 94px; min-height: 25px; padding: 4px 7px; font-size: 9px; line-height: 1.15; white-space: normal; text-align: center; }
+  .lesson-row-access .badge { justify-content: center; max-width: 94px; min-height: 25px; padding: 4px 7px; font-size: 10px; line-height: 1.15; white-space: normal; text-align: center; }
   .lesson-row-access .badge .icon { width: 11px; height: 11px; }
   .lesson-row-watched { display: none !important; }
   .lesson-row-arrow { display: grid; place-items: center; color: var(--muted-2); }
@@ -1363,7 +1370,7 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .course-hero-icon { width: 42px; height: 42px; border-radius: 12px; }
   .course-hero-icon .icon { width: 21px; height: 21px; }
   .course-hero-ident > div { gap: 6px; }
-  .course-hero-path { font-size: 10px; }
+  .course-hero-path { font-size: 11px; }
   .course-hero-chip { padding: 4px 8px; font-size: 10.5px; }
   .course-hero h1 { max-width: 22ch; font-size: clamp(1.65rem, 7vw, 2.1rem); line-height: 1.08; }
   .course-hero .course-hero-desc { margin-top: 9px; font-size: 13.5px; line-height: 1.55; }
@@ -1387,8 +1394,8 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .player-lock-overlay { gap: 6px; padding: 12px; }
   .player-lock-overlay h2 { display: none; }
   .player-lock-overlay p { max-width: 34ch; font-size: 11px; line-height: 1.28; }
-  .player-lock-actions { width: 100%; gap: 6px; margin-top: 2px; }
-  .player-lock-actions .btn { min-width: 0; min-height: 40px; padding: 8px 9px; font-size: 10.5px; white-space: normal; }
+  .player-lock-actions { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px; margin-top: 2px; }
+  .player-lock-actions .btn { width: 100%; min-width: 0; min-height: 44px; padding: 6px 8px; font-size: 10.5px; white-space: normal; }
   .lesson-page .lesson-description { order: 7; margin-top: 21px; }
   .lesson-page .lesson-description h2 { font-size: 1.05rem; }
   .lesson-page .lesson-description p { font-size: 14px; line-height: 1.65; }
@@ -1408,11 +1415,11 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .dashboard-continue { grid-template-columns: 76px minmax(0,1fr); align-items: start; gap: 12px; padding: 14px; border-radius: 16px; }
   .dashboard-continue-media { width: 76px; max-width: none; margin-top: 2px; border-radius: 10px; }
   .dashboard-continue-copy { min-width: 0; gap: 6px; }
-  .dashboard-continue-copy .eyebrow { font-size: 9.5px; }
+  .dashboard-continue-copy .eyebrow { font-size: 10.5px; }
   .dashboard-continue-copy h2 { font-size: 1rem; line-height: 1.3; overflow-wrap: anywhere; }
   .dashboard-continue-copy p { font-size: 11.5px; line-height: 1.45; }
   .dashboard-continue-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 100%; margin-top: 3px; }
-  .dashboard-continue-actions .btn { width: 100%; min-height: 42px; padding: 9px 10px; font-size: 12px; }
+  .dashboard-continue-actions .btn { width: 100%; min-height: 44px; padding: 9px 10px; font-size: 12px; }
   .dashboard-start { grid-template-columns: minmax(0,1fr); padding: 18px; }
   .dashboard-start .dashboard-continue-copy h2 { font-size: 1.2rem; }
   .dashboard-start .dashboard-continue-copy p { font-size: 13px; }
@@ -1423,12 +1430,12 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .dashboard-section .video-grid-compact .video-card-media { align-self: start; margin: 9px 0 9px 9px; border-radius: 9px; }
   .dashboard-section .video-grid-compact .video-card-body { min-width: 0; gap: 5px; padding: 9px 10px; }
   .dashboard-section .video-grid-compact .video-card-top { justify-content: flex-start; }
-  .dashboard-section .video-grid-compact .video-card-topic { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+  .dashboard-section .video-grid-compact .video-card-topic { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
   .dashboard-section .video-grid-compact .video-card h3 { font-size: 12px; line-height: 1.3; }
-  .dashboard-section .video-grid-compact .video-card-context { font-size: 10px; }
+  .dashboard-section .video-grid-compact .video-card-context { font-size: 10.5px; }
   .dashboard-section .video-grid-compact .video-card-foot { gap: 5px; padding-top: 3px; }
   .dashboard-section .video-grid-compact .video-card-foot .badge { display: none; }
-  .dashboard-section .video-grid-compact .video-card-foot .btn { min-height: 34px; padding: 6px 8px; font-size: 10px; }
+  .dashboard-section .video-grid-compact .video-card-foot .btn { min-height: 44px; padding: 8px 9px; font-size: 11px; }
 
   /* Search stays prominent and results scan as compact, stacked cards. */
   .page-head { padding: 22px 0 0; }
@@ -1450,7 +1457,7 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   .search-result-copy h3 { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
   .search-result-copy > p { font-size: 12px; line-height: 1.45; }
   .search-result-copy > small, .search-result-meta { font-size: 10px; line-height: 1.4; }
-  .search-result .btn, .search-result .search-result-link { width: 100%; min-height: 42px; flex: 1 1 100%; }
+  .search-result .btn, .search-result .search-result-link { width: 100%; min-height: 44px; flex: 1 1 100%; }
   .search-start, .search-empty { padding: 28px 12px; }
   .search-suggestions { gap: 6px; }
   .search-suggestion { min-height: 44px; padding: 8px 11px; font-size: 12px; }
@@ -1505,8 +1512,8 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 }
 
 @media (max-width: 360px) {
-  .container { padding-right: 14px; padding-left: 14px; }
-  .lesson-shell { padding-right: 14px; padding-left: 14px; }
+  .container { padding-right: 16px; padding-left: 16px; }
+  .lesson-shell { padding-right: 16px; padding-left: 16px; }
   .hero-home { padding-top: 27px; }
   .hero-home h1 { font-size: 1.98rem; }
   .hero-path { gap: 4px; font-size: 8.7px; }
