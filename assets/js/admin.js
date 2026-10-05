@@ -6,15 +6,15 @@
   var D = NT.data;
 
   var NAV = [
-    { id: "home", label: "Dashboard", href: "index.html", icon: "layout-dashboard" },
-    { id: "videos", label: "Videos", href: "videos.html", icon: "video" },
-    { id: "courses", label: "Courses", href: "courses.html", icon: "book-open" },
-    { id: "announcements", label: "Announcements", href: "announcements.html", icon: "bell" },
-    { id: "packages", label: "Access Packages", href: "packages.html", icon: "layers" },
-    { id: "codes", label: "Access Codes", href: "codes.html", icon: "key" },
-    { id: "students", label: "Students", href: "students.html", icon: "users" },
-    { id: "payments", label: "Payments", href: "payments.html", icon: "receipt" },
-    { id: "settings", label: "Settings", href: "settings.html", icon: "settings" }
+    { id: "home", label: "Dashboard", href: "index.html", icon: "layout-dashboard", group: "Overview" },
+    { id: "videos", label: "Videos", href: "videos.html", icon: "video", group: "Catalogue" },
+    { id: "courses", label: "Courses", href: "courses.html", icon: "book-open", group: "Catalogue" },
+    { id: "announcements", label: "Announcements", href: "announcements.html", icon: "bell", group: "Catalogue" },
+    { id: "packages", label: "Access Packages", href: "packages.html", icon: "layers", group: "Access" },
+    { id: "codes", label: "Access Codes", href: "codes.html", icon: "key", group: "Access" },
+    { id: "students", label: "Students", href: "students.html", icon: "users", group: "Students" },
+    { id: "payments", label: "Payments", href: "payments.html", icon: "receipt", group: "Students" },
+    { id: "settings", label: "Settings", href: "settings.html", icon: "settings", group: "System" }
   ];
 
   var TITLES = {
@@ -38,11 +38,14 @@
     side.innerHTML =
       '<div class="side-brand"><a class="brand" href="../index.html">' + NT.logoImg("brand-logo") +
       '<span><span class="brand-name">Nuclear <span>Tutorials</span></span><span class="brand-sub">Admin console</span></span></a></div>' +
-      '<nav class="side-nav"><span class="side-label">Manage</span>' +
-      NAV.map(function (n) {
-        return '<a href="' + n.href + '" class="' + (page === n.id ? "active" : "") + '">' + NT.icon(n.icon) + n.label + "</a>";
+      '<nav class="side-nav">' +
+      NAV.map(function (n, index) {
+        var label = index === 0 || NAV[index - 1].group !== n.group
+          ? '<span class="side-label">' + NT.esc(n.group) + "</span>" : "";
+        return label + '<a href="' + n.href + '" class="' + (page === n.id ? "active" : "") + '"' +
+          (page === n.id ? ' aria-current="page"' : "") + ">" + NT.icon(n.icon) + n.label + "</a>";
       }).join("") +
-      '<span class="side-label">Switch</span>' +
+      '<span class="side-label">Public site</span>' +
       '<a href="../index.html">' + NT.icon("external") + "View public site</a>" +
       "</nav>" +
       '<div class="side-foot"><div class="side-user"><span class="avatar">AD</span><span><b>Admin (demo)</b><small>owner@nucleartutorials.zm</small></span></div></div>';
@@ -51,6 +54,7 @@
     var main = document.createElement("div");
     main.className = "admin-main";
     main.innerHTML =
+      '<a class="skip-link" href="#adminContent">Skip to admin content</a>' +
       '<div class="admin-top">' +
       '<button class="admin-burger" id="admBurger" aria-label="Open admin menu">' + NT.icon("menu") + "</button>" +
       '<div><div class="crumb">Admin / ' + TITLES[page][0] + "</div><h1>" + TITLES[page][0] + "</h1></div>" +
@@ -58,7 +62,7 @@
       '<span class="badge badge-warn">' + NT.icon("info") + "Demo data</span>" +
       '<a class="btn btn-sm btn-secondary" href="../index.html">' + NT.icon("external", "icon-sm") + "Public site</a>" +
       "</div>" +
-      '<div class="admin-content" id="adminContent"></div>' +
+      '<main class="admin-content" id="adminContent" tabindex="-1"></main>' +
       '<div class="admin-foot"><span>Nuclear Tutorials admin · demo build</span><span>All figures simulated — no production data</span></div>';
     document.body.appendChild(main);
 
@@ -108,8 +112,16 @@
       '<div class="card adm-stat"><span class="lab">' + NT.icon("banknote") + "Simulated revenue</span><span class=\"val\">" + NT.kwacha(fig.total) + '</span><span class="delta flat">' + NT.icon("info") + "Not business reporting</span></div>" +
       "</div>" +
 
+      '<div class="academic-model-strip">' +
+      D.EDUCATION_LEVELS.map(function (level) {
+        var figures = NT.pathwayCounts(level.id);
+        return '<div><b>' + NT.esc(level.label) + " · " + figures.courses + " courses · " + figures.lessons + " videos</b><span>" +
+          NT.esc(level.hierarchy.join(" → ")) + "</span></div>";
+      }).join("") +
+      "</div>" +
+
       '<div class="adm-grid">' +
-      '<div class="adm-card"><div class="adm-card-head"><h3>Recent Payments</h3><a class="link-arrow small" href="payments.html">All payments ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
+      '<div class="adm-card"><div class="adm-card-head"><h2>Recent payments</h2><a class="link-arrow small" href="payments.html">All payments ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
       '<div class="table-wrap" style="border:none;box-shadow:none;border-radius:0"><table class="nt-table"><thead><tr><th>Student</th><th>Package</th><th>Method</th><th>Amount</th><th>Date</th></tr></thead><tbody>' +
       s.payments.slice(0, 6).map(function (p) {
         return "<tr><td class=\"td-strong\" data-label=\"Student\">" + NT.esc(p.student) + '</td><td data-label="Package">' + NT.levelBadge(p.pkg) + '</td><td data-label="Method">' + NT.esc(p.method) + '</td><td data-label="Amount"><b>' + NT.kwacha(p.amount) + '</b></td><td data-label="Date">' + NT.fmtDate(p.date) + "</td></tr>";
@@ -117,14 +129,14 @@
       "</tbody></table></div></div>" +
 
       '<div class="stack">' +
-      '<div class="adm-card"><div class="adm-card-head"><h3>Revenue by package</h3><span class="sub">Simulated</span></div>' +
+      '<div class="adm-card"><div class="adm-card-head"><h2>Revenue by package</h2><span class="sub">Simulated</span></div>' +
       '<div class="adm-card-body"><div class="rev-bars">' +
       D.LEVELS.map(function (lv) {
         return '<div class="rev-row r-' + lv + '"><div class="top"><span>' + D.LEVEL_LABEL[lv] + " · " + NT.kwacha(NT.packagePrice(lv)) + '</span><b>' + NT.kwacha(fig.byPkg[lv]) + "</b></div>" +
           '<div class="bar"><i style="width:' + Math.round((fig.byPkg[lv] / maxRev) * 100) + '%"></i></div></div>';
       }).join("") +
       "</div></div></div>" +
-      '<div class="adm-card"><div class="adm-card-head"><h3>Quick actions</h3></div><div class="adm-card-body" style="display:flex;flex-direction:column;gap:10px">' +
+      '<div class="adm-card"><div class="adm-card-head"><h2>Quick actions</h2></div><div class="adm-card-body" style="display:flex;flex-direction:column;gap:10px">' +
       '<a class="btn btn-secondary btn-block" href="codes.html">' + NT.icon("key", "icon-sm") + "Generate access code</a>" +
       '<a class="btn btn-secondary btn-block" href="videos.html">' + NT.icon("upload", "icon-sm") + "Upload a video</a>" +
       '<a class="btn btn-secondary btn-block" href="../control.html">' + NT.icon("eye", "icon-sm") + "Open access-control demo</a>" +
@@ -145,17 +157,22 @@
       });
       root.innerHTML =
         '<div class="adm-toolbar">' +
-        '<div class="search">' + NT.icon("search") + '<input class="input" id="vSearch" placeholder="Search lessons…" value="' + NT.esc(q) + '"></div>' +
-        '<select class="input" id="vCourse"><option value="">All courses</option>' +
-        D.COURSES.map(function (x) { return '<option value="' + x.id + '"' + (c === x.id ? " selected" : "") + ">" + x.title + "</option>"; }).join("") +
+        '<div class="search">' + NT.icon("search") + '<input class="input" id="vSearch" type="search" aria-label="Search lessons" placeholder="Search lessons…" value="' + NT.esc(q) + '"></div>' +
+        '<select class="input" id="vCourse" aria-label="Filter by course"><option value="">All courses</option>' +
+        D.COURSES.map(function (x) {
+          /* Mirror the public catalogue by naming each course's academic pathway. */
+          return '<option value="' + x.id + '"' + (c === x.id ? " selected" : "") + ">" + x.title +
+            " — " + NT.pathwayName(NT.coursePathways(x)[0]) + "</option>";
+        }).join("") +
         "</select>" +
         '<span class="spacer"></span><span class="badge badge-brand">' + NT.icon("video") + list.length + " videos</span>" +
-        '<button class="btn btn-primary" id="uploadBtn">' + NT.icon("upload") + "Upload Video</button>" +
+        '<button class="btn btn-primary" id="uploadBtn">' + NT.icon("upload") + "Upload video</button>" +
         "</div>" +
+        (list.length ? "" : '<div class="adm-toolbar"><p class="muted">' + NT.icon("search", "icon-sm") + " No lessons match those filters. Try a different search term or course.</p></div>") +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Lesson</th><th>Course</th><th>Duration</th><th>Access Level</th><th>Status</th></tr></thead><tbody>' +
         list.map(function (l) {
           return "<tr><td class=\"td-strong\" data-label=\"Lesson\">" + NT.esc(l.title) + '</td><td data-label="Course">' + NT.esc(l.courseTitle) + '</td><td data-label="Duration" class="mono">' + l.duration + '</td>' +
-            '<td data-label="Access Level"><select class="lvl-select" data-lesson="' + l.id + '">' +
+            '<td data-label="Access Level"><select class="lvl-select" data-lesson="' + l.id + '" aria-label="Access level for ' + NT.esc(l.title) + '">' +
             D.LEVELS.map(function (lv) { return '<option value="' + lv + '"' + (NT.levelOf(l) === lv ? " selected" : "") + ">" + D.LEVEL_LABEL[lv] + "</option>"; }).join("") +
             '</select></td><td data-label="Status">' + statusBadge(l.status || "published") + "</td></tr>";
         }).join("") +
@@ -176,7 +193,7 @@
 
     function uploadModal() {
       var m = NT.modal({
-        title: "Upload Video (simulated)",
+        title: "Upload video (simulated)",
         body:
           '<div class="upload-zone" id="upZone">' + NT.icon("upload") +
           "<b>Drop a lesson video here</b><br><span class=\"small\">Demo only — no file is transferred.</span>" +
@@ -191,7 +208,7 @@
         footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="upGo">' + NT.icon("upload") + "Upload (demo)</button>"
       });
       m.querySelector("#upGo").addEventListener("click", function () {
-        var title = m.querySelector("#upTitle").value.trim() || "New Lesson";
+        var title = m.querySelector("#upTitle").value.trim() || "New lesson";
         var courseId = m.querySelector("#upCourse").value;
         var dur = m.querySelector("#upDur").value.trim() || "15:00";
         var lvl = m.querySelector("#upLevel").value;
@@ -226,17 +243,9 @@
 
   /* ---------------- courses ---------------- */
   function pageCourses(root) {
+    /* Pathway wording is shared with the public site (assets/js/ui.js) */
     function pathwaySummary(course) {
-      return NT.coursePathways(course).map(function (path) {
-        if (path.educationLevel === "high-school") {
-          var grade = D.HIGH_SCHOOL_LEVELS.filter(function (item) { return item.id === path.levelId; })[0];
-          return "High School" + (grade ? " · " + grade.label : "");
-        }
-        var university = NT.university(path.universityId);
-        var programme = NT.programme(path.programmeId);
-        return "University" + (university ? " · " + university.name : " · institution not specified") +
-          (programme ? " · " + programme.name + (programme.school ? " · " + programme.school : "") : " · programme / school not specified");
-      }).join("<br>");
+      return NT.coursePathways(course).map(NT.pathwayLabel).join("<br>");
     }
 
     function render() {
@@ -270,7 +279,7 @@
 
       root.innerHTML =
         '<div class="adm-toolbar"><p class="muted small">Course records connect a subject to an education pathway. Lesson access levels stay manageable from Videos.</p>' +
-        '<span class="spacer"></span><button class="btn btn-primary" id="createCourse">' + NT.icon("plus") + "Create Course</button></div>" +
+        '<span class="spacer"></span><button class="btn btn-primary" id="createCourse">' + NT.icon("plus") + "Create course</button></div>" +
         '<div class="academic-model-strip"><div><b>High School</b><span>Grade / Form / Level → Subject → Course → Lessons</span></div><div><b>University</b><span>University → Programme / School → Course → Lessons</span></div></div>' +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Course</th><th>Subject</th><th>Academic path</th><th>Lessons</th><th>Basic</th><th>Standard</th><th>Premium</th><th>Status</th></tr></thead><tbody>' +
         rows + extra + "</tbody></table></div>";
@@ -340,7 +349,7 @@
       var extraPackages = Array.isArray(s.extraPackages) ? s.extraPackages : [];
       root.innerHTML =
         '<div class="adm-toolbar"><p class="muted small">Packages control what a student can watch after payment.</p><span class="spacer"></span>' +
-        '<button class="btn btn-primary" id="createPkg">' + NT.icon("plus") + "New Package Draft</button></div>" +
+        '<button class="btn btn-primary" id="createPkg">' + NT.icon("plus") + "New package draft</button></div>" +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Package</th><th>Price</th><th>Includes</th><th>Videos</th><th>Action</th></tr></thead><tbody>' +
         D.LEVELS.map(function (lv) {
           var p = NT.packageDetails(lv);
@@ -434,11 +443,11 @@
     function render() {
       var s = NT.store.get();
       root.innerHTML =
-        '<div class="adm-card" style="margin-bottom:20px"><div class="adm-card-head"><h3>Generate Access Code</h3><span class="sub">Codes appear below and can be redeemed on the public Access page</span></div>' +
+        '<div class="adm-card" style="margin-bottom:20px"><div class="adm-card-head"><h2>Generate access code</h2><span class="sub">Codes appear below and can be redeemed on the public Access page</span></div>' +
         '<div class="adm-card-body"><div class="codegen">' +
         '<div class="field"><label for="gPkg">Package</label><select class="input" id="gPkg">' +
         D.LEVELS.map(function (lv) { return '<option value="' + lv + '">' + D.LEVEL_LABEL[lv] + " · " + NT.kwacha(NT.packagePrice(lv)) + "</option>"; }).join("") +
-        '</select></div><button class="btn btn-primary" id="gGo" style="height:42px">' + NT.icon("key") + "Generate Access Code</button>" +
+        '</select></div><button class="btn btn-primary" id="gGo" style="height:42px">' + NT.icon("key") + "Generate access code</button>" +
         "</div></div></div>" +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Code</th><th>Package</th><th>Status</th><th>Created</th></tr></thead><tbody>' +
         s.codes.map(function (c) {
@@ -462,7 +471,7 @@
       var s = NT.store.get();
       root.innerHTML =
         '<div class="adm-toolbar"><p class="muted small">' + s.students.length + " records shown (demo subset of " + D.BASE_STATS.students.toLocaleString() + " total students)</p>" +
-        '<span class="spacer"></span><button class="btn btn-primary" id="addStudent">' + NT.icon("plus") + "Add Student</button></div>" +
+        '<span class="spacer"></span><button class="btn btn-primary" id="addStudent">' + NT.icon("plus") + "Add student</button></div>" +
         '<div class="table-wrap"><table class="nt-table"><thead><tr><th>Name</th><th>Package</th><th>Joined</th><th>Status</th></tr></thead><tbody>' +
         s.students.map(function (st) {
           return '<tr><td data-label="Name" class="td-strong">' + NT.esc(st.name) + '</td><td data-label="Package">' + NT.levelBadge(st.pkg) + '</td><td data-label="Joined">' + NT.fmtDate(st.joined) + '</td><td data-label="Status">' + statusBadge(st.status) + "</td></tr>";
@@ -470,7 +479,7 @@
         "</tbody></table></div>";
       root.querySelector("#addStudent").addEventListener("click", function () {
         var m = NT.modal({
-          title: "Add Student (simulated)",
+          title: "Add student (simulated)",
           body: '<div class="field"><label>Full name</label><input class="input" id="sName" placeholder="e.g. Grace Banda"></div>' +
             '<div class="input-row"><div class="field"><label>Package</label><select class="input" id="sPkg">' +
             D.LEVELS.map(function (lv) { return '<option value="' + lv + '">' + D.LEVEL_LABEL[lv] + "</option>"; }).join("") +
@@ -511,7 +520,7 @@
       });
       root.innerHTML =
         '<div class="adm-toolbar"><p class="muted small">Write a notice for students. Only published updates appear on the public Announcements page.</p><span class="spacer"></span><span class="badge badge-warn">Local demo content</span></div>' +
-        '<section class="adm-card announcement-admin-compose"><div class="adm-card-head"><h3>New announcement</h3><span class="sub">Saved in this browser only</span></div>' +
+        '<section class="adm-card announcement-admin-compose"><div class="adm-card-head"><h2>New announcement</h2><span class="sub">Saved in this browser only</span></div>' +
         '<div class="adm-card-body"><form id="announcementForm" class="settings-form">' +
         '<div class="field"><label for="announcementTitle">Title</label><input class="input" id="announcementTitle" maxlength="120" placeholder="e.g. A course update" required></div>' +
         '<div class="field"><label for="announcementBody">Message</label><textarea class="input" id="announcementBody" rows="4" maxlength="1200" placeholder="Write a clear update for students" required></textarea></div>' +
@@ -602,16 +611,16 @@
   function pageSettings(root) {
     var s = NT.store.get();
     root.innerHTML =
-      '<div class="adm-card"><div class="adm-card-head"><h3>Platform settings</h3><span class="sub">Demo configuration</span></div>' +
+      '<div class="adm-card"><div class="adm-card-head"><h2>Platform settings</h2><span class="sub">Demo configuration</span></div>' +
       '<div class="adm-card-body"><form class="settings-form" id="setForm">' +
-      '<div class="field"><label>Platform name</label><input class="input" id="setName" value="' + NT.esc(s.settings.name) + '"></div>' +
-      '<div class="field"><label>Support email</label><input class="input" id="setEmail" type="email" value="' + NT.esc(s.settings.email) + '"></div>' +
-      '<div class="input-row"><div class="field"><label>Currency</label><select class="input" id="setCur">' +
+      '<div class="field"><label for="setName">Platform name</label><input class="input" id="setName" value="' + NT.esc(s.settings.name) + '"></div>' +
+      '<div class="field"><label for="setEmail">Support email</label><input class="input" id="setEmail" type="email" value="' + NT.esc(s.settings.email) + '"></div>' +
+      '<div class="input-row"><div class="field"><label for="setCur">Currency</label><select class="input" id="setCur">' +
       ["Zambian Kwacha (K)", "US Dollar ($)", "South African Rand (R)"].map(function (c) { return "<option" + (c === s.settings.currency ? " selected" : "") + ">" + c + "</option>"; }).join("") +
-      '</select></div><div class="field"><label>Access duration (days)</label><input class="input" id="setDays" type="number" min="1" value="' + s.settings.days + '"></div></div>' +
-      '<div><button class="btn btn-primary" type="submit">' + NT.icon("check") + "Save Changes</button></div>" +
+      '</select></div><div class="field"><label for="setDays">Access duration (days)</label><input class="input" id="setDays" type="number" min="1" value="' + s.settings.days + '"></div></div>' +
+      '<div><button class="btn btn-primary" type="submit">' + NT.icon("check") + "Save changes</button></div>" +
       "</form></div></div>" +
-      '<div class="adm-card" style="margin-top:20px;border-color:#f0d3d0"><div class="adm-card-head"><h3>Demo data</h3><span class="badge badge-danger">' + NT.icon("circle-alert") + "Careful</span></div>" +
+      '<div class="adm-card" style="margin-top:20px;border-color:#f0d3d0"><div class="adm-card-head"><h2>Demo data</h2><span class="badge badge-danger">' + NT.icon("circle-alert") + "Careful</span></div>" +
       '<div class="adm-card-body"><p class="muted small" style="margin-bottom:14px">Reset returns the demo to its factory state: clears active access, progress, local profile details, announcements, generated codes, payments and admin edits.</p>' +
       '<button class="btn btn-danger-soft" id="resetDemo">' + NT.icon("rotate") + "Reset demo data</button></div></div>";
 
