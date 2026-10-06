@@ -128,7 +128,27 @@ var SCHEMA = [
      token      TEXT PRIMARY KEY,
      created_at TEXT NOT NULL,
      expires_at TEXT NOT NULL
-   )`
+   )`,
+  `CREATE TABLE IF NOT EXISTS learner_accounts (
+     id             TEXT PRIMARY KEY,
+     email          TEXT NOT NULL COLLATE NOCASE UNIQUE,
+     password_hash  TEXT NOT NULL,
+     salt           TEXT NOT NULL,
+     display_name   TEXT NOT NULL DEFAULT '',
+     learner_type   TEXT CHECK (learner_type IS NULL OR learner_type IN ('university', 'high_school')),
+     institution_id TEXT,
+     semester       INTEGER NOT NULL DEFAULT 0 CHECK (semester IN (0, 1, 2)),
+     created_at     TEXT NOT NULL,
+     updated_at     TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_learner_accounts_email ON learner_accounts (email)`,
+  `CREATE TABLE IF NOT EXISTS learner_sessions (
+     token      TEXT PRIMARY KEY,
+     account_id TEXT NOT NULL REFERENCES learner_accounts(id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL,
+     expires_at TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_learner_sessions_account ON learner_sessions (account_id, expires_at)`
 ];
 
 var DEFAULT_PACKAGES = {
@@ -177,6 +197,10 @@ function migrate() {
   var columns = db.prepare("PRAGMA table_info(admins)").all().map(function (row) { return row.name; });
   if (columns.indexOf("must_change") === -1) {
     db.exec("ALTER TABLE admins ADD COLUMN must_change INTEGER NOT NULL DEFAULT 1");
+  }
+  var codeColumns = db.prepare("PRAGMA table_info(codes)").all().map(function (row) { return row.name; });
+  if (codeColumns.indexOf("account_id") === -1) {
+    db.exec("ALTER TABLE codes ADD COLUMN account_id TEXT REFERENCES learner_accounts(id) ON DELETE SET NULL");
   }
 }
 
@@ -326,6 +350,115 @@ function destroySession(token) {
   getDatabase().prepare("DELETE FROM sessions WHERE token = ?").run(String(token));
 }
 
+/* ---------- learner accounts ---------- */
+
+function learnerAccountById(id) {
+  if (!id) return null;
+  return getDatabase().prepare("SELECT * FROM learner_accounts WHERE id = ?").get(String(id)) || null;
+}
+
+function learnerAccountByEmail(email) {
+  if (!email) return null;
+  return getDatabase().prepare("SELECT * FROM learner_accounts WHERE email = ? COLLATE NOCASE").get(String(email).trim()) || null;
+}
+
+function createLearnerAccount(email, password, displayName) {
+  var salt = crypto.randomBytes(16).toString("hex");
+  var id = crypto.randomUUID();
+  var timestamp = now();
+  getDatabase().prepare(`
+    INSERT INTO learner_accounts (id, email, password_hash, salt, display_name, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, String(email).trim().toLowerCase(), hashPassword(password, salt), salt,
+      String(displayName || "").trim().slice(0, 60), timestamp, timestamp);
+  return learnerAccountById(id);
+}
+
+function verifyLearnerPassword(email, password) {
+  var account = learnerAccountByEmail(email);
+  if (!account) {
+    /* Spend comparable time on unknown email addresses to reduce account
+       enumeration through obvious response-time differences. */
+    hashPassword(password, "nuclear-tutorials-account-check");
+    return null;
+  }
+  if (!safeEqual(hashPassword(password, account.salt), account.password_hash)) return null;
+  return account;
+}
+
+function setLearnerType(id, learnerType) {
+  var existing = learnerAccountById(id);
+  if (!existing) return null;
+  var changed = existing.learner_type !== learnerType;
+  getDatabase().prepare(`
+    UPDATE learner_accounts
+    SET learner_type = ?, institution_id = ?, semester = ?, updated_at = ?
+    WHERE id = ?`)
+    .run(learnerType, changed ? null : existing.institution_id,
+      changed ? 0 : existing.semester, now(), id);
+  return learnerAccountById(id);
+}
+
+function updateLearnerProfile(id, profile) {
+  var current = learnerAccountById(id);
+  if (!current) return null;
+  getDatabase().prepare(`
+    UPDATE learner_accounts
+    SET display_name = ?, institution_id = ?, semester = ?, updated_at = ?
+    WHERE id = ?`)
+    .run(profile.displayName == null ? current.display_name : String(profile.displayName).slice(0, 60),
+      profile.institutionId == null ? current.institution_id : (profile.institutionId || null),
+      profile.semester == null ? current.semester : Number(profile.semester), now(), id);
+  return learnerAccountById(id);
+}
+
+function createLearnerSession(accountId) {
+  var token = crypto.randomBytes(32).toString("hex");
+  var created = new Date();
+  var expires = new Date(created.getTime() + SESSION_DAYS * 86400000);
+  getDatabase().prepare("INSERT INTO learner_sessions (token, account_id, created_at, expires_at) VALUES (?, ?, ?, ?)")
+    .run(token, accountId, created.toISOString(), expires.toISOString());
+  getDatabase().prepare("DELETE FROM learner_sessions WHERE expires_at < ?").run(created.toISOString());
+  return { token: token, expiresAt: expires.toISOString() };
+}
+
+function readLearnerSession(token) {
+  if (!token) return null;
+  var row = getDatabase().prepare("SELECT token, account_id, expires_at FROM learner_sessions WHERE token = ?").get(String(token));
+  if (!row) return null;
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    getDatabase().prepare("DELETE FROM learner_sessions WHERE token = ?").run(row.token);
+    return null;
+  }
+  return row;
+}
+
+function destroyLearnerSession(token) {
+  if (!token) return;
+  getDatabase().prepare("DELETE FROM learner_sessions WHERE token = ?").run(String(token));
+}
+
+function linkCodeToLearner(code, accountId) {
+  if (!code || !accountId) return;
+  getDatabase().prepare("UPDATE codes SET account_id = ? WHERE code = ? AND status = 'redeemed'")
+    .run(String(accountId), String(code).toUpperCase().trim());
+}
+
+function linkExistingRedeemedCode(code, accountId) {
+  if (!code || !accountId) return false;
+  var result = getDatabase().prepare(`
+    UPDATE codes SET account_id = ?
+    WHERE code = ? AND status = 'redeemed' AND (account_id IS NULL OR account_id = ?)`)
+    .run(String(accountId), String(code).toUpperCase().trim(), String(accountId));
+  return result.changes > 0;
+}
+
+function learnerCodes(accountId) {
+  if (!accountId) return [];
+  return getDatabase().prepare("SELECT * FROM codes WHERE account_id = ? AND status = 'redeemed' ORDER BY redeemed_at DESC")
+    .all(String(accountId));
+}
+
 /* ---------- shutdown ---------- */
 
 /* Flush the write-ahead log into the database file and close the handle.
@@ -361,6 +494,18 @@ module.exports = {
   createSession: createSession,
   readSession: readSession,
   destroySession: destroySession,
+  learnerAccountById: learnerAccountById,
+  learnerAccountByEmail: learnerAccountByEmail,
+  createLearnerAccount: createLearnerAccount,
+  verifyLearnerPassword: verifyLearnerPassword,
+  setLearnerType: setLearnerType,
+  updateLearnerProfile: updateLearnerProfile,
+  createLearnerSession: createLearnerSession,
+  readLearnerSession: readLearnerSession,
+  destroyLearnerSession: destroyLearnerSession,
+  linkCodeToLearner: linkCodeToLearner,
+  linkExistingRedeemedCode: linkExistingRedeemedCode,
+  learnerCodes: learnerCodes,
   SESSION_DAYS: SESSION_DAYS,
   DEFAULT_PACKAGES: DEFAULT_PACKAGES,
   DEFAULT_SETTINGS: DEFAULT_SETTINGS

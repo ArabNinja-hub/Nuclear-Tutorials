@@ -18,7 +18,7 @@
     return {
       access: null,
       accessMeta: null,
-      profile: { name: "", educationLevel: "", universityId: "", semester: 0 },
+      profile: { accountId: "", name: "", learnerType: "", educationLevel: "", institutionId: "", universityId: "", semester: 0 },
       settings: { supportEmail: "", accessDays: 180, packages: null }
     };
   }
@@ -26,11 +26,15 @@
   function cleanProfile(raw) {
     var profile = raw && typeof raw === "object" ? raw : {};
     var semester = parseInt(profile.semester, 10);
+    var institutionId = String(profile.institutionId || profile.universityId || "").slice(0, 60);
     return {
+      accountId: String(profile.accountId || "").slice(0, 80),
       name: String(profile.name || "").slice(0, 60),
+      learnerType: profile.learnerType === "university" || profile.learnerType === "high_school" ? profile.learnerType : "",
       educationLevel: profile.educationLevel === "high-school" || profile.educationLevel === "university"
-        ? profile.educationLevel : "",
-      universityId: String(profile.universityId || "").slice(0, 60),
+        ? profile.educationLevel : (profile.learnerType === "high_school" ? "high-school" : ""),
+      institutionId: institutionId,
+      universityId: institutionId,
       semester: semester === 2 ? 2 : (semester === 1 ? 1 : 0)
     };
   }

@@ -2,7 +2,7 @@
    NUCLEAR TUTORIALS — Public site behaviour
    Routing by <body data-page="...">
 
-   Learning path: University → Semester → Course → Video lesson.
+   Learning path: learner profile → institution → course → structured lesson.
    ============================================================ */
 (function () {
   var D = NT.data;
@@ -28,84 +28,9 @@
 
   /* ============================ HOME ============================ */
   function pageHome() {
-    var grid = document.getElementById("universityGrid");
-    var stats = document.getElementById("homeStats");
-    var featured = document.getElementById("featuredCourses");
-    var steps = document.getElementById("homeSteps");
-
-    if (stats) {
-      loadFor(stats, function () {
-        var totals = NT.content.totals();
-        stats.innerHTML =
-          NT.statCard({ icon: "building", value: totals.universities, label: "universities", hint: "plus a secondary school pathway" }) +
-          NT.statCard({ icon: "graduation-cap", value: totals.courses, label: "courses", hint: "Semester 1 and Semester 2" }) +
-          NT.statCard({ icon: "video", value: totals.videos, label: "video lessons", hint: "published and playable now" }) +
-          NT.statCard({ icon: "layers", value: D.LEVELS.length, label: "access packages", hint: "from basic to premium" });
-      }, { skeleton: '<div class="stat-row">' + NT.skeletonCards(4) + "</div>", count: 4 });
-    }
-
-    if (grid) {
-      loadFor(grid, function () {
-        var universities = NT.content.universities();
-        var schools = NT.content.schools();
-        var markup = universities.map(function (item) { return NT.universityCard(item); }).join("");
-        if (schools.length) {
-          markup += schools.map(function (item) { return NT.universityCard(item); }).join("");
-        }
-        grid.innerHTML = markup || NT.empty({
-          icon: "building",
-          title: "No universities published yet",
-          message: "An administrator can add universities, courses and video lessons from the admin area."
-        });
-      }, { count: 4, shape: "wide" });
-    }
-
-    if (featured) {
-      loadFor(featured, function () {
-        var courses = NT.content.courses().filter(function (course, index, list) {
-          return index === 0 || list.slice(0, index).every(function (previous) {
-            return previous.universityId !== course.universityId;
-          });
-        }).slice(0, 3);
-        featured.innerHTML = courses.map(function (course) { return NT.courseCard(course); }).join("");
-      }, { count: 3 });
-    }
-
-    if (steps) {
-      loadFor(steps, function () {
-        var first = NT.content.universities()[0];
-        var course = first ? NT.content.semesterCourses(first.id, 1)[0] : null;
-        var lesson = course ? NT.content.lessonsOf(course.id)[0] : null;
-        var items = [
-          { title: "Choose your university", text: "Every course belongs to a specific university, so the work you see matches your programme.", href: "courses.html", icon: "building" },
-          { title: "Pick your semester", text: "Semester 1 and Semester 2 are separate views, with their own course lists.", href: first ? "courses.html?university=" + first.id + "&semester=1" : "courses.html", icon: "calendar" },
-          { title: "Open a course", text: "Each course collects its video lessons in the order they are taught.", href: course ? "course.html?id=" + course.id : "courses.html", icon: "book-open" },
-          { title: "Press play", text: "Lessons play in the page, and your progress is saved to your access code.", href: lesson ? "lesson.html?id=" + lesson.id : "library.html", icon: "play" }
-        ];
-        steps.innerHTML = items.map(function (item, index) {
-          return '<a class="step step-link reveal" data-delay="' + index + '" href="' + NT.base() + item.href + '">' +
-            '<span class="step-num">0' + (index + 1) + "</span>" +
-            '<span class="step-icon">' + NT.icon(item.icon) + "</span>" +
-            "<h3>" + NT.esc(item.title) + "</h3><p>" + NT.esc(item.text) + "</p></a>";
-        }).join("");
-      }, { skeleton: NT.skeletonCards(4), count: 4 });
-    }
-
-    var packages = document.getElementById("homePackages");
-    if (packages) {
-      loadFor(packages, function () {
-        var total = NT.counts().total;
-        packages.innerHTML = D.LEVELS.map(function (level) {
-          var details = NT.packageDetails(level);
-          return '<article class="package-strip-card reveal">' +
-            '<span class="price-name t-' + level + '">' + NT.esc(details.name) + "</span>" +
-            '<div class="price-amount"><b>' + NT.kwacha(details.price) + "</b><span>/ " + NT.accessDays() + " days</span></div>" +
-            '<p class="muted small">' + NT.esc(details.tagline || "") + "</p>" +
-            '<span class="package-unlocks">' + NT.availableFor(level) + " of " + total + " published lessons</span>" +
-            '<a class="btn btn-secondary btn-block" href="' + NT.base() + 'pricing.html">Compare packages</a></article>';
-        }).join("");
-      }, { count: 3 });
-    }
+    /* The public homepage is intentionally editorial and catalogue-free.
+       Its content lives in index.html; no education category or catalogue
+       data is requested until a learner signs in. */
   }
 
   /* ============================ COURSES (discovery) ============================ */
@@ -116,29 +41,26 @@
     var summary = document.getElementById("courseResults");
     var chips = document.getElementById("activeFilters");
     var semesterHost = document.getElementById("semesterSwitchHost");
-
-    var profile = NT.store.get().profile || {};
+    var user = NT.auth.user() || {};
+    var profile = user.profile || NT.store.get().profile || {};
     var state = {
       universityId: "",
       semester: 0,
-      level: "",
       query: ""
     };
 
     NT.content.load().then(function () {
-      var query = NT.qs("university");
+      var query = NT.qs("university") || NT.qs("institution");
       var institutions = NT.content.universities().concat(NT.content.schools());
       if (query && institutions.some(function (item) { return item.id === query; })) state.universityId = query;
-      else if (profile.universityId && institutions.some(function (item) { return item.id === profile.universityId; })) state.universityId = profile.universityId;
+      else if (profile.institutionId && institutions.some(function (item) { return item.id === profile.institutionId; })) {
+        state.universityId = profile.institutionId;
+      }
 
       var semesterQuery = parseInt(NT.qs("semester"), 10);
       if (semesterQuery === 1 || semesterQuery === 2) state.semester = semesterQuery;
       else if (profile.semester === 1 || profile.semester === 2) state.semester = profile.semester;
 
-      var levelQuery = NT.qs("level");
-      state.level = D.EDUCATION_LEVELS.some(function (item) { return item.id === levelQuery; })
-        ? levelQuery
-        : (profile.educationLevel || "");
       state.query = NT.qs("q") || "";
       renderToolbar();
       render();
@@ -149,57 +71,36 @@
     });
 
     function institutionOptions() {
-      var universities = NT.content.universities();
-      var schools = NT.content.schools();
-      var visible = state.level === "high-school" ? schools : (state.level === "university" ? universities : universities.concat(schools));
-      return visible;
+      return NT.content.universities().concat(NT.content.schools());
+    }
+
+    function saveProfile(patch) {
+      NT.auth.updateProfile(patch).catch(function (error) {
+        NT.toast(error.message || "Your profile could not be saved.", "error");
+      });
     }
 
     function renderToolbar() {
       if (!toolbar) return;
       var options = institutionOptions();
-      var levelTabs = [{ id: "", label: "All levels", icon: "layers" }].concat(D.EDUCATION_LEVELS.map(function (item) {
-        return { id: item.id, label: item.label, icon: NT.pathwayIcon(item.id) };
-      }));
       toolbar.innerHTML =
-        '<div class="toolbar-row">' +
-        '<div class="pathway-tabs" id="levelTabs" role="group" aria-label="Filter by study level">' +
-        levelTabs.map(function (option) {
-          var active = state.level === option.id;
-          return '<button type="button" class="pathway-tab' + (active ? " active" : "") + '" data-level="' + option.id + '"' +
-            ' aria-pressed="' + active + '">' + NT.icon(option.icon) + "<span>" + NT.esc(option.label) + "</span></button>";
-        }).join("") + "</div>" +
-        '<div class="toolbar-row-right">' +
-        '<label class="field field-inline"><span class="sr-only">University</span>' +
-        '<select class="input" id="universitySelect" aria-label="Choose a university">' +
+        '<div class="toolbar-row"><div class="toolbar-row-right toolbar-row-right-wide">' +
+        '<label class="field field-inline"><span class="sr-only">Choose an institution</span>' +
+        '<select class="input" id="universitySelect" aria-label="Choose an institution">' +
         '<option value="">All institutions</option>' +
         options.map(function (item) {
           return '<option value="' + NT.esc(item.id) + '"' + (state.universityId === item.id ? " selected" : "") + ">" +
             NT.esc(item.name) + "</option>";
         }).join("") + "</select></label>" +
         '<label class="search-field"><span class="sr-only">Search courses</span>' + NT.icon("search") +
-        '<input class="input" id="courseSearch" type="search" placeholder="Search courses" value="' + NT.esc(state.query) + '"></label>' +
+        '<input class="input" id="courseSearch" type="search" placeholder="Search courses or subjects" value="' + NT.esc(state.query) + '"></label>' +
         "</div></div>";
 
-      toolbar.querySelectorAll("[data-level]").forEach(function (button) {
-        button.addEventListener("click", function () {
-          state.level = button.dataset.level;
-          if (state.level) {
-            NT.store.setProfile({ educationLevel: state.level });
-            if (state.universityId) {
-              var current = NT.content.university(state.universityId);
-              if (current && current.level !== state.level) state.universityId = "";
-            }
-          }
-          renderToolbar();
-          render();
-        });
-      });
       var select = document.getElementById("universitySelect");
       if (select) {
         select.addEventListener("change", function () {
           state.universityId = select.value;
-          NT.store.setProfile({ universityId: state.universityId });
+          saveProfile({ institutionId: state.universityId });
           render();
         });
       }
@@ -212,24 +113,24 @@
         if (state.universityId) url.searchParams.set("university", state.universityId); else url.searchParams.delete("university");
         if (state.semester) url.searchParams.set("semester", state.semester); else url.searchParams.delete("semester");
         if (state.query) url.searchParams.set("q", state.query); else url.searchParams.delete("q");
-        if (state.level) url.searchParams.set("level", state.level); else url.searchParams.delete("level");
+        url.searchParams.delete("level");
         window.history.replaceState({}, "", url.pathname + url.search);
       } catch (error) { /* file:// previews cannot rewrite history */ }
     }
 
     function renderChips() {
       if (!chips) return;
-      var university = state.universityId ? NT.content.university(state.universityId) : null;
-      var markup = university
-        ? '<span class="filter-chip">' + NT.esc(university.shortName) +
-          '<button type="button" data-clear="university" aria-label="Show all institutions">' + NT.icon("x") + "</button></span>"
+      var institution = state.universityId ? NT.content.university(state.universityId) : null;
+      var markup = institution
+        ? '<span class="filter-chip">' + NT.esc(institution.shortName || institution.name) +
+          '<button type="button" data-clear="institution" aria-label="Show all institutions">' + NT.icon("x") + "</button></span>"
         : "";
       chips.innerHTML = markup;
       chips.classList.toggle("hidden", !markup);
       var clear = chips.querySelector("[data-clear]");
       if (clear) clear.addEventListener("click", function () {
         state.universityId = "";
-        NT.store.setProfile({ universityId: "" });
+        saveProfile({ institutionId: "" });
         renderToolbar();
         render();
       });
@@ -242,12 +143,12 @@
         current: state.semester,
         counts: counts,
         allowAll: true,
-        label: "Choose a semester"
+        label: "Choose a semester or view all"
       });
       semesterHost.querySelectorAll("[data-semester]").forEach(function (button) {
         button.addEventListener("click", function () {
           state.semester = parseInt(button.dataset.semester, 10) || 0;
-          if (state.semester) NT.store.setProfile({ semester: state.semester });
+          if (state.semester) saveProfile({ semester: state.semester });
           render();
         });
       });
@@ -256,8 +157,7 @@
     function render() {
       var courses = NT.content.courses({
         universityId: state.universityId,
-        semester: state.semester,
-        level: state.level
+        semester: state.semester
       });
       var query = state.query.trim().toLowerCase();
       if (query) {
@@ -268,28 +168,31 @@
       }
 
       var counts = { 1: 0, 2: 0 };
-      NT.content.courses({ universityId: state.universityId, level: state.level }).forEach(function (course) {
+      NT.content.courses({ universityId: state.universityId }).forEach(function (course) {
         counts[course.semester] = (counts[course.semester] || 0) + 1;
       });
       renderSemesterSwitch(counts);
 
       var lessons = courses.reduce(function (sum, course) { return sum + NT.content.lessonsOf(course.id).length; }, 0);
-      var university = state.universityId ? NT.content.university(state.universityId) : null;
-      var semesterLabel = state.semester ? NT.semesterLabel(state.semester) : "both semesters";
+      var institution = state.universityId ? NT.content.university(state.universityId) : null;
+      var semesterLabel = state.semester ? NT.semesterLabel(state.semester) : "all semesters";
 
       listHost.innerHTML = courses.length
         ? courses.map(function (course) { return NT.courseCard(course); }).join("")
         : NT.empty({
           icon: "search",
-          title: "No courses match yet",
-          message: "Try another university, semester or search term — or ask your administrator to publish a course here.",
-          action: '<button class="btn btn-secondary" type="button" id="emptyReset">' + NT.icon("rotate") + "Reset filters</button>"
+          title: query || institution ? "No courses match those filters" : "Your catalogue is ready to explore",
+          message: query || institution
+            ? "Try another institution, semester or search term."
+            : "Courses and subjects for your learner profile will appear here when they are available.",
+          action: query || state.semester || state.universityId
+            ? '<button class="btn btn-secondary" type="button" id="emptyReset">' + NT.icon("rotate") + "Reset filters</button>"
+            : ""
         });
       var reset = document.getElementById("emptyReset");
       if (reset) reset.addEventListener("click", function () {
         state.universityId = "";
         state.semester = 0;
-        state.level = "";
         state.query = "";
         renderToolbar();
         render();
@@ -297,18 +200,16 @@
 
       if (summary) {
         summary.innerHTML = "<span>" +
-          (university ? "<b>" + NT.esc(university.name) + "</b> · " : "") +
+          (institution ? "<b>" + NT.esc(institution.name) + "</b> · " : "") +
           NT.esc(NT.cap(semesterLabel)) + " · <b>" + courses.length + "</b> " + (courses.length === 1 ? "course" : "courses") +
-          " · <b>" + lessons + "</b> video lessons</span>" +
-          watchNotice();
+          " · <b>" + lessons + "</b> lessons</span>" + watchNotice();
       }
       renderChips();
       syncUrl();
       NT.initReveal();
     }
 
-    /* The search box lives inside the toolbar, which is re-rendered with
-       the filters, so the listener is delegated from the toolbar itself. */
+    /* Search remains stable while the toolbar is refreshed on selection. */
     if (toolbar) {
       toolbar.addEventListener("input", function (event) {
         if (event.target && event.target.id === "courseSearch") {
@@ -333,7 +234,7 @@
         }) + '<div class="container section-body">' + NT.empty({
           icon: "book-open",
           title: "Nothing to show",
-          message: "Browse the catalogue to find the courses available for your university and semester.",
+          message: "Browse the catalogue to find courses available for your selected institution and term.",
           action: '<a class="btn btn-primary" href="' + NT.base() + 'courses.html">Browse courses</a>'
         }) + "</div>";
         return;
@@ -683,9 +584,9 @@
       var universities = NT.content.universities().concat(NT.content.schools());
       var courses = NT.content.courses({ universityId: state.universityId, semester: state.semester });
       filterHost.innerHTML =
-        '<label class="field field-inline"><span class="field-label">University</span>' +
-        '<select class="input" id="libUniversity" aria-label="Filter by university">' +
-        '<option value="">All universities</option>' +
+        '<label class="field field-inline"><span class="field-label">Institution</span>' +
+        '<select class="input" id="libUniversity" aria-label="Filter by institution">' +
+        '<option value="">All institutions</option>' +
         universities.map(function (item) {
           return '<option value="' + NT.esc(item.id) + '"' + (state.universityId === item.id ? " selected" : "") + ">" +
             NT.esc(item.name) + "</option>";
@@ -857,59 +758,58 @@
   function pageDashboard() {
     var root = document.getElementById("dashRoot");
     if (!root) return;
-    var state = NT.store.get();
-
-    if (!state.access) {
-      root.innerHTML = '<div class="dashboard-empty">' +
-        '<span class="empty-icon">' + NT.icon("key", "icon-lg") + "</span>" +
-        "<h1>Log in to continue</h1>" +
-        "<p>Enter the access code from your package to open your dashboard, progress and lessons.</p>" +
-        '<div class="empty-actions"><a class="btn btn-primary" href="' + NT.base() + 'access.html">' + NT.icon("key") + "Log in with an access code</a>" +
-        '<a class="btn btn-secondary" href="' + NT.base() + 'pricing.html">Compare packages</a></div></div>';
-      return;
-    }
+    var user = NT.auth.user() || {};
+    var profile = user.profile || {};
 
     loadFor(root, function () {
       var current = NT.store.get();
-      var profile = current.profile || {};
-      var university = profile.universityId ? NT.content.university(profile.universityId) : null;
+      profile = (NT.auth.user() || {}).profile || current.profile || {};
+      var learnerType = user.learnerType || "university";
+      var learnerLabel = learnerType === "high_school" ? "High School" : "University";
+      var institutions = NT.content.universities().concat(NT.content.schools());
+      var institution = institutions.filter(function (item) { return item.id === profile.institutionId; })[0] || null;
       var semester = profile.semester === 1 || profile.semester === 2 ? profile.semester : 0;
-      if (!university) {
-        university = NT.content.universities()[0] || null;
-      }
-      var semesterCourses = university ? NT.content.semesterCourses(university.id, semester || 1) : [];
-      var meta = current.accessMeta || {};
-      var accessInfo = NT.packageDetails(current.access);
-      var expiry = meta.expiresAt ? NT.fmtDate(meta.expiresAt) : "";
-      var watched = NT.progress.items();
+      var allCourses = NT.content.courses();
+      var semesterCourses = institution
+        ? NT.content.courses({ universityId: institution.id, semester: semester })
+        : [];
+      var accessInfo = current.access ? NT.packageDetails(current.access) : null;
+      var expiry = current.accessMeta && current.accessMeta.expiresAt ? NT.fmtDate(current.accessMeta.expiresAt) : "";
       var continueRow = NT.progress.mostRecent(20).filter(function (row) { return !row.entry.completed; })[0] ||
         NT.progress.mostRecent(1)[0] || null;
       var recentlyViewed = NT.progress.mostRecent(3);
-
-      var semesterCounts = { 1: 0, 2: 0 };
-      if (university) {
-        NT.content.semesterCourses(university.id, 1).length && (semesterCounts[1] = NT.content.semesterCourses(university.id, 1).length);
-        NT.content.semesterCourses(university.id, 2).length && (semesterCounts[2] = NT.content.semesterCourses(university.id, 2).length);
-      }
+      var institutionLabel = learnerType === "high_school" ? "school or learning centre" : "university";
 
       var heading = '<header class="dashboard-heading"><div>' +
-        '<span class="eyebrow">Your learning</span>' +
+        '<span class="eyebrow">Your ' + NT.esc(learnerLabel) + ' learning space</span>' +
         "<h1>" + (profile.name ? "Welcome back, " + NT.esc(profile.name) + "." : "Welcome back.") + "</h1>" +
-        "<p>" + NT.esc(accessInfo.name) + " package" +
-        (university ? " · " + NT.esc(university.name) : "") +
-        (semester ? " · " + NT.esc(NT.semesterLabel(semester)) : "") +
-        (expiry ? " · access until " + NT.esc(expiry) : "") + "</p></div>" +
+        "<p>Your learning, organized around the catalogue and preferences you choose.</p></div>" +
         '<div class="dashboard-actions">' +
-        '<a class="btn btn-secondary btn-sm" href="' + NT.base() + 'profile.html">' + NT.icon("settings") + "Preferences</a>" +
+        '<a class="btn btn-secondary btn-sm" href="' + NT.base() + 'profile.html">' + NT.icon("settings") + "Learning profile</a>" +
         '<button class="btn btn-ghost btn-sm" type="button" id="dashLogout">' + NT.icon("log-out") + "Log out</button>" +
         "</div></header>";
 
       var stats = '<div class="stat-row">' + [
-        NT.statCard({ icon: "check-circle", value: NT.progress.count(), label: "lessons watched", hint: "saved to your code" }),
-        NT.statCard({ icon: "unlock", value: NT.availableFor(current.access), label: "lessons included", hint: accessInfo.name + " package" }),
-        NT.statCard({ icon: "book-open", value: semesterCourses.length, label: university ? university.shortName + " " + (semester ? NT.semesterShort(semester) : "courses") : "courses", hint: university ? university.name : "Choose a university" }),
-        NT.statCard({ icon: "clock", value: expiry || "—", label: "access expires", hint: NT.accessDays() + " day package" })
+        NT.statCard({ icon: "check-circle", value: NT.progress.count(), label: "lessons watched", hint: current.access ? "progress saved to your package" : "progress appears as you learn" }),
+        NT.statCard({ icon: "book-open", value: institution ? NT.content.courses({ universityId: institution.id }).length : allCourses.length, label: "courses available", hint: institution ? institution.name : "across your learner catalogue" }),
+        NT.statCard({ icon: "layers", value: accessInfo ? accessInfo.name : "Not selected", label: "access package", hint: accessInfo ? "active on this account" : "packages are flexible" }),
+        NT.statCard({ icon: "clock", value: expiry || "—", label: "access until", hint: expiry ? "current package" : "no active package" })
       ].join("") + "</div>";
+
+      var institutionPicker = '<section class="dashboard-section dashboard-institution-section" id="dashboardInstitutions">' +
+        '<div class="section-head section-head-row"><div><span class="eyebrow">Choose your starting point</span>' +
+        '<h2>Choose a ' + NT.esc(institutionLabel) + '</h2>' +
+        '<p>Pick the institution that matches your studies. You can change this choice whenever you need to.</p></div></div>' +
+        '<label class="field dashboard-institution-select"><span>Selected institution</span>' +
+        '<select class="input" id="dashInstitution"><option value="">Choose from the catalogue</option>' +
+        institutions.map(function (item) {
+          return '<option value="' + NT.esc(item.id) + '"' + (institution && institution.id === item.id ? " selected" : "") + ">" +
+            NT.esc(item.name) + "</option>";
+        }).join("") + "</select></label>" +
+        (institution ? "" : (institutions.length
+          ? '<div class="institution-grid dashboard-institution-grid">' + institutions.map(function (item) { return NT.universityCard(item); }).join("") + "</div>"
+          : NT.empty({ icon: "building", title: "Your catalogue is being prepared", message: "Institutions and courses for your learner profile will appear here when they are available." }))) +
+        "</section>";
 
       var continueCard = continueRow
         ? '<section class="card dashboard-continue">' +
@@ -923,46 +823,62 @@
           '<a class="btn btn-secondary" href="' + NT.base() + "course.html?id=" + encodeURIComponent(continueRow.video.courseId) + '">Course overview</a>' +
           "</div></div></section>"
         : '<section class="card dashboard-continue dashboard-start"><div class="dashboard-continue-copy">' +
-          '<span class="eyebrow">Start learning</span><h2>Your first lesson is waiting</h2>' +
-          "<p>Open a course for your university and semester, pick a lesson and press play. Progress saves automatically to your access code.</p>" +
-          '<a class="btn btn-primary" href="' + NT.base() + 'courses.html' + (university ? "?university=" + encodeURIComponent(university.id) + "&semester=" + (semester || 1) : "") + '">' +
-          NT.icon("play") + "Browse your courses</a></div></section>";
+          '<span class="eyebrow">A simple place to begin</span><h2>Learn at your pace. Keep moving forward.</h2>' +
+          "<p>Choose an institution, browse its courses and start with the lesson or resource that fits your next step.</p>" +
+          '<a class="btn btn-primary" href="' + NT.base() + "courses.html" + (institution ? "?university=" + encodeURIComponent(institution.id) : "") + '">' +
+          NT.icon("play") + "Explore your courses</a></div></section>";
 
       var recentSection = recentlyViewed.length
         ? '<section class="dashboard-section"><div class="section-head section-head-row"><div><h2>Recently viewed</h2>' +
-          "<p>The last lessons you opened with this access code.</p></div>" +
-          '<a class="link-arrow" href="' + NT.base() + 'library.html">Video library ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
+          "<p>Pick up where you left off.</p></div>" +
+          '<a class="link-arrow" href="' + NT.base() + 'library.html">Learning library ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
           '<div class="video-grid video-grid-compact">' + recentlyViewed.map(function (row) {
             return NT.videoCard(row.video, { description: false });
           }).join("") + "</div></section>"
         : "";
 
-      var courseSection = university
+      var courseSection = institution
         ? '<section class="dashboard-section"><div class="section-head section-head-row"><div>' +
-          "<h2>" + NT.esc(university.shortName) + " courses</h2>" +
-          "<p>Switch semester to see its course list. Course cards show how much of each course you have watched.</p></div></div>" +
-          NT.semesterSwitch({ id: "dashSemesters", current: semester || 0, counts: semesterCounts, allowAll: true, label: "Dashboard semester" }) +
+          '<span class="eyebrow">' + NT.esc(institution.shortName || institution.name) + "</span>" +
+          "<h2>Courses at " + NT.esc(institution.name) + "</h2>" +
+          "<p>Choose a semester or browse the full course list. Your institution can be changed above.</p></div>" +
+          '<a class="link-arrow" href="' + NT.base() + "courses.html?university=" + encodeURIComponent(institution.id) + '">All courses ' + NT.icon("arrow-right", "icon-sm") + "</a></div>" +
+          NT.semesterSwitch({ id: "dashSemesters", current: semester, counts: { 1: NT.content.semesterCourses(institution.id, 1).length, 2: NT.content.semesterCourses(institution.id, 2).length }, allowAll: true, label: "Choose a semester" }) +
           '<div class="course-grid dashboard-course-grid" id="dashCourses">' +
           (semesterCourses.length
             ? semesterCourses.map(function (course) { return NT.courseCard(course); }).join("")
-            : NT.empty({ icon: "book-open", title: "No courses in this semester yet", message: "Try the other semester or another university." })) +
+            : NT.empty({ icon: "book-open", title: "No courses listed for this selection", message: "Choose another semester, or browse all courses in the catalogue." })) +
           "</div></section>"
         : "";
 
-      root.innerHTML = '<div class="dashboard-page">' + heading + continueCard + stats + recentSection + courseSection + "</div>";
+      var packageNotice = accessInfo ? "" :
+        '<section class="dashboard-package-note"><div><span class="eyebrow">Flexible access</span><h2>Choose access when you are ready</h2>' +
+        "<p>Compare the available packages to see which one suits the way you want to learn.</p></div>" +
+        '<a class="btn btn-secondary" href="' + NT.base() + 'pricing.html">View access packages</a></section>';
+
+      root.innerHTML = '<div class="dashboard-page">' + heading + stats + continueCard + institutionPicker + courseSection + recentSection + packageNotice + "</div>";
 
       var logout = document.getElementById("dashLogout");
       if (logout) logout.addEventListener("click", function () {
         var modal = NT.modal({
-          title: "Log out of this device?",
-          body: "<p class=\"muted\">Your access code and progress stay on the server. You can log in again at any time with the same code.</p>",
+          title: "Log out of your account?",
+          body: "<p class=\"muted\">Your learner profile and progress remain saved to your account.</p>",
           footer: '<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-danger-soft" id="confirmLogout">Log out</button>'
         });
         modal.querySelector("#confirmLogout").addEventListener("click", function () {
-          NT.store.clearAccess();
-          NT.toast("Logged out of this device", "success");
-          location.href = NT.base() + "index.html";
+          NT.auth.logout().then(function () {
+            location.href = NT.base() + "index.html";
+          }, function (error) {
+            NT.toast(error.message || "You could not be logged out right now.", "error");
+          });
         });
+      });
+
+      var institutionSelect = document.getElementById("dashInstitution");
+      if (institutionSelect) institutionSelect.addEventListener("change", function () {
+        NT.auth.updateProfile({ institutionId: institutionSelect.value, semester: 0 }).then(function () {
+          pageDashboard();
+        }, function (error) { NT.toast(error.message || "Your institution could not be saved.", "error"); });
       });
 
       var switchHost = document.getElementById("dashSemesters");
@@ -970,8 +886,9 @@
         switchHost.querySelectorAll("[data-semester]").forEach(function (button) {
           button.addEventListener("click", function () {
             var chosen = parseInt(button.dataset.semester, 10) || 0;
-            NT.store.setProfile({ universityId: university.id, semester: chosen });
-            pageDashboard();
+            NT.auth.updateProfile({ semester: chosen }).then(function () { pageDashboard(); }, function (error) {
+              NT.toast(error.message || "Your semester could not be saved.", "error");
+            });
           });
         });
       }
@@ -1008,7 +925,7 @@
       return '<article class="search-result">' +
         '<span class="search-result-icon">' + NT.icon(item.level === "high-school" ? "book-open" : "building") + "</span>" +
         '<div class="search-result-copy"><div class="search-result-meta"><span>' +
-        (item.level === "high-school" ? "Secondary pathway" : "University") + "</span><span>" + NT.esc(item.city || "") + "</span></div>" +
+        (NT.auth.user() && NT.auth.user().learnerType === "high_school" ? "High School catalogue" : "University catalogue") + "</span><span>" + NT.esc(item.city || "") + "</span></div>" +
         "<h3>" + NT.esc(item.name) + "</h3>" +
         "<p>" + NT.esc(item.summary || "") + "</p>" +
         "<small>" + NT.plural(courses, "course") + " · " + NT.plural(item.videoCount, "video lesson") + "</small></div>" +
@@ -1061,15 +978,8 @@
       if (!query) {
         summary.textContent = "Search the catalogue.";
         results.innerHTML = '<div class="search-start"><span class="search-start-icon">' + NT.icon("search", "icon-lg") + "</span>" +
-          "<h2>Search lessons, courses and universities</h2>" +
-          "<p>Type a topic such as “nuclear”, “calculus” or “data structures”.</p>" +
-          '<div class="search-suggestions"><span>Try a topic</span>' +
-          ["calculus", "nuclear", "mechanics", "programming", "statistics"].map(function (word) {
-            return '<button class="search-suggestion" type="button" data-suggestion="' + word + '">' + NT.icon("search") + word + "</button>";
-          }).join("") + "</div></div>";
-        results.querySelectorAll("[data-suggestion]").forEach(function (button) {
-          button.addEventListener("click", function () { input.value = button.dataset.suggestion; render(); input.focus(); });
-        });
+          "<h2>Search lesson titles, course names and subjects</h2>" +
+          "<p>Search within the catalogue selected for your learner profile.</p></div>";
         return;
       }
 
@@ -1094,7 +1004,7 @@
 
       var parts = [];
       if (kind === "all" || kind === "universities") {
-        if (universities.length) parts.push(section("Universities and schools", universities.length, universities.map(institutionResult)));
+        if (universities.length) parts.push(section("Institutions", universities.length, universities.map(institutionResult)));
       }
       if (kind === "all" || kind === "courses") {
         if (courses.length) parts.push(section("Courses", courses.length, courses.map(courseResult)));
@@ -1107,7 +1017,7 @@
       }
       results.innerHTML = parts.length ? parts.join("") :
         '<div class="search-empty"><span class="search-start-icon">' + NT.icon("search", "icon-lg") + "</span>" +
-        "<h2>No matches</h2><p>Try a different topic, university or course code.</p>" +
+        "<h2>No matches</h2><p>Try a different topic, institution or course code.</p>" +
         '<a class="link-arrow" href="' + NT.base() + 'library.html">Browse the video library ' + NT.icon("arrow-right", "icon-sm") + "</a></div>";
       NT.initReveal();
     }
@@ -1139,82 +1049,105 @@
   function pageProfile() {
     var form = document.getElementById("profileForm");
     var nameField = document.getElementById("profileName");
-    var levelField = document.getElementById("profileEducationLevel");
-    var universityField = document.getElementById("profileUniversity");
+    var learnerField = document.getElementById("profileLearnerType");
+    var institutionField = document.getElementById("profileInstitution");
     var semesterField = document.getElementById("profileSemester");
     var message = document.getElementById("profileSaveMessage");
     var summaryHost = document.getElementById("profileSummary");
     if (!form) return;
 
-    var saved = Object.assign({ name: "", educationLevel: "", universityId: "", semester: 0 }, NT.store.get().profile || {});
-    levelField.innerHTML = '<option value="">Choose a level</option>' + D.EDUCATION_LEVELS.map(function (item) {
-      return '<option value="' + NT.esc(item.id) + '">' + NT.esc(item.label) + "</option>";
-    }).join("");
-    semesterField.innerHTML = '<option value="0">No semester selected</option>' +
+    learnerField.innerHTML = '<option value="university">University</option><option value="high_school">High School</option>';
+    semesterField.innerHTML = '<option value="0">No term or semester selected</option>' +
       NT.content.SEMESTERS.map(function (item) {
         return '<option value="' + item.id + '">' + item.label + "</option>";
       }).join("");
-    nameField.value = saved.name || "";
-    levelField.value = saved.educationLevel || "";
-    semesterField.value = saved.semester ? String(saved.semester) : "0";
 
-    function renderUniversityOptions() {
-      var level = levelField.value;
-      var institutions = level === "high-school" ? NT.content.schools() : NT.content.universities();
-      if (!level) institutions = NT.content.universities().concat(NT.content.schools());
-      universityField.innerHTML = '<option value="">No university selected</option>' + institutions.map(function (item) {
+    function profileNow() {
+      return NT.auth.user() || {};
+    }
+
+    function renderInstitutionOptions(selected) {
+      var institutions = NT.content.universities().concat(NT.content.schools());
+      institutionField.innerHTML = '<option value="">Choose later</option>' + institutions.map(function (item) {
         return '<option value="' + NT.esc(item.id) + '">' + NT.esc(item.name) + "</option>";
       }).join("");
-      if (saved.universityId && institutions.some(function (item) { return item.id === saved.universityId; })) {
-        universityField.value = saved.universityId;
-      }
+      institutionField.value = selected && institutions.some(function (item) { return item.id === selected; }) ? selected : "";
     }
 
     function renderSummary() {
-      var state = NT.store.get();
-      var access = state.access;
-      var university = state.profile.universityId ? NT.content.university(state.profile.universityId) : null;
+      var user = profileNow();
+      var profile = user.profile || {};
+      var access = NT.store.get().access;
+      var institution = profile.institutionId ? NT.content.university(profile.institutionId) : null;
+      var typeLabel = user.learnerType === "high_school" ? "High School" : "University";
       summaryHost.innerHTML =
         '<div class="profile-summary-identity"><span class="profile-avatar">' + NT.icon("circle-user", "icon-lg") + "</span><div>" +
-        "<small>Learning profile · this device</small><b>" + NT.esc(state.profile.name || "Learner") + "</b>" +
-        "<span>" + NT.esc(university ? university.name : "No university selected") +
-        (state.profile.semester ? " · " + NT.esc(NT.semesterLabel(state.profile.semester)) : "") + "</span></div></div>" +
+        "<small>Learner profile</small><b>" + NT.esc(user.displayName || "Learner") + "</b>" +
+        "<span>" + NT.esc(institution ? institution.name : "Choose an institution when you are ready") +
+        (profile.semester ? " · " + NT.esc(NT.semesterLabel(profile.semester)) : "") + "</span></div></div>" +
         '<div class="profile-summary-details">' +
-        "<span><small>Study level</small><b>" + NT.esc((NT.educationLevel(state.profile.educationLevel) || {}).label || "Not selected") + "</b></span>" +
+        "<span><small>What you are studying</small><b>" + NT.esc(typeLabel) + "</b></span>" +
         "<span><small>Access package</small><b>" + (access ? NT.esc(NT.packageDetails(access).name) + " · active" : "No active package") + "</b></span>" +
         "<span><small>Lessons watched</small><b>" + NT.progress.count() + "</b></span>" +
-        "<span><small>Lessons included</small><b>" + (access ? NT.availableFor(access) : 0) + "</b></span>" +
+        "<span><small>Account</small><b>" + NT.esc(user.email || "") + "</b></span>" +
         "</div>";
       var params = new URLSearchParams();
-      if (state.profile.universityId) params.set("university", state.profile.universityId);
-      if (state.profile.semester) params.set("semester", state.profile.semester);
-      if (state.profile.educationLevel && !state.profile.universityId) params.set("level", state.profile.educationLevel);
+      if (profile.institutionId) params.set("university", profile.institutionId);
+      if (profile.semester) params.set("semester", profile.semester);
       document.getElementById("profileBrowseCourses").href = NT.base() + "courses.html" + (params.toString() ? "?" + params.toString() : "");
     }
 
+    var initialUser = profileNow();
+    learnerField.value = initialUser.learnerType || "university";
+    nameField.value = initialUser.displayName || "";
+    semesterField.value = initialUser.profile && initialUser.profile.semester ? String(initialUser.profile.semester) : "0";
+
     NT.content.load().then(function () {
-      renderUniversityOptions();
+      var user = profileNow();
+      renderInstitutionOptions(user.profile && user.profile.institutionId);
       if (NT.store.isActive()) NT.progress.load().then(renderSummary, renderSummary);
       else renderSummary();
     }, renderSummary);
 
-    levelField.addEventListener("change", function () {
-      saved.universityId = "";
-      renderUniversityOptions();
+    learnerField.addEventListener("change", function () {
+      var oldType = profileNow().learnerType;
+      var newType = learnerField.value;
+      if (!newType || oldType === newType) return;
+      learnerField.disabled = true;
+      message.textContent = "Updating your learner catalogue…";
+      NT.auth.chooseType(newType).then(function () {
+        return NT.content.reload();
+      }).then(function () {
+        renderInstitutionOptions("");
+        semesterField.value = "0";
+        learnerField.disabled = false;
+        message.textContent = "Your learner type is updated. Your institution can be selected below.";
+        renderSummary();
+      }, function (error) {
+        learnerField.value = oldType || "university";
+        learnerField.disabled = false;
+        message.textContent = error.message || "Your learner profile could not be updated.";
+      });
     });
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
-      var profile = NT.store.setProfile({
-        name: nameField.value.trim().slice(0, 60),
-        educationLevel: levelField.value,
-        universityId: universityField.value,
+      var submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      message.textContent = "Saving your profile…";
+      NT.auth.updateProfile({
+        displayName: nameField.value.trim().slice(0, 60),
+        institutionId: institutionField.value,
         semester: parseInt(semesterField.value, 10) || 0
+      }).then(function () {
+        if (submit) submit.disabled = false;
+        message.innerHTML = NT.icon("check-circle", "icon-sm") + " Learner profile saved to your account.";
+        renderSummary();
+        NT.toast("Learner profile saved", "success");
+      }, function (error) {
+        if (submit) submit.disabled = false;
+        message.textContent = error.message || "Your profile could not be saved.";
       });
-      saved = profile;
-      message.innerHTML = NT.icon("check-circle", "icon-sm") + " Preferences saved on this device.";
-      renderSummary();
-      NT.toast("Learning preferences saved", "success");
     });
   }
 
@@ -1286,7 +1219,7 @@
             '<code class="preview-code">' + NT.esc(code) + "</code>" +
             '<div class="lesson-notice-actions"><button class="btn btn-secondary" type="button" id="copyPreviewCode">' +
             NT.icon("copy") + "Copy code</button>" +
-            '<a class="btn btn-primary" href="' + NT.base() + "access.html?code=" + encodeURIComponent(code) + '">Continue to log in</a></div>';
+            '<a class="btn btn-primary" href="' + NT.base() + "access.html?code=" + encodeURIComponent(code) + '">Redeem code</a></div>';
           button.textContent = "Code generated";
           document.getElementById("copyPreviewCode").addEventListener("click", function () { NT.copy(code); });
         }, function (error) {
@@ -1304,13 +1237,6 @@
     var message = document.getElementById("codeMsg");
     var result = document.getElementById("codeResult");
     if (!form) return;
-    var radios = Array.prototype.slice.call(form.querySelectorAll('input[name="educationLevel"]'));
-    var profile = NT.store.get().profile || {};
-    var queryLevel = NT.qs("level");
-    var selectedLevel = D.EDUCATION_LEVELS.some(function (item) { return item.id === queryLevel; })
-      ? queryLevel
-      : profile.educationLevel;
-    radios.forEach(function (radio) { radio.checked = radio.value === selectedLevel; });
     var codeFromLink = NT.qs("code");
     if (codeFromLink) input.value = codeFromLink.toUpperCase();
 
@@ -1320,48 +1246,34 @@
       if (!state.access) { host.classList.add("hidden"); return; }
       host.classList.remove("hidden");
       var meta = state.accessMeta || {};
+      var details = NT.packageDetails(state.access);
       document.getElementById("currentAccessBody").innerHTML =
         '<div class="kv">' +
-        '<div class="row"><span>Active package</span><b>' + NT.esc(NT.packageDetails(state.access).name) + "</b></div>" +
+        '<div class="row"><span>Active package</span><b>' + NT.esc(details ? details.name : "Active") + "</b></div>" +
         '<div class="row"><span>Access code</span><b class="mono">' + NT.esc(meta.code || "") + "</b></div>" +
         '<div class="row"><span>Expires</span><b>' + NT.esc(meta.expiresAt ? NT.fmtDate(meta.expiresAt) : "—") + "</b></div>" +
         "</div>" +
         '<div class="access-current-actions">' +
         '<a class="btn btn-primary btn-sm" href="' + NT.base() + 'dashboard.html">' + NT.icon("layout-dashboard") + "Go to dashboard</a>" +
-        '<button class="btn btn-ghost btn-sm" type="button" id="accessLogout">' + NT.icon("log-out") + "Log out of this device</button>" +
         "</div>";
-      var logout = document.getElementById("accessLogout");
-      if (logout) logout.addEventListener("click", function () {
-        NT.store.clearAccess();
-        NT.toast("Logged out of this device", "success");
-        location.reload();
-      });
     }
     renderCurrent();
 
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       var value = input.value.trim().toUpperCase();
-      var choice = radios.filter(function (radio) { return radio.checked; })[0];
       message.innerHTML = "";
       result.classList.add("hidden");
-
-      if (!choice) {
-        message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") +
-          "<div><b>Choose your level.</b><br>Select High School or University before continuing.</div></div>";
-        radios[0].focus();
-        return;
-      }
       if (!value) {
         message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") +
-          "<div><b>Enter your access code.</b><br>Use the code issued with your package.</div></div>";
+          "<div><b>Enter your access code.</b><br>Use the code issued with your access package.</div></div>";
         input.focus();
         return;
       }
 
       var submit = form.querySelector('button[type="submit"]');
       submit.disabled = true;
-      NT.api.redeem(value, choice.value).then(function (payload) {
+      NT.api.redeem(value).then(function (payload) {
         submit.disabled = false;
         var access = payload.access;
         NT.store.setAccess(access.package, {
@@ -1370,27 +1282,124 @@
           expiresAt: access.expiresAt,
           educationLevel: access.educationLevel
         });
-        NT.store.setProfile({ educationLevel: access.educationLevel });
-        var levelInfo = NT.educationLevel(access.educationLevel);
+        var packageInfo = NT.packageDetails(access.package);
         result.classList.remove("hidden");
         result.innerHTML = '<div class="unlock-result"><div class="big-ico">' + NT.icon("check-circle", "icon-xl") + "</div>" +
-          "<h2>You are in</h2>" +
-          '<p class="access-line">' + NT.esc(levelInfo ? levelInfo.label : "Your level") + " pathway · " +
-          NT.esc(NT.packageDetails(access.package).name) + " package · until " + NT.fmtDate(access.expiresAt) + "</p>" +
-          '<a class="btn btn-primary btn-lg" href="' + NT.base() + "courses.html?level=" + encodeURIComponent(access.educationLevel) +
-          "&semester=1\">" + NT.icon("play") + "Continue to your courses</a></div>";
+          "<h2>Access is ready</h2>" +
+          '<p class="access-line">' + NT.esc(packageInfo ? packageInfo.name : "Your") + " package · until " + NT.fmtDate(access.expiresAt) + "</p>" +
+          '<a class="btn btn-primary btn-lg" href="' + NT.base() + 'courses.html">' + NT.icon("play") + "Continue to your learning" + "</a></div>";
         form.classList.add("hidden");
-        document.querySelector(".access-packages-link").classList.add("hidden");
+        var packagesLink = document.querySelector(".access-packages-link");
+        if (packagesLink) packagesLink.classList.add("hidden");
         NT.toast("Access code redeemed", "success");
         renderCurrent();
       }, function (error) {
         submit.disabled = false;
         var text = error.status === 0
-          ? "The content service is unreachable. Start the Nuclear Tutorials server and try again."
+          ? "The learning service is unreachable. Please try again shortly."
           : error.message;
         message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div><b>That code could not be redeemed.</b><br>" +
           NT.esc(text) + "</div></div>";
         input.focus();
+      });
+    });
+  }
+
+  /* ============================ ACCOUNT AUTHENTICATION ============================ */
+  function authMessage(host, text) {
+    if (!host) return;
+    host.innerHTML = '<div class="alert alert-error" role="alert">' + NT.icon("circle-alert") +
+      "<div>" + NT.esc(text) + "</div></div>";
+  }
+
+  function safeNextPath() {
+    var next = NT.qs("next") || "dashboard.html";
+    var allowed = ["dashboard.html", "courses.html", "course.html", "lesson.html", "library.html", "search.html", "profile.html", "access.html", "checkout.html", "announcements.html"];
+    var path = next.split("?")[0].split("#")[0];
+    if (next.indexOf("://") !== -1 || next.indexOf("\\") !== -1 || next.indexOf("..") !== -1 || allowed.indexOf(path) === -1) {
+      return "dashboard.html";
+    }
+    return next;
+  }
+
+  function pageSignup() {
+    var form = document.getElementById("signupForm");
+    if (!form) return;
+    var message = document.getElementById("authMessage");
+    var password = document.getElementById("signupPassword");
+    var confirm = document.getElementById("signupConfirmPassword");
+    var accessCode = document.getElementById("signupAccessCode");
+    if (accessCode && NT.store.accessCode()) accessCode.value = NT.store.accessCode();
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (password.value !== confirm.value) {
+        authMessage(message, "Those passwords do not match.");
+        confirm.focus();
+        return;
+      }
+      var submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      if (message) message.innerHTML = "";
+      NT.auth.register({
+        displayName: (document.getElementById("signupName").value || "").trim(),
+        email: (document.getElementById("signupEmail").value || "").trim(),
+        password: password.value,
+        accessCode: accessCode ? accessCode.value.trim() : ""
+      }).then(function () {
+        location.href = NT.base() + "learner-type.html?next=" + encodeURIComponent(safeNextPath());
+      }, function (error) {
+        if (submit) submit.disabled = false;
+        authMessage(message, error.message || "Your account could not be created. Please try again.");
+      });
+    });
+  }
+
+  function pageLogin() {
+    var form = document.getElementById("loginForm");
+    if (!form) return;
+    var message = document.getElementById("authMessage");
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      if (message) message.innerHTML = "";
+      NT.auth.login({
+        email: (document.getElementById("loginEmail").value || "").trim(),
+        password: document.getElementById("loginPassword").value
+      }).then(function (payload) {
+        if (payload.user && payload.user.learnerType) {
+          location.href = NT.base() + safeNextPath();
+        } else {
+          location.href = NT.base() + "learner-type.html?next=" + encodeURIComponent(safeNextPath());
+        }
+      }, function (error) {
+        if (submit) submit.disabled = false;
+        authMessage(message, error.message || "You could not be logged in. Please try again.");
+      });
+    });
+  }
+
+  function pageOnboarding() {
+    var form = document.getElementById("learnerTypeForm");
+    if (!form) return;
+    var message = document.getElementById("learnerTypeMessage");
+    var choices = Array.prototype.slice.call(form.querySelectorAll('input[name="learnerType"]'));
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var selected = choices.filter(function (choice) { return choice.checked; })[0];
+      if (!selected) {
+        authMessage(message, "Choose the learner profile that best describes what you are studying.");
+        if (choices[0]) choices[0].focus();
+        return;
+      }
+      var submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      if (message) message.innerHTML = "";
+      NT.auth.chooseType(selected.value).then(function () {
+        location.href = NT.base() + safeNextPath();
+      }, function (error) {
+        if (submit) submit.disabled = false;
+        authMessage(message, error.message || "Your learner profile could not be saved.");
       });
     });
   }
@@ -1438,14 +1447,64 @@
     pricing: pagePricing,
     checkout: pageCheckout,
     access: pageAccess,
-    announcements: pageAnnouncements
+    announcements: pageAnnouncements,
+    signup: pageSignup,
+    login: pageLogin,
+    onboarding: pageOnboarding
   };
 
-  document.addEventListener("DOMContentLoaded", function () {
+  var AUTH_REQUIRED = ["courses", "course", "lesson", "library", "dashboard", "search", "profile", "checkout", "access", "announcements"];
+  var ACCOUNT_PAGES = ["login", "signup"];
+
+  function authDestination(user) {
+    return user && user.learnerType ? "dashboard.html" : "learner-type.html";
+  }
+
+  function currentPageTarget() {
+    var pathname = location.pathname || "/index.html";
+    return pathname.replace(/^\//, "") + (location.search || "");
+  }
+
+  function startRoute() {
+    var page = document.body.dataset.page || "home";
+    var user = NT.auth.user();
+    if (AUTH_REQUIRED.indexOf(page) !== -1 && !user) {
+      location.replace(NT.base() + "login.html?next=" + encodeURIComponent(currentPageTarget()));
+      return;
+    }
+    if (user && !user.learnerType && AUTH_REQUIRED.indexOf(page) !== -1 && page !== "onboarding") {
+      location.replace(NT.base() + "learner-type.html?next=" + encodeURIComponent(currentPageTarget()));
+      return;
+    }
+    if (page === "onboarding" && !user) {
+      location.replace(NT.base() + "login.html?next=" + encodeURIComponent(currentPageTarget()));
+      return;
+    }
+    if (ACCOUNT_PAGES.indexOf(page) !== -1 && user) {
+      location.replace(NT.base() + authDestination(user));
+      return;
+    }
+    if (page === "onboarding" && user && user.learnerType) {
+      location.replace(NT.base() + safeNextPath());
+      return;
+    }
     NT.renderHeader();
     NT.renderFooter();
-    var page = document.body.dataset.page;
     if (routes[page]) routes[page]();
     NT.initReveal();
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    NT.auth.load().then(startRoute, function () {
+      var page = document.body.dataset.page || "home";
+      if (AUTH_REQUIRED.indexOf(page) !== -1 || page === "onboarding") {
+        location.replace(NT.base() + "login.html?next=" + encodeURIComponent(currentPageTarget()));
+        return;
+      }
+      NT.renderHeader();
+      NT.renderFooter();
+      if (routes[page]) routes[page]();
+      NT.initReveal();
+    });
   });
 })();

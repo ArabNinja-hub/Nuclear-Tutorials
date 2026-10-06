@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Get Started — Nuclear Tutorials</title>
+<meta name="description" content="Create a Nuclear Tutorials account and organize your learning in one focused space.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/fonts.css">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="signup">
+<main id="main" tabindex="-1">
+  <section class="auth-page section-body">
+    <div class="container auth-page-layout">
+      <div class="auth-intro">
+        <span class="eyebrow">Get started</span>
+        <h1>Your learning,<br>organized.</h1>
+        <p class="lede">Create an account to keep your learning profile and progress together. You will choose your learner profile after account creation.</p>
+        <p class="auth-intro-note"><span aria-hidden="true">✦</span> Structured lessons for wherever you are in your academic journey.</p>
+      </div>
+      <section class="card auth-card" aria-labelledby="signupTitle">
+        <div class="auth-card-heading"><span class="eyebrow">Create an account</span><h2 id="signupTitle">Start learning with Nuclear Tutorials</h2><p>Use an email address you can access.</p></div>
+        <form id="signupForm" class="auth-form" novalidate>
+          <div class="field"><label for="signupName">Name <span class="muted">(optional)</span></label><input class="input" id="signupName" name="name" type="text" maxlength="60" autocomplete="name" placeholder="Your name"></div>
+          <div class="field"><label for="signupEmail">Email address</label><input class="input" id="signupEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+          <div class="field"><label for="signupAccessCode">Existing access code <span class="muted">(optional)</span></label><input class="input" id="signupAccessCode" name="accessCode" type="text" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Add a redeemed code to keep your access"><span class="field-hint">If you already have an active package, link its code to your account.</span></div>
+          <div class="field"><label for="signupPassword">Password</label><input class="input" id="signupPassword" name="password" type="password" minlength="10" maxlength="256" autocomplete="new-password" required aria-describedby="passwordHint"><span class="field-hint" id="passwordHint">Use at least 10 characters.</span></div>
+          <div class="field"><label for="signupConfirmPassword">Confirm password</label><input class="input" id="signupConfirmPassword" name="confirmPassword" type="password" minlength="10" maxlength="256" autocomplete="new-password" required></div>
+          <div id="authMessage" aria-live="polite"></div>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">Create account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <a href="login.html">Log in</a></p>
+      </section>
+    </div>
+  </section>
+</main>
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

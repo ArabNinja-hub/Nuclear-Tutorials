@@ -29,6 +29,7 @@ var LEVEL_LABEL = { basic: "Basic", standard: "Standard", premium: "Premium" };
 var EDUCATION_LEVELS = ["high-school", "university"];
 var PROVIDERS = ["youtube", "vimeo", "direct", "other"];
 var ADMIN_COOKIE = "nt_admin";
+var LEARNER_COOKIE = "nt_learner";
 /* The password shipped with earlier releases. It is never created by this
    version and is refused even if an old database still carries it. */
 var DEFAULT_FIRST_RUN_PASSWORD = "nuclear-admin";
@@ -188,8 +189,12 @@ var COURSE_SELECT = `
   FROM courses c
   JOIN universities u ON u.id = c.university_id`;
 
-function allUniversities() {
-  return db.db().prepare("SELECT * FROM universities ORDER BY position, name").all().map(function (row) {
+function allUniversities(filter) {
+  var learnerLevel = filter && filter.learnerLevel;
+  var rows = learnerLevel
+    ? db.db().prepare("SELECT * FROM universities WHERE level = ? ORDER BY position, name").all(learnerLevel)
+    : db.db().prepare("SELECT * FROM universities ORDER BY position, name").all();
+  return rows.map(function (row) {
     var counts = db.db().prepare(`
       SELECT (SELECT COUNT(*) FROM courses WHERE university_id = ?) AS courses,
              (SELECT COUNT(*) FROM videos WHERE published = 1 AND course_id IN (SELECT id FROM courses WHERE university_id = ?)) AS videos`)
@@ -203,6 +208,7 @@ function allCourses(filter) {
   var params = [];
   if (filter && filter.universityId) { where.push("c.university_id = ?"); params.push(filter.universityId); }
   if (filter && filter.semester) { where.push("c.semester = ?"); params.push(filter.semester); }
+  if (filter && filter.learnerLevel) { where.push("u.level = ?"); params.push(filter.learnerLevel); }
   var sql = COURSE_SELECT + (where.length ? " WHERE " + where.join(" AND ") : "") +
     " ORDER BY u.position, c.semester, c.position, c.title";
   return db.db().prepare(sql).all(...params).map(function (row) {
@@ -220,6 +226,7 @@ function allVideos(filter) {
   if (filter && filter.universityId) { where.push("u.id = ?"); params.push(filter.universityId); }
   if (filter && filter.semester) { where.push("c.semester = ?"); params.push(filter.semester); }
   if (filter && filter.courseId) { where.push("v.course_id = ?"); params.push(filter.courseId); }
+  if (filter && filter.learnerLevel) { where.push("u.level = ?"); params.push(filter.learnerLevel); }
   if (filter && filter.publishedOnly) where.push("v.published = 1");
   if (filter && filter.unpublishedOnly) where.push("v.published = 0");
   if (filter && filter.q) {
@@ -254,10 +261,11 @@ function publishedAnnouncements() {
     });
 }
 
-function catalogue() {
-  var universities = allUniversities();
-  var courses = allCourses();
-  var videos = allVideos({ publishedOnly: true });
+function catalogue(learnerLevel) {
+  var scope = learnerLevel ? { learnerLevel: learnerLevel } : null;
+  var universities = allUniversities(scope || undefined);
+  var courses = allCourses(scope || undefined);
+  var videos = allVideos(Object.assign({ publishedOnly: true }, scope || {}));
   var byLevel = { basic: 0, standard: 0, premium: 0 };
   videos.forEach(function (item) { byLevel[item.level] = (byLevel[item.level] || 0) + 1; });
   return {
@@ -285,11 +293,21 @@ function validCode(code) {
   return row || null;
 }
 
-function progressFor(code) {
-  return db.db().prepare("SELECT * FROM progress WHERE code = ? ORDER BY updated_at DESC").all(String(code || ""))
-    .map(function (row) {
-      return { videoId: row.video_id, completed: row.completed === 1, seconds: round(row.seconds), updatedAt: row.updated_at };
-    });
+function progressFor(code, learnerLevel) {
+  var sql = `SELECT p.* FROM progress p
+             JOIN videos v ON v.id = p.video_id
+             JOIN courses c ON c.id = v.course_id
+             JOIN universities u ON u.id = c.university_id
+             WHERE p.code = ?`;
+  var params = [String(code || "")];
+  if (learnerLevel) {
+    sql += " AND u.level = ?";
+    params.push(learnerLevel);
+  }
+  sql += " ORDER BY p.updated_at DESC";
+  return db.db().prepare(sql).all(...params).map(function (row) {
+    return { videoId: row.video_id, completed: row.completed === 1, seconds: round(row.seconds), updatedAt: row.updated_at };
+  });
 }
 
 /* ------------------------------------------------------------
@@ -352,6 +370,41 @@ function adminSession(req) {
   return db.readSession(cookies[ADMIN_COOKIE]);
 }
 
+function learnerSession(req) {
+  var cookies = parseCookies(req.headers.cookie);
+  return db.readLearnerSession(cookies[LEARNER_COOKIE]);
+}
+
+function currentLearner(req) {
+  var session = learnerSession(req);
+  return session ? db.learnerAccountById(session.account_id) : null;
+}
+
+function learnerPayload(account) {
+  if (!account) return null;
+  return {
+    id: account.id,
+    email: account.email,
+    displayName: account.display_name || "",
+    learnerType: account.learner_type || null,
+    profile: {
+      institutionId: account.institution_id || "",
+      semester: Number(account.semester) === 1 || Number(account.semester) === 2 ? Number(account.semester) : 0
+    },
+    createdAt: account.created_at
+  };
+}
+
+function catalogueLevel(account) {
+  if (!account || !account.learner_type) return "";
+  return account.learner_type === "high_school" ? "high-school" : "university";
+}
+
+function visibleToLearner(item, account) {
+  var level = catalogueLevel(account);
+  return !level || !!item && item.universityLevel === level || !!item && item.level === level;
+}
+
 /* ------------------------------------------------------------
    Cookies and proxy awareness
 
@@ -376,8 +429,8 @@ function secureCookie(req) {
   return !!(req.socket && req.socket.encrypted);
 }
 
-function sessionCookie(req, token, maxAgeSeconds) {
-  return ADMIN_COOKIE + "=" + (token || "") + "; Path=/; HttpOnly; SameSite=Lax" +
+function sessionCookie(req, token, maxAgeSeconds, name) {
+  return (name || ADMIN_COOKIE) + "=" + (token || "") + "; Path=/; HttpOnly; SameSite=Lax" +
     (secureCookie(req) ? "; Secure" : "") + "; Max-Age=" + maxAgeSeconds;
 }
 
@@ -454,7 +507,29 @@ function accessFor(row) {
 /* Resolve the access grant behind a request: a valid code that has been
    redeemed and has not expired. Anything else is a visitor. */
 function requestAccess(req, body) {
-  return accessFor(codeRow(studentCode(req, body)));
+  var suppliedCode = studentCode(req, body);
+  if (suppliedCode) return accessFor(codeRow(suppliedCode));
+  var account = currentLearner(req);
+  return account ? learnerAccess(account) : null;
+}
+
+function learnerAccess(account) {
+  if (!account) return null;
+  var rows = db.learnerCodes(account.id);
+  for (var index = 0; index < rows.length; index++) {
+    var access = accessFor(rows[index]);
+    if (access && access.active) return access;
+  }
+  return rows.length ? accessFor(rows[0]) : null;
+}
+
+function readScope(req, res) {
+  var account = currentLearner(req);
+  if (account && !account.learner_type) {
+    fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
+    return null;
+  }
+  return { account: account, learnerLevel: catalogueLevel(account) };
 }
 
 function tierOf(level) { return LEVEL_RANK[level] || 0; }
@@ -618,38 +693,153 @@ function route(method, pattern, handler, options) {
   routes.push({ method: method, regex: regex, keys: keys, handler: handler, admin: !!(options && options.admin) });
 }
 
+/* Learner accounts are independent of access packages. Their learner type
+   lives on the account and determines which catalogue is returned. */
+route("POST", "/api/auth/register", async function (req, res) {
+  var body = await readBody(req);
+  if (!body) return fail(res, 400, "Could not read the request.");
+  var email = text(body.email, 254).toLowerCase();
+  var password = String(body.password || "");
+  var displayName = text(body.displayName || body.name, 60);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(res, 400, "Enter a valid email address.", { field: "email" });
+  if (password.length < 10 || password.length > 256) {
+    return fail(res, 400, "Use a password between 10 and 256 characters.", { field: "password" });
+  }
+  if (db.learnerAccountByEmail(email)) return fail(res, 409, "An account already exists for that email. Log in instead.", { field: "email" });
+  var account;
+  try {
+    account = db.createLearnerAccount(email, password, displayName);
+  } catch (error) {
+    if (String(error && error.message).toLowerCase().indexOf("constraint") !== -1) {
+      return fail(res, 409, "An account already exists for that email. Log in instead.", { field: "email" });
+    }
+    throw error;
+  }
+  /* Existing access-code learners can attach an already-redeemed code while
+     creating their new account. It remains a bearer credential, but now
+     follows the learner between devices; it does not choose a learner type. */
+  var existingCode = text(body.accessCode, 40).toUpperCase();
+  if (existingCode) db.linkExistingRedeemedCode(existingCode, account.id);
+  var session = db.createLearnerSession(account.id);
+  res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400, LEARNER_COOKIE));
+  ok(res, { authenticated: true, user: learnerPayload(account), access: publicAccess(learnerAccess(account)) }, 201);
+});
+
+route("POST", "/api/auth/login", async function (req, res) {
+  var body = await readBody(req);
+  if (!body) return fail(res, 400, "Could not read the request.");
+  var email = text(body.email, 254).toLowerCase();
+  var password = String(body.password || "");
+  if (!email || !password) return fail(res, 400, "Enter your email and password.");
+  var account = db.verifyLearnerPassword(email, password);
+  if (!account) return fail(res, 401, "Email or password is incorrect.");
+  var session = db.createLearnerSession(account.id);
+  res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400, LEARNER_COOKIE));
+  ok(res, { authenticated: true, user: learnerPayload(account), access: publicAccess(learnerAccess(account)) });
+});
+
+route("POST", "/api/auth/logout", async function (req, res) {
+  var cookies = parseCookies(req.headers.cookie);
+  db.destroyLearnerSession(cookies[LEARNER_COOKIE]);
+  res.setHeader("Set-Cookie", sessionCookie(req, "", 0, LEARNER_COOKIE));
+  ok(res, { authenticated: false, user: null });
+});
+
+route("GET", "/api/auth/me", function (req, res) {
+  var account = currentLearner(req);
+  ok(res, {
+    authenticated: !!account,
+    user: learnerPayload(account),
+    access: publicAccess(learnerAccess(account))
+  });
+});
+
+route("POST", "/api/auth/learner-type", async function (req, res) {
+  var account = currentLearner(req);
+  if (!account) return fail(res, 401, "Log in to set up your learner profile.");
+  var body = await readBody(req);
+  if (!body) return fail(res, 400, "Could not read the request.");
+  var learnerType = text(body.learnerType, 20);
+  if (["university", "high_school"].indexOf(learnerType) === -1) {
+    return fail(res, 400, "Choose University or High School.", { field: "learnerType" });
+  }
+  account = db.setLearnerType(account.id, learnerType);
+  ok(res, { user: learnerPayload(account) });
+});
+
+route("PATCH", "/api/auth/profile", async function (req, res) {
+  var account = currentLearner(req);
+  if (!account) return fail(res, 401, "Log in to update your learner profile.");
+  if (!account.learner_type) return fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
+  var body = await readBody(req);
+  if (!body) return fail(res, 400, "Could not read the request.");
+  var profile = {};
+  if (body.displayName != null) profile.displayName = text(body.displayName, 60);
+  if (body.institutionId != null) {
+    var institutionId = text(body.institutionId, 60);
+    if (institutionId) {
+      var institution = universityById(institutionId);
+      if (!institution || institution.level !== catalogueLevel(account)) {
+        return fail(res, 400, "Choose an institution from your learner catalogue.", { field: "institutionId" });
+      }
+    }
+    profile.institutionId = institutionId;
+  }
+  if (body.semester != null) {
+    var semester = int(body.semester, -1);
+    if ([0, 1, 2].indexOf(semester) === -1) return fail(res, 400, "Choose a valid term or semester.", { field: "semester" });
+    profile.semester = semester;
+  }
+  account = db.updateLearnerProfile(account.id, profile);
+  ok(res, { user: learnerPayload(account) });
+});
+
 route("GET", "/api/health", function (req, res) {
   ok(res, { service: "nuclear-tutorials", database: db.DB_FILE, time: new Date().toISOString() });
 });
 
 route("GET", "/api/catalogue", function (req, res) {
+  var scope = readScope(req, res);
+  if (!scope) return;
   var access = requestAccess(req, null);
   ok(res, {
-    catalogue: protectCatalogue(catalogue(), access),
+    catalogue: protectCatalogue(catalogue(scope.learnerLevel), access),
     settings: publicSettings(),
-    access: publicAccess(access)
+    access: publicAccess(access),
+    learnerType: scope.account ? scope.account.learner_type : null
   });
 });
 
 route("GET", "/api/universities", function (req, res) {
-  ok(res, { universities: allUniversities() });
+  var scope = readScope(req, res);
+  if (!scope) return;
+  ok(res, { universities: allUniversities(scope.learnerLevel ? { learnerLevel: scope.learnerLevel } : undefined) });
 });
 
 route("GET", "/api/courses", function (req, res, params, ctx) {
+  var scope = readScope(req, res);
+  if (!scope) return;
   ok(res, {
-    courses: allCourses({ universityId: ctx.query.get("university") || "", semester: int(ctx.query.get("semester"), 0) || 0 })
+    courses: allCourses({
+      universityId: ctx.query.get("university") || "",
+      semester: int(ctx.query.get("semester"), 0) || 0,
+      learnerLevel: scope.learnerLevel
+    })
   });
 });
 
 route("GET", "/api/videos", function (req, res, params, ctx) {
   /* Draft lessons are for administrators only; a student asking for
      status=all still receives published lessons. */
+  var scope = readScope(req, res);
+  if (!scope) return;
   var admin = !!ctxAdmin(req);
   var filter = {
     universityId: ctx.query.get("university") || "",
     semester: int(ctx.query.get("semester"), 0) || 0,
     courseId: ctx.query.get("course") || "",
     q: text(ctx.query.get("q"), 80),
+    learnerLevel: scope.learnerLevel,
     publishedOnly: !(admin && ctx.query.get("status") === "all")
   };
   var access = admin ? FULL_ACCESS : requestAccess(req, null);
@@ -657,10 +847,14 @@ route("GET", "/api/videos", function (req, res, params, ctx) {
 });
 
 route("GET", "/api/videos/:id", function (req, res, params) {
+  var scope = readScope(req, res);
+  if (!scope) return;
   var admin = !!ctxAdmin(req);
   var access = admin ? FULL_ACCESS : requestAccess(req, null);
   var found = videoById(params.id);
-  if (!found || (!found.published && !admin)) return fail(res, 404, "That video lesson could not be found.");
+  if (!found || (!found.published && !admin) || !visibleToLearner(found, scope.account)) {
+    return fail(res, 404, "That video lesson could not be found.");
+  }
   /* Requesting a protected lesson directly does not return its source URL. */
   if (!admin && !canWatch(found, access)) {
     return fail(res, 403, "This lesson is included with the " + (LEVEL_LABEL[found.level] || found.level) +
@@ -685,16 +879,18 @@ route("GET", "/api/videos/:id", function (req, res, params) {
 function ctxAdmin(req) { return !!adminSession(req); }
 
 route("GET", "/api/search", function (req, res, params, ctx) {
+  var scope = readScope(req, res);
+  if (!scope) return;
   var access = requestAccess(req, null);
   var query = text(ctx.query.get("q"), 80).toLowerCase();
   if (!query) return ok(res, { query: "", universities: [], courses: [], videos: [], announcements: [] });
-  var universities = allUniversities().filter(function (item) {
+  var universities = allUniversities(scope.learnerLevel ? { learnerLevel: scope.learnerLevel } : undefined).filter(function (item) {
     return (item.name + " " + item.shortName + " " + item.city + " " + item.summary).toLowerCase().indexOf(query) !== -1;
   });
-  var courses = allCourses().filter(function (item) {
+  var courses = allCourses(scope.learnerLevel ? { learnerLevel: scope.learnerLevel } : undefined).filter(function (item) {
     return (item.title + " " + item.code + " " + item.description + " " + item.universityName).toLowerCase().indexOf(query) !== -1;
   });
-  var videos = allVideos({ publishedOnly: true, q: query });
+  var videos = allVideos({ publishedOnly: true, q: query, learnerLevel: scope.learnerLevel });
   var announcements = publishedAnnouncements().filter(function (item) {
     return (item.title + " " + item.body).toLowerCase().indexOf(query) !== -1;
   });
@@ -739,9 +935,11 @@ route("POST", "/api/access/redeem", async function (req, res) {
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
   var code = text(body.code, 40).toUpperCase();
-  var educationLevel = text(body.educationLevel, 20);
+  var account = currentLearner(req);
+  var educationLevel = account ? catalogueLevel(account) : text(body.educationLevel, 20);
+  if (account && !educationLevel) return fail(res, 409, "Choose what you are studying before redeeming a package.", { learnerTypeRequired: true });
   if (EDUCATION_LEVELS.indexOf(educationLevel) === -1) {
-    return fail(res, 400, "Choose High School or University before continuing.", { field: "educationLevel" });
+    return fail(res, 400, "Choose a learner profile before continuing.", { field: "educationLevel" });
   }
   if (!code) return fail(res, 400, "Enter your access code.", { field: "code" });
   var record = validCode(code);
@@ -752,7 +950,11 @@ route("POST", "/api/access/redeem", async function (req, res) {
     return fail(res, 409, "This code has already been used. Each code can be redeemed once.", { field: "code" });
   }
   var redeemedAt = db.now();
-  db.db().prepare("UPDATE codes SET status = 'redeemed', redeemed_at = ? WHERE code = ?").run(redeemedAt, code);
+  var result = db.db().prepare(`
+    UPDATE codes SET status = 'redeemed', redeemed_at = ?, account_id = ?
+    WHERE code = ? AND status = 'unused'`)
+    .run(redeemedAt, account ? account.id : null, code);
+  if (!result.changes) return fail(res, 409, "This code has already been used. Each code can be redeemed once.", { field: "code" });
   var settings = db.getSettings();
   var expires = new Date(new Date(redeemedAt).getTime() + settings.accessDays * 86400000).toISOString();
   ok(res, {
@@ -760,6 +962,7 @@ route("POST", "/api/access/redeem", async function (req, res) {
       code: code,
       package: record.package,
       educationLevel: educationLevel,
+      learnerType: account ? account.learner_type : (educationLevel === "high-school" ? "high_school" : "university"),
       since: redeemedAt,
       expiresAt: expires,
       accessDays: settings.accessDays
@@ -768,38 +971,55 @@ route("POST", "/api/access/redeem", async function (req, res) {
 });
 
 route("GET", "/api/progress", function (req, res, params, ctx) {
+  var account = currentLearner(req);
+  if (account && !account.learner_type) return fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
   var access = requestAccess(req, { code: ctx.query.get("code") });
   if (!access || !access.active) return fail(res, 401, "An active access code is required to load progress.");
-  ok(res, { progress: progressFor(access.code), access: publicAccess(access) });
+  ok(res, { progress: progressFor(access.code, catalogueLevel(account)), access: publicAccess(access) });
 });
 
 route("POST", "/api/progress", async function (req, res) {
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
+  var account = currentLearner(req);
+  if (account && !account.learner_type) return fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
   var access = requestAccess(req, body);
   if (!access || !access.active) return fail(res, 401, "An active access code is required to save progress.");
   var code = access.code;
   var found = videoById(text(body.videoId, 80));
-  if (!found) return fail(res, 404, "That video lesson could not be found.");
+  if (!found || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
   var seconds = body.seconds == null ? null : int(body.seconds, 0);
   db.db().prepare(`
     INSERT INTO progress (code, video_id, completed, seconds, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(code, video_id) DO UPDATE SET completed = excluded.completed, seconds = excluded.seconds, updated_at = excluded.updated_at`)
     .run(code, found.id, body.completed === false ? 0 : 1, seconds, db.now());
-  ok(res, { progress: progressFor(code) });
+  ok(res, { progress: progressFor(code, catalogueLevel(account)) });
 });
 
 route("DELETE", "/api/progress", async function (req, res) {
   var body = await readBody(req);
+  var account = currentLearner(req);
+  if (account && !account.learner_type) return fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
   var access = requestAccess(req, body || {});
   if (!access || !access.active) return fail(res, 401, "An active access code is required.");
   var code = access.code;
   if (body && body.videoId) {
-    db.db().prepare("DELETE FROM progress WHERE code = ? AND video_id = ?").run(code, text(body.videoId, 80));
+    var videoId = text(body.videoId, 80);
+    var found = videoById(videoId);
+    if (!found || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
+    db.db().prepare("DELETE FROM progress WHERE code = ? AND video_id = ?").run(code, videoId);
+  } else if (account) {
+    db.db().prepare(`DELETE FROM progress
+      WHERE code = ? AND video_id IN (
+        SELECT v.id FROM videos v
+        JOIN courses c ON c.id = v.course_id
+        JOIN universities u ON u.id = c.university_id
+        WHERE u.level = ?)`)
+      .run(code, catalogueLevel(account));
   } else {
     db.db().prepare("DELETE FROM progress WHERE code = ?").run(code);
   }
-  ok(res, { progress: progressFor(code) });
+  ok(res, { progress: progressFor(code, catalogueLevel(account)) });
 });
 
 /* ------------------------------------------------------------

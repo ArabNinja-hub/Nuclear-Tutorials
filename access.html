@@ -3,62 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Login with an Access Code — Nuclear Tutorials</title>
-<meta name="description" content="Choose High School or University, then enter your Nuclear Tutorials access code.">
+<title>Redeem an Access Code — Nuclear Tutorials</title>
+<meta name="description" content="Redeem a Nuclear Tutorials access code to unlock the lessons included in your package.">
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="stylesheet" href="assets/css/fonts.css">
 <link rel="stylesheet" href="assets/css/main.css">
 </head>
 <body data-page="access">
-
 <main id="main" tabindex="-1">
   <section class="page-head">
     <div class="container">
-      <div class="crumbs"><a href="index.html">Home</a> <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg> Login</div>
-      <h1>Log in with your access code</h1>
-      <p class="lede">Choose your education level, then enter your access code to continue.</p>
+      <div class="crumbs"><a href="dashboard.html">Dashboard</a> <span aria-hidden="true">›</span> Access
+      </div>
+      <span class="eyebrow">Access packages</span>
+      <h1>Redeem an access code</h1>
+      <p class="lede">Enter the code issued with your package. Your learner profile is already saved to your account.</p>
     </div>
   </section>
-
   <section class="section-body">
     <div class="container access-container">
       <div class="panel access-panel">
-        <div id="currentAccess" class="access-current hidden" role="status">
-          <div id="currentAccessBody"></div>
-        </div>
-
+        <div id="currentAccess" class="access-current hidden" role="status"><div id="currentAccessBody"></div></div>
         <form id="codeForm" novalidate>
-          <fieldset class="level-choice-fieldset" aria-describedby="levelHelp">
-            <legend>Choose your level</legend>
-            <p class="field-hint" id="levelHelp">This sets your course view. You can change it later in your learning profile.</p>
-            <div class="level-choice-grid">
-              <label class="level-choice">
-                <input type="radio" name="educationLevel" value="high-school" required>
-                <span class="level-choice-card"><span class="level-choice-radio" aria-hidden="true"></span><span>High School</span></span>
-              </label>
-              <label class="level-choice">
-                <input type="radio" name="educationLevel" value="university" required>
-                <span class="level-choice-card"><span class="level-choice-radio" aria-hidden="true"></span><span>University</span></span>
-              </label>
-            </div>
-          </fieldset>
-
           <div class="field access-code-field">
             <label for="codeInput">Access code</label>
             <input class="input" id="codeInput" name="accessCode" type="text" inputmode="text" enterkeyhint="go" placeholder="Enter your access code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" aria-describedby="codeHelp" required>
-            <span class="field-hint" id="codeHelp">Enter the code issued with your access package.</span>
+            <span class="field-hint" id="codeHelp">Each access code can be redeemed once.</span>
           </div>
           <div id="codeMsg" class="access-message" role="alert" aria-live="polite"></div>
-          <button class="btn btn-primary btn-lg btn-block" type="submit">Continue</button>
+          <button class="btn btn-primary btn-lg btn-block" type="submit">Redeem code</button>
         </form>
-
         <div id="codeResult" class="hidden" role="status" aria-live="polite"></div>
-        <p class="access-packages-link">Need a code? <a href="pricing.html">View access packages</a>.</p>
+        <p class="access-packages-link">Need a package? <a href="pricing.html">Compare Access Packages</a>.</p>
       </div>
     </div>
   </section>
 </main>
-
 <script src="assets/js/icons.js"></script>
 <script src="assets/js/data.js"></script>
 <script src="assets/js/store.js"></script>

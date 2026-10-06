@@ -75,8 +75,8 @@
 
     /* Student flow -------------------------------------------------- */
     issueCode: function (pkg) { return request("/api/codes/issue", { method: "POST", body: { package: pkg }, withCode: false }); },
-    redeem: function (code, educationLevel) {
-      return request("/api/access/redeem", { method: "POST", body: { code: code, educationLevel: educationLevel }, withCode: false });
+    redeem: function (code) {
+      return request("/api/access/redeem", { method: "POST", body: { code: code }, withCode: false });
     },
     progress: function () { return request("/api/progress"); },
     saveProgress: function (videoId, extra) {
@@ -131,6 +131,110 @@
     }
   };
 
+  /* Learner authentication is server-backed. The browser only keeps the
+     current public profile in memory/local preferences; session credentials
+     stay in an HttpOnly cookie managed by the API. */
+  var AUTH = { status: "idle", user: null, promise: null, error: null };
+
+  function learnerEducationLevel(type) {
+    return type === "high_school" ? "high-school" : (type === "university" ? "university" : "");
+  }
+
+  function applyAuth(payload) {
+    var previousUser = AUTH.user;
+    AUTH.status = "ready";
+    AUTH.error = null;
+    AUTH.user = payload && payload.authenticated ? payload.user || null : null;
+    if (AUTH.user) {
+      if (previousUser && previousUser.id === AUTH.user.id && previousUser.learnerType !== AUTH.user.learnerType && NT.progress) {
+        NT.progress.reset();
+      }
+      var profile = AUTH.user.profile || {};
+      var stored = NT.store.get().profile || {};
+      if (stored.accountId && stored.accountId !== AUTH.user.id) NT.store.clearAccess();
+      NT.store.setProfile({
+        accountId: AUTH.user.id,
+        name: AUTH.user.displayName || "",
+        learnerType: AUTH.user.learnerType || "",
+        educationLevel: learnerEducationLevel(AUTH.user.learnerType),
+        institutionId: profile.institutionId || "",
+        universityId: profile.institutionId || "",
+        semester: profile.semester || 0
+      });
+      var access = payload.access || null;
+      if (access && access.active && access.code) {
+        NT.store.setAccess(access.package, {
+          code: access.code,
+          since: access.since,
+          expiresAt: access.expiresAt,
+          educationLevel: learnerEducationLevel(AUTH.user.learnerType)
+        });
+      }
+    }
+    return AUTH.user;
+  }
+
+  NT.auth = {
+    user: function () { return AUTH.user; },
+    isAuthenticated: function () { return !!AUTH.user; },
+    isReady: function () { return AUTH.status === "ready"; },
+    set: function (payload) {
+      AUTH.promise = null;
+      return applyAuth(payload || { authenticated: false });
+    },
+    load: function (force) {
+      if (AUTH.promise && !force) return AUTH.promise;
+      if (AUTH.status === "ready" && !force) return Promise.resolve(AUTH.user);
+      AUTH.status = "loading";
+      AUTH.promise = request("/api/auth/me", { withCode: false }).then(function (payload) {
+        return applyAuth(payload);
+      }, function (error) {
+        AUTH.status = "error";
+        AUTH.error = error;
+        AUTH.user = null;
+        AUTH.promise = null;
+        throw error;
+      });
+      return AUTH.promise;
+    },
+    register: function (body) {
+      return request("/api/auth/register", { method: "POST", body: body || {}, withCode: false }).then(function (payload) {
+        applyAuth(payload);
+        return payload;
+      });
+    },
+    login: function (body) {
+      return request("/api/auth/login", { method: "POST", body: body || {}, withCode: false }).then(function (payload) {
+        applyAuth(payload);
+        return payload;
+      });
+    },
+    chooseType: function (learnerType) {
+      return request("/api/auth/learner-type", { method: "POST", body: { learnerType: learnerType }, withCode: false }).then(function (payload) {
+        var current = AUTH.user || {};
+        applyAuth({ authenticated: true, user: payload.user || current, access: null });
+        return payload.user || current;
+      });
+    },
+    updateProfile: function (body) {
+      return request("/api/auth/profile", { method: "PATCH", body: body || {}, withCode: false }).then(function (payload) {
+        var current = AUTH.user || {};
+        applyAuth({ authenticated: true, user: payload.user || current, access: null });
+        return payload.user || current;
+      });
+    },
+    logout: function () {
+      return request("/api/auth/logout", { method: "POST", withCode: false }).then(function (payload) {
+        AUTH.status = "ready";
+        AUTH.user = null;
+        AUTH.promise = null;
+        NT.store.clearAccess();
+        NT.store.setProfile({ accountId: "", name: "", learnerType: "", educationLevel: "", institutionId: "", universityId: "", semester: 0 });
+        return payload;
+      });
+    }
+  };
+
   /* ------------------------------------------------------------
      Catalogue store — one request per page view, shared by every
      renderer on that page.
@@ -150,6 +254,12 @@
     if (CATALOGUE.access && payload.access && payload.access.active === false && NT.store.get().access) {
       NT.store.mutate(function (state) { state.access = null; state.accessMeta = null; });
       NT.progress && NT.progress.reset();
+    } else if (payload.access && payload.access.active && payload.access.code && !NT.store.get().access) {
+      NT.store.setAccess(payload.access.package, {
+        code: payload.access.code,
+        since: payload.access.since,
+        expiresAt: payload.access.expiresAt
+      });
     }
     return CATALOGUE.data;
   }
