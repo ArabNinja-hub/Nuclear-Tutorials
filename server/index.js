@@ -45,7 +45,7 @@ var seed = require("./seed");
 var platform = require("./platform");
 
 var ROOT = path.resolve(__dirname, "..");
-var PORT = parseInt(process.env.PORT, 10) || 8080;
+var PORT = process.env.PORT || 8080;
 var DEFAULT_HOST = "0.0.0.0";
 var HOST = process.env.HOST || DEFAULT_HOST;
 
@@ -274,13 +274,26 @@ function start() {
   }
 
   server.listen(PORT, HOST, function () {
-    console.log("Nuclear Tutorials running at http://localhost:" + PORT);
+    var deployed = platform.isDeployed() || IS_PRODUCTION;
     console.log("[http] Listening on " + HOST + ":" + PORT +
       (process.env.PORT ? " (PORT from the platform)" : " (default port)") +
       " · " + (IS_PRODUCTION ? "NODE_ENV=production" : "development mode"));
-    console.log("Database: " + db.DB_FILE +
-      (db.PERSISTENT_STORAGE_CONFIGURED ? " (persistent)" : " (local development folder)"));
-    console.log("Admin: http://localhost:" + PORT + "/admin/login.html");
+    if (deployed) {
+      console.log("Nuclear Tutorials running on " + HOST + ":" + PORT);
+      console.log("Database: " + db.DB_FILE +
+        (db.PERSISTENT_STORAGE_CONFIGURED ? " (persistent)" : " (local development folder)"));
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        console.log("Admin: https://" + process.env.RAILWAY_PUBLIC_DOMAIN + "/admin/login.html");
+      } else {
+        console.log("Admin: http://" + HOST + ":" + PORT + "/admin/login.html");
+      }
+    } else {
+      var displayHost = platform.isLoopback(HOST) ? "localhost" : HOST;
+      console.log("Nuclear Tutorials running at http://" + displayHost + ":" + PORT);
+      console.log("Database: " + db.DB_FILE +
+        (db.PERSISTENT_STORAGE_CONFIGURED ? " (persistent)" : " (local development folder)"));
+      console.log("Admin: http://" + displayHost + ":" + PORT + "/admin/login.html");
+    }
   });
 
   /* A port that is already taken must fail loudly: the platform then shows

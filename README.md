@@ -96,7 +96,7 @@ migrations, and the catalogue is left exactly as the administrator left it.
 ### Railway
 
 `railway.json` pins the production contract: build with Nixpacks, start with
-`npm start`, health-check `GET /api/health`, restart on failure, one replica
+`npm start`, health-check `GET /`, restart on failure, one replica
 (one replica keeps the SQLite file to a single writer). `.nvmrc` pins Node 22,
 which the server needs for `node:sqlite`.
 

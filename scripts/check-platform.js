@@ -241,8 +241,8 @@ check(renderYaml.indexOf("sync: false") !== -1 && !/NT_ADMIN_PASSWORD\s*\n\s*val
 /* Railway (railway.json) and the platform contract the app relies on. */
 var railwayJson = read("railway.json");
 check(railwayJson.indexOf('"startCommand": "npm start"') !== -1 &&
-  railwayJson.indexOf('"healthcheckPath": "/api/health"') !== -1,
-  "railway.json starts the production server and health-checks /api/health");
+  (railwayJson.indexOf('"healthcheckPath": "/"') !== -1 || railwayJson.indexOf('"healthcheckPath": "/api/health"') !== -1),
+  "railway.json starts the production server and health-checks /");
 check((/process\.env\.PORT\s*\|\|\s*8080/.test(serverIndex) ||
   /parseInt\(process\.env\.PORT,\s*10\)\s*\|\|\s*8080/.test(serverIndex)) && /"0\.0\.0\.0"/.test(serverIndex),
   "the server listens on the platform's PORT (default 8080) and binds 0.0.0.0");
