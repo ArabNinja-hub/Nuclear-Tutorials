@@ -13,14 +13,14 @@
      6. progress cannot be written with an unused, expired or unknown code
 
    Usage:  node scripts/check-access.js
-           BASE=http://127.0.0.1:8123 node scripts/check-access.js
+           BASE=http://127.0.0.1:8080 node scripts/check-access.js   (or any other running server)
    ============================================================ */
 "use strict";
 
 var http = require("http");
 var https = require("https");
 
-var BASE = (process.env.BASE || "http://127.0.0.1:" + (process.env.PORT || 8000)).replace(/\/$/, "");
+var BASE = (process.env.BASE || "http://127.0.0.1:" + (process.env.PORT || 8080)).replace(/\/$/, "");
 var passed = 0;
 var failed = 0;
 

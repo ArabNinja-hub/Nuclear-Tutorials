@@ -87,6 +87,10 @@ function startServer(port, extraEnv) {
   }, extraEnv || {});
   delete env.NT_DB_FILE;
   if (!extraEnv || extraEnv.NT_ADMIN_PASSWORD === undefined) delete env.NT_ADMIN_PASSWORD;
+  /* Platform variables inherited from the shell must never move the database
+     of a check run; a test that wants one sets it explicitly. */
+  if (!extraEnv || extraEnv.RAILWAY_VOLUME_MOUNT_PATH === undefined) delete env.RAILWAY_VOLUME_MOUNT_PATH;
+  if (!extraEnv || extraEnv.RAILWAY_ENVIRONMENT_NAME === undefined) delete env.RAILWAY_ENVIRONMENT_NAME;
   var child = childProcess.spawn(process.execPath, [path.join(ROOT, "server/index.js")], { env: env, cwd: ROOT });
   var output = "";
   var ready = new Promise(function (resolve, reject) {
@@ -344,7 +348,8 @@ freePort().then(function (chosen) {
       timeout: 8000,
       env: Object.assign({}, process.env, {
         NODE_ENV: "production", RENDER: "1", NT_REQUIRE_PERSISTENT_STORAGE: "1",
-        PORT: String(guardPort), NT_DATA_DIR: "", NT_DB_FILE: ""
+        PORT: String(guardPort), NT_DATA_DIR: "", NT_DB_FILE: "",
+        RAILWAY_VOLUME_MOUNT_PATH: "", RAILWAY_ENVIRONMENT_NAME: ""
       })
     });
     var guardOutput = (guard.stdout || "") + (guard.stderr || "");
@@ -422,7 +427,8 @@ freePort().then(function (chosen) {
     check(response.json.videos.length === 0, "there are no video sources to leak in an empty deployment");
     /* Development tooling and deployment files are not web-reachable either. */
     var hidden = ["/scripts/check-flows.js", "/scripts/test-db.js", "/scripts/smoke-render.js",
-      "/server/seed/content.json", "/server/db.js", "/README.md", "/render.yaml", "/.env.example", "/package.json"];
+      "/server/seed/content.json", "/server/db.js", "/server/platform.js", "/README.md", "/render.yaml",
+      "/railway.json", "/.env.example", "/package.json"];
     return hidden.reduce(function (chain, pathname) {
       return chain.then(function () {
         return request(prodPort, "GET", pathname).then(function (response) {
@@ -454,6 +460,45 @@ freePort().then(function (chosen) {
     var prodNames = fs.readdirSync(state.prodDataDir).sort().join(",");
     check(prodNames.indexOf("nuclear-tutorials.db") !== -1,
       "the production data lives only in its own persistent directory");
+  });
+}).then(function () {
+  group("Railway-style deployment — mounted volume");
+  /* Railway attaches a volume and exports RAILWAY_VOLUME_MOUNT_PATH. The
+     database must land on that mount even when NT_DATA_DIR is not set, and
+     the strict storage guard must accept it instead of refusing to boot. */
+  var railDir = fs.mkdtempSync(path.join(os.tmpdir(), "nt-railway-"));
+  state.railDir = railDir;
+  var railPort = 0;
+  return freePort().then(function (chosen) {
+    railPort = chosen;
+    server = startServer(railPort, {
+      NODE_ENV: "production",
+      RAILWAY_ENVIRONMENT_NAME: "production",
+      RAILWAY_VOLUME_MOUNT_PATH: railDir,
+      NT_DATA_DIR: "",
+      NT_REQUIRE_PERSISTENT_STORAGE: "1"
+    });
+    return server.ready;
+  }).then(function () {
+    /* Give the remaining start-up log lines (database path, mode) a moment to
+       arrive before reading them back. */
+    return new Promise(function (resolve) { setTimeout(resolve, 250); });
+  }).then(function () {
+    check(fs.existsSync(path.join(railDir, "nuclear-tutorials.db")),
+      "the database is created on the mounted volume (RAILWAY_VOLUME_MOUNT_PATH)");
+    check(server.output().indexOf(railDir) !== -1, "the server reports the volume path as its database location");
+    check(!/persistent disk/i.test(server.output()), "a mounted Railway volume satisfies the persistent storage guard");
+    check(server.password().length >= 16, "the first-run password is generated on the mounted volume too");
+    return request(railPort, "GET", "/api/health");
+  }).then(function (response) {
+    check(response.status === 200 && response.json && response.json.ok === true,
+      "the railway-style deployment answers the /api/health health check");
+    return request(railPort, "GET", "/api/catalogue");
+  }).then(function (response) {
+    check(response.json.catalogue.videos.length === 0, "the mounted volume starts with an empty catalogue");
+    return server.stop();
+  }).then(function () {
+    fs.rmSync(railDir, { recursive: true, force: true });
   });
 }).then(function () {
   group("Production password provisioning");
@@ -502,6 +547,9 @@ freePort().then(function (chosen) {
   var onHost = runSeed({ RENDER: "1" });
   check(/\"seeded\": false/.test(onHost.stdout),
     "a deployed host refuses the demo seed even without NODE_ENV");
+  var onRailway = runSeed({ RAILWAY_ENVIRONMENT_NAME: "production" });
+  check(/\"seeded\": false/.test(onRailway.stdout),
+    "a Railway deployment refuses the demo seed even without NODE_ENV");
   var overrideAttempt = runSeed({ NODE_ENV: "production", NT_ALLOW_DEMO_SEED: "1", RENDER: "1" });
   check(/\"seeded\": false/.test(overrideAttempt.stdout),
     "no environment flag can force sample content into production");

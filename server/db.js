@@ -15,12 +15,29 @@ var path = require("path");
 var crypto = require("crypto");
 var { DatabaseSync } = require("node:sqlite");
 
-var DATA_DIR = process.env.NT_DATA_DIR
+/* Where the database lives. In production this must be a persistent,
+   mounted volume (Railway: /var/data), never the deploy directory:
+
+     NT_DB_FILE                    full path to the database file
+     NT_DATA_DIR                   folder that holds nuclear-tutorials.db
+     RAILWAY_VOLUME_MOUNT_PATH     set by Railway when a volume is attached,
+                                   so a mounted volume is used even when
+                                   NT_DATA_DIR has not been set
+     otherwise                     server/data, for local development
+   ============================================================ */
+
+var RAILWAY_VOLUME = String(process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+var CONFIGURED_DATA_DIR = process.env.NT_DATA_DIR
   ? path.resolve(process.env.NT_DATA_DIR)
-  : path.join(__dirname, "data");
+  : (RAILWAY_VOLUME ? path.resolve(RAILWAY_VOLUME) : "");
+var DATA_DIR = CONFIGURED_DATA_DIR || path.join(__dirname, "data");
 var DB_FILE = process.env.NT_DB_FILE
   ? path.resolve(process.env.NT_DB_FILE)
   : path.join(DATA_DIR, "nuclear-tutorials.db");
+/* True when the database path comes from configuration (a mounted volume or
+   an explicit path) instead of the disposable folder inside the deploy
+   directory. The start-up guard in server/index.js uses this. */
+var PERSISTENT_STORAGE_CONFIGURED = !!(String(process.env.NT_DB_FILE || "").trim() || CONFIGURED_DATA_DIR);
 
 var SCHEMA = [
   `PRAGMA journal_mode = WAL`,
@@ -272,7 +289,13 @@ function ensureDefaultSettings() {
 
 /* ---------- sessions ---------- */
 
-var SESSION_DAYS = 7;
+/* Session lifetime is configurable (NT_SESSION_DAYS, default 7) and capped
+   at a year so a mis-set value cannot create effectively eternal sessions. */
+var SESSION_DAYS = (function () {
+  var days = parseInt(process.env.NT_SESSION_DAYS, 10);
+  if (!Number.isFinite(days) || days < 1) return 7;
+  return Math.min(days, 365);
+})();
 
 function createSession() {
   var token = crypto.randomBytes(32).toString("hex");
@@ -300,10 +323,24 @@ function destroySession(token) {
   getDatabase().prepare("DELETE FROM sessions WHERE token = ?").run(String(token));
 }
 
+/* ---------- shutdown ---------- */
+
+/* Flush the write-ahead log into the database file and close the handle.
+   Called on SIGTERM/SIGINT so a redeploy never leaves a half-written WAL
+   on the volume. Nothing here deletes or recreates data. */
+function close() {
+  if (!db) return;
+  try { db.exec("PRAGMA wal_checkpoint(TRUNCATE)"); } catch (error) { /* best effort */ }
+  try { db.close(); } catch (error) { /* best effort */ }
+  db = null;
+}
+
 module.exports = {
   DB_FILE: DB_FILE,
   DATA_DIR: DATA_DIR,
+  PERSISTENT_STORAGE_CONFIGURED: PERSISTENT_STORAGE_CONFIGURED,
   connect: connect,
+  close: close,
   db: getDatabase,
   now: now,
   slugify: slugify,

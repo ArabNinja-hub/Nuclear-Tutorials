@@ -27,6 +27,7 @@ var fs = require("fs");
 var path = require("path");
 var db = require("./db");
 var api = require("./api");
+var platform = require("./platform");
 
 var CONTENT_FILE = path.join(__dirname, "seed", "content.json");
 
@@ -115,11 +116,10 @@ function clearCatalogue() {
   return Object.assign({ cleared: true }, before);
 }
 
-/* Hosts set one of these when the process runs on a deployed platform. */
+/* Hosts set one of their own variables when the process runs on a deployed
+   platform — Railway included (see server/platform.js for the full list). */
 function deployedHost() {
-  return !!(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.RENDER_EXTERNAL_URL ||
-    process.env.DYNO || process.env.FLY_APP_NAME || process.env.K_SERVICE ||
-    process.env.WEBSITE_SITE_NAME || process.env.VERCEL || process.env.NETLIFY);
+  return platform.isDeployed();
 }
 
 /* Sample content is a development tool. Production can never load it, and

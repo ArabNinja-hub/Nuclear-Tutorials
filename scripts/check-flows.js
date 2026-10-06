@@ -10,8 +10,8 @@
      Admin     sign in → University → Semester → Course → add video
                → publish → the student catalogue shows it
 
-   Usage:  node scripts/check-flows.js            (http://127.0.0.1:8000)
-           BASE=http://127.0.0.1:8123 node scripts/check-flows.js
+   Usage:  node scripts/check-flows.js            (http://127.0.0.1:8080)
+           BASE=http://127.0.0.1:8080 node scripts/check-flows.js
            NT_ADMIN_PASSWORD=secret node scripts/check-flows.js
    ============================================================ */
 "use strict";
@@ -19,7 +19,7 @@
 var http = require("http");
 var https = require("https");
 
-var BASE = (process.env.BASE || "http://127.0.0.1:" + (process.env.PORT || 8000)).replace(/\/$/, "");
+var BASE = (process.env.BASE || "http://127.0.0.1:" + (process.env.PORT || 8080)).replace(/\/$/, "");
 var PASSWORD = process.env.NT_ADMIN_PASSWORD || "nuclear-admin";
 /* The shipped default is never a valid credential; a fresh install must be
    given one through NT_ADMIN_PASSWORD, then rotated once by this script. */
