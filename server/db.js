@@ -14,6 +14,7 @@ var fs = require("fs");
 var path = require("path");
 var crypto = require("crypto");
 var { DatabaseSync } = require("node:sqlite");
+var platform = require("./platform");
 
 /* Where the database lives. In production this must be a persistent,
    mounted volume (Railway: /var/data), never the deploy directory:
@@ -27,9 +28,11 @@ var { DatabaseSync } = require("node:sqlite");
    ============================================================ */
 
 var RAILWAY_VOLUME = String(process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
-var CONFIGURED_DATA_DIR = process.env.NT_DATA_DIR
-  ? path.resolve(process.env.NT_DATA_DIR)
-  : (RAILWAY_VOLUME ? path.resolve(RAILWAY_VOLUME) : "");
+var CONFIGURED_DATA_DIR = RAILWAY_VOLUME
+  ? path.resolve(RAILWAY_VOLUME)
+  : (process.env.NT_DATA_DIR
+    ? path.resolve(process.env.NT_DATA_DIR)
+    : (platform.isDeployed() && fs.existsSync("/var/data") ? "/var/data" : ""));
 var DATA_DIR = CONFIGURED_DATA_DIR || path.join(__dirname, "data");
 var DB_FILE = process.env.NT_DB_FILE
   ? path.resolve(process.env.NT_DB_FILE)
