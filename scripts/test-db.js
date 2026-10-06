@@ -489,6 +489,10 @@ freePort().then(function (chosen) {
     check(server.output().indexOf(railDir) !== -1, "the server reports the volume path as its database location");
     check(!/persistent disk/i.test(server.output()), "a mounted Railway volume satisfies the persistent storage guard");
     check(server.password().length >= 16, "the first-run password is generated on the mounted volume too");
+    return request(railPort, "GET", "/health");
+  }).then(function (response) {
+    check(response.status === 200 && response.raw === '{"ok":true}' && response.json && response.json.ok === true,
+      'the railway-style deployment answers GET /health with HTTP 200 and {"ok":true}');
     return request(railPort, "GET", "/api/health");
   }).then(function (response) {
     check(response.status === 200 && response.json && response.json.ok === true,
