@@ -241,8 +241,20 @@ check(renderYaml.indexOf("sync: false") !== -1 && !/NT_ADMIN_PASSWORD\s*\n\s*val
 /* Railway (railway.json) and the platform contract the app relies on. */
 var railwayJson = read("railway.json");
 check(railwayJson.indexOf('"startCommand": "npm start"') !== -1 &&
-  (railwayJson.indexOf('"healthcheckPath": "/"') !== -1 || railwayJson.indexOf('"healthcheckPath": "/api/health"') !== -1),
-  "railway.json starts the production server and health-checks /");
+  railwayJson.indexOf('"healthcheckPath": "/health"') !== -1 &&
+  railwayJson.indexOf('"restartPolicyType": "ON_FAILURE"') !== -1,
+  "railway.json starts the production server, health-checks /health and keeps its restart policy");
+check(!/"PORT"\s*:/.test(railwayJson) && railwayJson.indexOf("NT_PORT") === -1,
+  "the deployment never pins PORT by hand — the platform assigns it");
+/* /health must be answered before the API router and before the static file
+   handler: that ordering is what keeps it free of SQLite, the administrator
+   session, the catalogue and the front-end files. */
+var healthAt = serverIndex.indexOf('pathname === "/health"');
+check(healthAt !== -1 && serverIndex.indexOf('JSON.stringify({ ok: true })') !== -1 &&
+  healthAt < serverIndex.indexOf("api.handle(") &&
+  healthAt < serverIndex.lastIndexOf("serveStatic(req, res, pathname)"),
+  'GET /health answers {"ok":true} ahead of the API router and the static files');
+
 check((/process\.env\.PORT\s*\|\|\s*8080/.test(serverIndex) ||
   /parseInt\(process\.env\.PORT,\s*10\)\s*\|\|\s*8080/.test(serverIndex)) && /"0\.0\.0\.0"/.test(serverIndex),
   "the server listens on the platform's PORT (default 8080) and binds 0.0.0.0");
@@ -404,15 +416,26 @@ function runHttp(base) {
   group("HTTP smoke (" + base + ")");
   var root = base.replace(/\/$/, "");
   var paths = PUBLIC_PAGES.concat(ADMIN_PAGES).concat(ASSETS);
-  return paths.reduce(function (chain, rel) {
-    return chain.then(function () {
-      return fetchHttp(root + "/" + rel).then(function (response) {
-        check(response.status === 200, response.status + " " + rel);
-      }).catch(function (error) {
-        check(false, rel + " fetch failed: " + error.message);
+  /* The platform liveness probe comes first: if /health is not a plain 200
+     JSON answer, Railway SIGTERMs the container and nothing below matters. */
+  return fetchHttp(root + "/health").then(function (response) {
+    check(response.status === 200, "GET /health returns HTTP 200 for the platform health check");
+    check(String(response.headers["content-type"] || "").indexOf("application/json") === 0,
+      "GET /health answers application/json");
+    return fetchJson(root + "/health");
+  }).then(function (response) {
+    check(response.status === 200 && response.json && response.json.ok === true,
+      "GET /health answers {\"ok\":true}");
+    return paths.reduce(function (chain, rel) {
+      return chain.then(function () {
+        return fetchHttp(root + "/" + rel).then(function (response) {
+          check(response.status === 200, response.status + " " + rel);
+        }).catch(function (error) {
+          check(false, rel + " fetch failed: " + error.message);
+        });
       });
-    });
-  }, Promise.resolve()).then(function () {
+    }, Promise.resolve());
+  }).then(function () {
     return fetchJson(root + "/api/catalogue");
   }).then(function (response) {
     var catalogue = response.json && response.json.catalogue;

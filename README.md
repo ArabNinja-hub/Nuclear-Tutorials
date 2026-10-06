@@ -96,9 +96,16 @@ migrations, and the catalogue is left exactly as the administrator left it.
 ### Railway
 
 `railway.json` pins the production contract: build with Nixpacks, start with
-`npm start`, health-check `GET /`, restart on failure, one replica
+`npm start`, health-check `GET /health`, restart on failure, one replica
 (one replica keeps the SQLite file to a single writer). `.nvmrc` pins Node 22,
 which the server needs for `node:sqlite`.
+
+`GET /health` is the liveness probe Railway waits for. It answers `200` with
+`{"ok":true}` straight from the request handler — before the API router and
+before any file is read — so it needs no SQLite, no administrator session, no
+catalogue and no front-end file. Railway can only see it fail when the Node
+process itself is gone, which stops a healthy container from being SIGTERMed
+because a page or a slow volume made `GET /` look dead.
 
 Manual setup on Railway:
 

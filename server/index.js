@@ -167,9 +167,30 @@ function notFound(req, res, target) {
   res.end("<h1>404</h1><p>That page does not exist on Nuclear Tutorials.</p>");
 }
 
+/* Liveness probe for the platform (railway.json → "healthcheckPath": "/health").
+
+   It is answered here, before the API router and before the static file
+   handler, and it reads nothing from disk, so it depends on no SQLite, no
+   administrator session, no catalogue and no front-end file. The platform can
+   therefore only see this as unhealthy when the Node process itself is gone —
+   a slow volume or a missing index.html can never make it SIGTERM a live
+   server. Kept tiny and cache-free so a proxy cannot serve a stale 200. */
+var HEALTH_BODY = JSON.stringify({ ok: true });
+var HEALTH_HEADERS = {
+  "Content-Type": "application/json; charset=utf-8",
+  "Content-Length": Buffer.byteLength(HEALTH_BODY),
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff"
+};
+
 var server = http.createServer(function (req, res) {
   var parsed = url.parse(req.url, true);
   var pathname = parsed.pathname || "/";
+
+  if (pathname === "/health" && (req.method === "GET" || req.method === "HEAD")) {
+    res.writeHead(200, HEALTH_HEADERS);
+    return res.end(req.method === "HEAD" ? undefined : HEALTH_BODY);
+  }
 
   if (pathname.indexOf("/api/") === 0 || pathname === "/api") {
     api.handle(req, res, pathname, new URLSearchParams(parsed.query)).then(function (handled) {
