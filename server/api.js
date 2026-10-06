@@ -4,6 +4,18 @@
    Public reads (catalogue, search, announcements, settings),
    the student access-code + progress flow, and session-guarded
    administration for universities, courses and video lessons.
+
+   Deployment configuration (environment variables):
+
+     NT_SESSION_DAYS     administrator session lifetime (default 7)
+     NT_COOKIE_SECURE    1 to always mark the session cookie Secure,
+                         0 to never do so; unset follows the request
+                         (direct TLS or X-Forwarded-Proto from the
+                         platform's HTTPS proxy, e.g. Railway)
+     NT_ALLOWED_ORIGINS  comma-separated origins allowed to call the API
+                         from another site with credentials. Unset means
+                         same-origin only, which is how the platform is
+                         served; "*" is rejected on purpose.
    ============================================================ */
 "use strict";
 
@@ -290,7 +302,7 @@ function send(res, status, payload) {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
     "Cache-Control": "no-store",
-    "Vary": "X-NT-Code, Cookie"
+    "Vary": "Origin, X-NT-Code, Cookie"
   });
   res.end(body);
 }
@@ -338,6 +350,62 @@ function parseCookies(header) {
 function adminSession(req) {
   var cookies = parseCookies(req.headers.cookie);
   return db.readSession(cookies[ADMIN_COOKIE]);
+}
+
+/* ------------------------------------------------------------
+   Cookies and proxy awareness
+
+   The session cookie is HttpOnly and SameSite=Lax everywhere; it
+   gains the Secure attribute as soon as the request arrives over
+   HTTPS, either directly or through the proxy that terminates TLS
+   (Railway and Render send X-Forwarded-Proto: https). NT_COOKIE_SECURE
+   forces the decision on a host that does not send that header.
+   ------------------------------------------------------------ */
+
+function secureCookie(req) {
+  var forced = text(process.env.NT_COOKIE_SECURE, 10).toLowerCase();
+  if (forced === "1" || forced === "true" || forced === "always") return true;
+  if (forced === "0" || forced === "false" || forced === "never") return false;
+  /* The first value is the client's; proxies append their own, so any
+     "https" in the list means the browser really is on a secure connection.
+     This way a client cannot drop the flag by sending a fake http value. */
+  var forwarded = text(req.headers["x-forwarded-proto"], 120).toLowerCase();
+  if (forwarded) {
+    return forwarded.split(",").some(function (value) { return value.trim() === "https"; });
+  }
+  return !!(req.socket && req.socket.encrypted);
+}
+
+function sessionCookie(req, token, maxAgeSeconds) {
+  return ADMIN_COOKIE + "=" + (token || "") + "; Path=/; HttpOnly; SameSite=Lax" +
+    (secureCookie(req) ? "; Secure" : "") + "; Max-Age=" + maxAgeSeconds;
+}
+
+/* ------------------------------------------------------------
+   Cross-origin access
+
+   The front end is served from the same origin as the API, so
+   cross-origin calls are off unless NT_ALLOWED_ORIGINS names the
+   calling site (comma separated, e.g. https://app.example.com).
+   Credentialed requests are only answered for a named origin; "*" is
+   refused, so enabling this can never open the API to every website.
+   ------------------------------------------------------------ */
+
+function allowedOrigins() {
+  return String(process.env.NT_ALLOWED_ORIGINS || "").split(",")
+    .map(function (entry) { return text(entry, 200).replace(/\/+$/, ""); })
+    .filter(function (entry) { return !!entry && entry !== "*"; });
+}
+
+function applyCors(req, res) {
+  var origin = text(req.headers.origin, 200);
+  if (!origin || allowedOrigins().indexOf(origin) === -1) return false;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept, X-NT-Code");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  res.setHeader("Vary", "Origin, X-NT-Code, Cookie");
+  return true;
 }
 
 function studentCode(req, body) {
@@ -748,14 +816,14 @@ route("POST", "/api/admin/login", async function (req, res) {
     return fail(res, 403, "The first-run administrator password cannot be used for normal use. Sign in with the password you chose and change it in Settings.");
   }
   var session = db.createSession();
-  res.setHeader("Set-Cookie", ADMIN_COOKIE + "=" + session.token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" + (db.SESSION_DAYS * 86400));
+  res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400));
   ok(res, { authenticated: true, expiresAt: session.expiresAt, mustChangePassword: db.adminMustChangePassword() });
 });
 
 route("POST", "/api/admin/logout", async function (req, res) {
   var cookies = parseCookies(req.headers.cookie);
   db.destroySession(cookies[ADMIN_COOKIE]);
-  res.setHeader("Set-Cookie", ADMIN_COOKIE + "=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  res.setHeader("Set-Cookie", sessionCookie(req, "", 0));
   ok(res, { authenticated: false });
 });
 
@@ -1161,6 +1229,18 @@ route("POST", "/api/admin/password", async function (req, res) {
 
 function handle(req, res, pathname, query) {
   return new Promise(function (resolve) {
+    var corsAllowed = applyCors(req, res);
+    /* A browser preflight for an allowed cross-origin caller. */
+    if (req.method === "OPTIONS") {
+      if (corsAllowed) {
+        res.writeHead(204, { "Content-Length": 0, "Vary": "Origin, X-NT-Code, Cookie" });
+        res.end();
+      } else {
+        fail(res, 405, "Cross-origin requests are not allowed from that origin.");
+      }
+      return resolve(true);
+    }
+
     /* Everything under /api/admin except sign-in helpers needs a session,
        so student pages can never reach administration endpoints. */
     var openAdminPaths = ["/api/admin/login", "/api/admin/logout", "/api/admin/session"];

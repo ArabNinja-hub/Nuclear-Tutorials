@@ -40,7 +40,7 @@ var ADMIN_PAGES = [
 var SCRIPT_FILES = [
   "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js",
   "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js",
-  "server/index.js", "server/db.js", "server/api.js", "server/seed.js",
+  "server/index.js", "server/db.js", "server/api.js", "server/seed.js", "server/platform.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
   "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js"
 ];
@@ -48,7 +48,7 @@ var ASSETS = [
   "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
   "assets/fonts/inter-latin-400.woff2", "assets/fonts/manrope-latin-800.woff2"
 ];
-var OPS_FILES = ["render.yaml", ".env.example", ".gitignore", "server/seed/content.json"];
+var OPS_FILES = ["railway.json", "render.yaml", ".env.example", ".gitignore", "server/seed/content.json"];
 
 function balancedCss(source) {
   var depth = 0;
@@ -238,6 +238,36 @@ check(envExample.indexOf("NT_DATA_DIR") !== -1 && envExample.indexOf("NT_ADMIN_P
 check(renderYaml.indexOf("sync: false") !== -1 && !/NT_ADMIN_PASSWORD\s*\n\s*value: \S/.test(renderYaml),
   "the administrator password is not stored in the deployment file");
 
+/* Railway (railway.json) and the platform contract the app relies on. */
+var railwayJson = read("railway.json");
+check(railwayJson.indexOf('"startCommand": "npm start"') !== -1 &&
+  railwayJson.indexOf('"healthcheckPath": "/api/health"') !== -1,
+  "railway.json starts the production server and health-checks /api/health");
+check((/process\.env\.PORT\s*\|\|\s*8080/.test(serverIndex) ||
+  /parseInt\(process\.env\.PORT,\s*10\)\s*\|\|\s*8080/.test(serverIndex)) && /"0\.0\.0\.0"/.test(serverIndex),
+  "the server listens on the platform's PORT (default 8080) and binds 0.0.0.0");
+check(/function isLoopback/.test(read("server/platform.js")) && serverIndex.indexOf("platform.isLoopback(HOST)") !== -1,
+  "a loopback-only bind on a deployed host is corrected instead of hiding the server");
+check(serverDb.indexOf("RAILWAY_VOLUME_MOUNT_PATH") !== -1 && serverIndex.indexOf("db.PERSISTENT_STORAGE_CONFIGURED") !== -1,
+  "the database follows a mounted Railway volume (RAILWAY_VOLUME_MOUNT_PATH)");
+check(serverDb.indexOf('"nuclear-tutorials.db"') !== -1 && serverDb.indexOf("process.env.NT_DATA_DIR") !== -1 &&
+  serverDb.indexOf("process.env.NT_DB_FILE") !== -1,
+  "the database keeps the nuclear-tutorials.db name and takes its path from configuration");
+check(serverApi.indexOf("x-forwarded-proto") !== -1 && serverApi.indexOf("; Secure") !== -1,
+  "the administrator cookie is marked Secure behind the HTTPS proxy");
+check(serverIndex.indexOf("SIGTERM") !== -1 && read("server/db.js").indexOf("function close") !== -1,
+  "the server closes the database cleanly when the platform stops it (SIGTERM)");
+check(serverApi.indexOf("NT_ALLOWED_ORIGINS") !== -1 && serverApi.indexOf('entry !== "*"') !== -1,
+  "cross-origin API access is opt-in and never a wildcard");
+check(envExample.indexOf("NT_ALLOWED_ORIGINS") !== -1 && envExample.indexOf("NT_COOKIE_SECURE") !== -1,
+  ".env.example documents the cookie and origin settings");
+check(serverIndex.indexOf('"/railway.json"') !== -1, "the deployment config is never served by production");
+
+var readmeDeploy = read("README.md");
+check(readmeDeploy.indexOf("railway.json") !== -1 && /Railway/.test(readmeDeploy) &&
+  readmeDeploy.indexOf("RAILWAY_VOLUME_MOUNT_PATH") !== -1,
+  "the README documents deploying on Railway with a persistent volume");
+
 var secretLeaks = [];
 PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/ui.js", "assets/js/admin.js", "assets/js/api.js"])
   .forEach(function (file) {
@@ -425,7 +455,7 @@ var done = base ? runHttp(base) : Promise.resolve();
 
 done.then(function () {
   if (!base) {
-    console.log("\n(Set BASE=http://127.0.0.1:8000 to also check HTTP, the API and the live flows.)");
+    console.log("\n(Set BASE=http://127.0.0.1:8080 to also check HTTP, the API and the live flows.)");
   }
   console.log("\n" + passed + " passed, " + failed + " failed");
   process.exit(failed ? 1 : 0);

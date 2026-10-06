@@ -2,21 +2,34 @@
    NUCLEAR TUTORIALS — Application server
 
    Serves the static front end and the JSON API from one origin,
-   and creates + seeds the SQLite database on first start.
-
-     node server/index.js        →  http://localhost:8000
-
-   The catalogue starts empty: administrators add universities, courses
+   and creates + migrates the SQLite database on first start. The
+   catalogue starts empty: administrators add universities, courses
    and video lessons through the admin area, or load the development
    sample with `npm run seed:demo`.
 
+     node server/index.js        →  http://localhost:8080
+
+   Production (Railway, Render and similar):
+     • PORT is the port the platform assigns; HOST defaults to 0.0.0.0
+       so the platform's proxy can reach the server.
+     • The database must sit on a persistent volume. On Railway a volume
+       mounted at /var/data is used automatically through
+       RAILWAY_VOLUME_MOUNT_PATH, or explicitly with NT_DATA_DIR=/var/data
+       (see railway.json and render.yaml).
+
    Configuration (environment variables):
-     PORT                port to listen on (default 8000)
+     PORT                port to listen on (default 8080)
      HOST                interface to bind (default 0.0.0.0)
      NT_DATA_DIR         persistent folder for the database (required in
-                         production — see render.yaml)
+                         production — see railway.json / render.yaml)
+     NT_DB_FILE          full path to the database file (overrides NT_DATA_DIR)
      NT_ADMIN_PASSWORD   first-run administrator password (a random one is
                          printed once if this is not set)
+     NT_SESSION_DAYS     administrator session lifetime (default 7)
+     NT_COOKIE_SECURE    force the Secure cookie flag: 1 always, 0 never,
+                         unset follows the request/proxy protocol
+     NT_ALLOWED_ORIGINS  comma-separated origins allowed to call the API
+                         cross-origin (same-origin by default)
      NT_REQUIRE_PERSISTENT_STORAGE  "1" to refuse to start when the database
                          would live inside the deploy directory
    ============================================================ */
@@ -29,10 +42,33 @@ var url = require("url");
 var api = require("./api");
 var db = require("./db");
 var seed = require("./seed");
+var platform = require("./platform");
 
 var ROOT = path.resolve(__dirname, "..");
-var PORT = parseInt(process.env.PORT, 10) || 8000;
-var HOST = process.env.HOST || "0.0.0.0";
+var PORT = parseInt(process.env.PORT, 10) || 8080;
+var DEFAULT_HOST = "0.0.0.0";
+var HOST = process.env.HOST || DEFAULT_HOST;
+
+/* Platforms such as Railway do not always set NODE_ENV. Leaving it out must
+   never leave a deployment running with development behaviour (development
+   files on the website, sample content, relaxed storage rules), so a
+   deployed host without NODE_ENV is treated as production. */
+if (!process.env.NODE_ENV && platform.isDeployed()) {
+  process.env.NODE_ENV = "production";
+  console.log("[config] NODE_ENV was not set on " + platform.deployedPlatform() +
+    " — running with NODE_ENV=production.");
+}
+
+var IS_PRODUCTION = platform.isProduction();
+
+/* A production listener must accept connections from the platform's proxy.
+   HOST stays configurable, but a loopback-only bind on a deployed host would
+   be unreachable, so it is corrected with a warning. */
+if (platform.isLoopback(HOST) && (IS_PRODUCTION || platform.isDeployed())) {
+  console.warn("[http] HOST=" + HOST + " only accepts connections from inside this container, so " +
+    platform.deployedPlatform() + " could not reach the server. Binding to " + DEFAULT_HOST + " instead.");
+  HOST = DEFAULT_HOST;
+}
 
 var MIME = {
   ".html": "text/html; charset=utf-8",
@@ -63,9 +99,9 @@ var BLOCKED = [
 
 /* Deployment and documentation files that make no sense on a live site and
    expose the project layout: only served while developing locally. */
-var BLOCKED_IN_PRODUCTION = ["/README.md", "/render.yaml", "/.env.example", "/.env.production"];
-
-var IS_PRODUCTION = String(process.env.NODE_ENV || "").toLowerCase() === "production";
+var BLOCKED_IN_PRODUCTION = [
+  "/README.md", "/render.yaml", "/railway.json", "/.env.example", "/.env.production"
+];
 
 function isBlocked(pathname) {
   var list = IS_PRODUCTION ? BLOCKED.concat(BLOCKED_IN_PRODUCTION) : BLOCKED;
@@ -155,16 +191,42 @@ var server = http.createServer(function (req, res) {
 });
 
 /* A database inside the deploy directory is wiped by redeploys, so the
-   platform refuses to start in that situation when asked to be strict. */
+   platform refuses to start in that situation when asked to be strict.
+   A configured path (NT_DATA_DIR, NT_DB_FILE) or a mounted Railway volume
+   (RAILWAY_VOLUME_MOUNT_PATH) satisfies the requirement. */
 function storageWarning() {
-  if (process.env.NT_DATA_DIR || process.env.NT_DB_FILE) return null;
-  var deployed = !!(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.DYNO || process.env.FLY_APP_NAME);
-  if (!deployed) return null;
+  if (db.PERSISTENT_STORAGE_CONFIGURED) return null;
+  if (!platform.isDeployed()) return null;
   var message = "The database is inside the deploy directory (" + db.DB_FILE + "), so it is erased on every " +
-    "redeploy. Mount a persistent disk and set NT_DATA_DIR to its mount path (see render.yaml).";
+    "redeploy. Mount a persistent disk and set NT_DATA_DIR to its mount path (Railway: mount a volume at " +
+    "/var/data and set NT_DATA_DIR=/var/data; see railway.json and render.yaml).";
   if (process.env.NT_REQUIRE_PERSISTENT_STORAGE === "1") return message;
   return "warning: " + message;
 }
+
+/* SIGTERM (Railway, Render and friends send it on every redeploy) and
+   Ctrl+C close the listener first and then checkpoint + close SQLite, so
+   the volume holds one consistent database file. */
+var shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log("[http] " + signal + " received — stopping the server and closing the database.");
+  var finished = function () {
+    db.close();
+    process.exit(0);
+  };
+  server.close(finished);
+  /* Keep-alive connections must not hold a redeploy open. */
+  if (typeof server.closeIdleConnections === "function") server.closeIdleConnections();
+  var force = setTimeout(function () {
+    db.close();
+    process.exit(0);
+  }, 5000);
+  force.unref();
+}
+process.on("SIGTERM", function () { shutdown("SIGTERM"); });
+process.on("SIGINT", function () { shutdown("SIGINT"); });
 
 function start() {
   /* The storage guard runs before the database is opened, so a production
@@ -203,7 +265,7 @@ function start() {
     var message = "[catalogue] Development sample content is loaded (" + catalogue.universities + " institutions, " +
       catalogue.courses + " courses, " + catalogue.videos + " lessons). Run `npm run seed:clear` before going live.";
     /* A production database should never hold sample content: say so loudly. */
-    if (String(process.env.NODE_ENV || "").toLowerCase() === "production") {
+    if (IS_PRODUCTION) {
       console.warn("[catalogue] WARNING: production is serving development sample content. Empty it with " +
         "`npm run seed:clear` and add the real catalogue in the admin area.");
     } else {
@@ -213,8 +275,19 @@ function start() {
 
   server.listen(PORT, HOST, function () {
     console.log("Nuclear Tutorials running at http://localhost:" + PORT);
-    console.log("Database: " + db.DB_FILE);
+    console.log("[http] Listening on " + HOST + ":" + PORT +
+      (process.env.PORT ? " (PORT from the platform)" : " (default port)") +
+      " · " + (IS_PRODUCTION ? "NODE_ENV=production" : "development mode"));
+    console.log("Database: " + db.DB_FILE +
+      (db.PERSISTENT_STORAGE_CONFIGURED ? " (persistent)" : " (local development folder)"));
     console.log("Admin: http://localhost:" + PORT + "/admin/login.html");
+  });
+
+  /* A port that is already taken must fail loudly: the platform then shows
+     the real reason instead of a container that never becomes healthy. */
+  server.on("error", function (error) {
+    console.error("[http] Could not listen on " + HOST + ":" + PORT + " — " + error.message);
+    process.exit(1);
   });
 }
 

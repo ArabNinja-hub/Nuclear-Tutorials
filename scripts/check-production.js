@@ -8,6 +8,7 @@
    real students and administrators.
 
    Usage:  npm run check:production
+           BASE=https://your-app.up.railway.app npm run check:production
            BASE=https://your-app.onrender.com npm run check:production
            NT_ADMIN_PASSWORD=<first-run password> npm run check:production
    ============================================================ */
@@ -16,7 +17,7 @@
 var path = require("path");
 var childProcess = require("child_process");
 var ROOT = path.resolve(__dirname, "..");
-var BASE = (process.env.BASE || "http://127.0.0.1:8000").replace(/\/$/, "");
+var BASE = (process.env.BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
 
 /* Each step: the script, the extra environment it needs, and what it proves. */
 var steps = [

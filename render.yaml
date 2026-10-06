@@ -1,6 +1,10 @@
 # ============================================================
 # Nuclear Tutorials — Render deployment
 #
+# Railway is configured separately in railway.json (Nixpacks build,
+# `npm start`, health check /api/health); both hosts use the same
+# persistent-volume contract described below.
+#
 # The SQLite database must live on a persistent disk, otherwise it
 # is erased on every deploy. The disk below is mounted at /var/data
 # and the app is told to keep its database there through NT_DATA_DIR.

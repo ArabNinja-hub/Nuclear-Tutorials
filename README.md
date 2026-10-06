@@ -11,7 +11,7 @@ student sees the change on their own device.
 ## Run it
 
 ```bash
-npm start                 # http://localhost:8000
+npm start                 # http://localhost:8080
 ```
 
 The production database **starts empty**. Nothing is preloaded: you add
@@ -31,7 +31,7 @@ and vanilla JavaScript.
 
 | Command | What it does |
 | --- | --- |
-| `npm start` | Starts the platform (static pages + JSON API) on `PORT` (default `8000`) |
+| `npm start` | Starts the platform (static pages + JSON API) on `PORT` (default `8080`, or whatever the host assigns) |
 | `npm run dev` | Same, with `node --watch` |
 | `npm run seed:demo` | Loads the development sample catalogue (refused when `NODE_ENV=production`) |
 | `npm run seed:clear` | Empties the catalogue (keeps codes, progress, announcements, settings) |
@@ -40,11 +40,17 @@ and vanilla JavaScript.
 | `npm run check:flows` | Student and admin journeys against a running server |
 | `npm run check:access` | Package access control: the Basic/Standard/Premium matrix and bypass attempts |
 | `npm run test:setup` | First-run admin, empty database, restart persistence and expired codes |
-| `BASE=http://127.0.0.1:8000 npm run check` | Adds HTTP, API and live-flow checks |
-| `npm run check:production` | The full production verification suite (7 stages, ~1000 assertions) against a running server — structure, render, empty first-run database and isolation, package access control, live pages/API/journeys. `BASE=https://your-app.onrender.com` to point it at a deployment |
+| `BASE=http://127.0.0.1:8080 npm run check` | Adds HTTP, API and live-flow checks |
+| `npm run check:production` | The full production verification suite (7 stages, ~1000 assertions) against a running server — structure, render, empty first-run database and isolation, package access control, live pages/API/journeys. `BASE=https://your-app.up.railway.app` (or any deployment URL) to point it at a deployment |
 
 Environment (see `.env.example`): `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`,
-`NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`.
+`NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`, `NT_SESSION_DAYS`,
+`NT_COOKIE_SECURE`, `NT_ALLOWED_ORIGINS`.
+
+The server always listens on `process.env.PORT` and binds `0.0.0.0`, so it
+works behind the platform's HTTPS proxy. `HOST` can override the interface for
+local work; a loopback-only bind on a deployed host is corrected with a warning,
+because the platform's proxy could never reach it.
 
 The live checks sign in as the administrator, so start the server with
 `NT_ADMIN_PASSWORD` set (a first-run password is rotated by the check itself).
@@ -79,8 +85,46 @@ commit `.env` or `NT_ADMIN_PASSWORD` to the repository.
 3. Sign in at `/admin/login.html`, change the first-run password (required
    before the admin API unlocks), then add the client's real catalogue.
 
-Then run `npm run check:production` (with `BASE=https://your-app.onrender.com`)
-against the deployment to confirm the live behaviour before handing it over.
+Then run `npm run check:production` (with `BASE=https://your-app.up.railway.app`
+or your Render URL) against the deployment to confirm the live behaviour before
+handing it over.
+
+Start-up never deletes, recreates or reseeds anything: an existing database is
+opened, its schema is `CREATE TABLE IF NOT EXISTS` plus additive column
+migrations, and the catalogue is left exactly as the administrator left it.
+
+### Railway
+
+`railway.json` pins the production contract: build with Nixpacks, start with
+`npm start`, health-check `GET /api/health`, restart on failure, one replica
+(one replica keeps the SQLite file to a single writer). `.nvmrc` pins Node 22,
+which the server needs for `node:sqlite`.
+
+Manual setup on Railway:
+
+1. **Volume** — add a volume to the service and mount it at `/var/data`. This
+   is what makes the catalogue, access codes and student progress survive
+   redeploys. The app picks the mount up automatically from Railway's
+   `RAILWAY_VOLUME_MOUNT_PATH`; set `NT_DATA_DIR=/var/data` as well if you
+   prefer it to be explicit. The database file is
+   `/var/data/nuclear-tutorials.db`.
+2. **Variables** — `NODE_ENV=production`, `NT_DATA_DIR=/var/data`,
+   `NT_REQUIRE_PERSISTENT_STORAGE=1`, and either `NT_ADMIN_PASSWORD` (a strong
+   value you choose) or nothing (read the generated first-run password once
+   from the deploy log and change it in Admin → Settings).
+3. **Networking** — Railway assigns `PORT` and terminates HTTPS in front of the
+   container. The server binds `0.0.0.0`, trusts the forwarded protocol only
+   for the `Secure` cookie flag, and keeps the admin cookie `HttpOnly` and
+   `SameSite=Lax`. No CORS configuration is needed because the pages and the
+   API share one origin; `NT_ALLOWED_ORIGINS` exists only for a future split
+   front end and refuses `*`.
+
+There are no uploaded files to worry about: the platform is video-only and
+lessons are links to their original public source, so the volume holds the
+database and nothing else. If a future feature stores media, it must write
+under the same mount (`NT_DATA_DIR`), never inside the deploy directory.
+`railway.json`, `render.yaml`, `.env.example`, `README.md`, `/scripts` and
+`/server` are never served by a production deployment.
 
 ## What students do
 
@@ -155,8 +199,12 @@ Admin  →  Server API  →  SQLite database  →  Student API request  →  Stu
 
 The SQLite file must sit on a persistent disk, or it is erased on every deploy:
 
-1. Create a disk in your host (Render: **Disks** → mount path `/var/data`).
-2. Set `NT_DATA_DIR` to that mount path (`render.yaml` already does this).
+1. Create a disk in your host (Railway: add a volume mounted at `/var/data`;
+   Render: **Disks** → mount path `/var/data`).
+2. Set `NT_DATA_DIR` to that mount path (`railway.json`/`render.yaml` describe
+   the same contract). On Railway the app also picks up
+   `RAILWAY_VOLUME_MOUNT_PATH` automatically, so the database lands on the
+   volume even when `NT_DATA_DIR` is not set.
 3. Keep `NT_REQUIRE_PERSISTENT_STORAGE=1` so the server refuses to boot if the
    database would fall back inside the deploy directory.
 
@@ -181,7 +229,7 @@ works locally but the data lives in `server/data/` and is disposable.
   card falls back to a designed placeholder instead of a broken image.
 - Sample content in `server/seed/content.json` is development data. It is never
   loaded automatically, and `npm run seed:demo` refuses to run when
-  `NODE_ENV=production` or when the process is on a deployed host (Render,
-  Heroku, Fly, Cloud Run, App Service, Vercel, Netlify). There is no override
-  flag, so a production deployment can never load it — and a production
+  `NODE_ENV=production` or when the process is on a deployed host (Railway,
+  Render, Heroku, Fly, Cloud Run, App Service, Vercel, Netlify). There is no
+  override flag, so a production deployment can never load it — and a production
   database that somehow contains it logs a warning at start-up.
