@@ -30,7 +30,8 @@ function check(condition, label) {
 function group(label) { console.log("\n== " + label + " =="); }
 
 var PUBLIC_PAGES = [
-  "index.html", "courses.html", "course.html", "lesson.html", "library.html", "dashboard.html",
+  "index.html", "about.html", "signup.html", "login.html", "learner-type.html",
+  "courses.html", "course.html", "lesson.html", "library.html", "dashboard.html",
   "search.html", "profile.html", "pricing.html", "checkout.html", "access.html", "announcements.html"
 ];
 var ADMIN_PAGES = [
@@ -143,7 +144,7 @@ var iconReferences = [];
   var dynamic = source.match(/icon:\s*NT\.pathwayIcon\([^)]*\)[^)]*\)/g);
   if (dynamic) iconReferences = iconReferences.concat(["graduation-cap", "book-open"]);
 });
-["check-circle", "circle-alert", "info", "lock", "unlock", "shield", "graduation-cap", "book-open", "calendar"].forEach(function (name) {
+["check-circle", "circle-alert", "info", "lock", "unlock", "shield", "graduation-cap", "book-open", "calendar", "house"].forEach(function (name) {
   iconReferences.push(name);
 });
 var seedIcons = (read("server/seed/content.json").match(/"icon":\s*"([^"]+)"/g) || []).map(function (entry) {
@@ -317,11 +318,52 @@ check(/ICON_CHOICES/.test(adminJs) && adminJs.indexOf("createVideo") !== -1 && a
   "admin forms offer a fixed icon list and use the video create/reorder API");
 check(adminJs.indexOf("NT.api.admin.login") !== -1 && adminJs.indexOf("NT.api.admin.changePassword") !== -1,
   "the admin area signs in through the server and can rotate its password");
-check(/site-header/.test(read("assets/js/ui.js")) && read("assets/js/ui.js").indexOf("dashboard.html") !== -1,
-  "public navigation links to the student dashboard");
+
+var ui = read("assets/js/ui.js");
+check(/site-header/.test(ui) && ui.indexOf("dashboard.html") !== -1, "authenticated navigation fits the learner dashboard");
+check(ui.indexOf('href=\"/admin/login.html\"') !== -1 && ui.indexOf("footer-admin-link") !== -1 &&
+  (ui.match(/href=\"\/admin\/login\.html\"/g) || []).length === 1,
+  "the Admin Console is a single, footer-only link to /admin/login.html");
+check(["Home", "How it works", "Access / Packages", "About", "Log in", "Get Started"].every(function (label) {
+  return ui.indexOf(label) !== -1;
+}), "public navigation provides the requested simple destinations and account actions");
 check(app.indexOf("NT.content") !== -1 && api.indexOf("/api/catalogue") !== -1,
-  "public pages read universities, semesters, courses and lessons from the API");
-check(/registration|sign up|create account/i.test(home) === false, "no account system beyond the access code is advertised");
+  "learner pages read the catalogue from the API");
+
+var signup = read("signup.html");
+var login = read("login.html");
+var onboarding = read("learner-type.html");
+check(/route\("POST", "\/api\/auth\/register"/.test(serverApi) &&
+  /route\("POST", "\/api\/auth\/login"/.test(serverApi) &&
+  /route\("GET", "\/api\/auth\/me"/.test(serverApi),
+  "account registration, login and session lookup are server-backed");
+check(serverDb.indexOf("learner_type") !== -1 && serverDb.indexOf("learner_accounts") !== -1 &&
+  serverApi.indexOf("/api/auth/learner-type") !== -1,
+  "learner type is persisted with the account and can be updated");
+check(signup.indexOf('id="signupEmail"') !== -1 && signup.indexOf('id="signupPassword"') !== -1 &&
+  signup.indexOf('id="signupAccessCode"') !== -1 && !/name="learnerType"/.test(signup),
+  "signup captures account credentials and can preserve a redeemed legacy access code without choosing a level");
+check(login.indexOf('id="loginEmail"') !== -1 && login.indexOf('id="loginPassword"') !== -1,
+  "existing account holders can log in with their email and password");
+check(onboarding.indexOf("What are you studying?") !== -1 &&
+  (onboarding.match(/name="learnerType"/g) || []).length === 2 &&
+  onboarding.indexOf(">University<") !== -1 && onboarding.indexOf(">High School<") !== -1,
+  "post-auth onboarding asks what the learner is studying with the two requested choices");
+check(app.indexOf('function authDestination(user)') !== -1 && app.indexOf('"learner-type.html"') !== -1 &&
+  app.indexOf('"dashboard.html"') !== -1 && app.indexOf("AUTH_REQUIRED") !== -1,
+  "saved learner types route to the dashboard and missing types are sent through onboarding");
+check(serverDb.indexOf("linkExistingRedeemedCode") !== -1 && serverApi.indexOf("linkExistingRedeemedCode") !== -1,
+  "redeemed legacy access codes can be linked during account creation");
+
+check(/NT\.auth\.chooseType\(newType\)/.test(app) && /NT\.auth\.updateProfile/.test(app),
+  "the learner type and profile remain editable after onboarding");
+check(serverApi.indexOf("learnerLevel: scope.learnerLevel") !== -1 &&
+  serverApi.indexOf('WHERE level = ?') !== -1 &&
+  serverApi.indexOf("visibleToLearner(found, scope.account)") !== -1,
+  "catalogue, search and direct lesson reads are scoped to the authenticated learner type");
+check(serverApi.indexOf("progressFor(access.code, catalogueLevel(account))") !== -1 &&
+  serverApi.indexOf("visibleToLearner(found, account)") !== -1,
+  "progress reads and writes stay within the learner's catalogue");
 
 var uploadSurfaces = [];
 PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/admin.js", "assets/js/ui.js", "server/api.js"])
@@ -332,10 +374,8 @@ PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/admin.js
 check(uploadSurfaces.length === 0, "the platform stays video-only (no document or material uploads)");
 
 var accessHtml = read("access.html");
-check(/<fieldset[^>]*>[\s\S]*?<legend>Choose your level<\/legend>/.test(accessHtml), "access level choices use a labelled fieldset");
-check((accessHtml.match(/type="radio" name="educationLevel"/g) || []).length === 2, "the access form offers exactly two education levels");
-check(accessHtml.indexOf("id=\"codeInput\"") > accessHtml.indexOf("Choose your level") && accessHtml.indexOf("type=\"submit\">Continue") > accessHtml.indexOf("id=\"codeInput\""),
-  "level selection comes before code entry and Continue");
+check(accessHtml.indexOf('id="codeInput"') !== -1 && !/name="educationLevel"/.test(accessHtml),
+  "code redemption stays code-only; learner type comes from the saved profile");
 check(app.indexOf("NT.api.redeem") !== -1 && app.indexOf("NT.store.setAccess(access.package") !== -1,
   "the access flow redeems codes through the server and keeps the existing package behaviour");
 check(data.indexOf("NT.isUnlocked") !== -1 && data.indexOf("video.locked") !== -1,
@@ -351,10 +391,24 @@ check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.t
   "direct requests to a protected lesson are refused with 403");
 
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1,
-  "home has no floating card or invented social proof");
-check(home.indexOf("Course outlines for") !== -1 && home.indexOf("Browse courses") !== -1, "home describes the catalogue and offers one primary path");
-check(read("index.html").indexOf("id=\"homeStats\"") !== -1 && app.indexOf("NT.content.totals()") !== -1,
-  "home statistics come from the live catalogue, not invented numbers");
+  "home has no invented social proof or student metrics");
+check(home.indexOf("Structured lessons") !== -1 && home.indexOf("Organized courses") !== -1 &&
+  home.indexOf("Progress that stays with you") !== -1 && home.indexOf("term-based organization") !== -1 &&
+  home.indexOf("Access packages") !== -1,
+  "home markets structured courses, flexible term-based learning, progress and access packages");
+check(home.indexOf('href="signup.html">Get Started</a>') !== -1 &&
+  home.indexOf('href="login.html">Log In</a>') !== -1,
+  "home presents clear Get Started and Log In calls to action");
+check(!/university|high.school|school|institution/i.test(home),
+  "the public homepage does not feature a specific education category or institution");
+var levelNeutralPages = ["index.html", "about.html", "pricing.html", "signup.html", "login.html", "access.html", "checkout.html"];
+var nonNeutralPublicPages = levelNeutralPages.filter(function (file) { return /university|high.school|University of Zambia/i.test(read(file)); });
+check(nonNeutralPublicPages.length === 0,
+  "public marketing and account pages keep education-level-specific messaging out" +
+  (nonNeutralPublicPages.length ? ": " + nonNeutralPublicPages.join(", ") : ""));
+check(read("index.html").indexOf("homeStats") === -1 && app.indexOf("function pageHome()") !== -1 &&
+  app.slice(app.indexOf("function pageHome()"), app.indexOf("/* ============================ COURSES")).indexOf("NT.content") === -1,
+  "the public homepage does not load or feature the full catalogue");
 check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1 && app.indexOf("NT.embedUrl") !== -1,
   "lesson pages play the lesson instead of promising unavailable material");
 check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.indexOf("Generate access code") !== -1,

@@ -5,8 +5,9 @@
    Exercises the exact journeys the platform promises against a
    running server (npm start):
 
-     Student   University → Semester 1 → Course → Video → Watch
-     Student   University → Semester 2 → Course → Video → Watch
+     Learner   sign up → choose learner type → scoped catalogue/profile
+     Learner   University → Semester 1/2 → Course → Video → Watch
+     Learner   High School catalogue and progress stay isolated
      Admin     sign in → University → Semester → Course → add video
                → publish → the student catalogue shows it
 
@@ -88,7 +89,8 @@ request("GET", "/api/health").then(function (response) {
   check(visitorResponse.status === 200, "GET /api/catalogue responds");
   /* No access code means no video sources at all: the tier rules are the
      server's, not the browser's. */
-  var visitorVideos = visitorResponse.json.catalogue.videos;
+  state.visitorCatalogue = visitorResponse.json.catalogue;
+  var visitorVideos = state.visitorCatalogue.videos;
   check(visitorVideos.length > 0 && visitorVideos.every(function (video) {
     return video.locked === true && video.sourceUrl === null;
   }), "a visitor receives every lesson locked and without a source URL");
@@ -174,6 +176,127 @@ request("GET", "/api/health").then(function (response) {
 }).then(function (response) {
   var items = response.json.progress || [];
   check(items.length === 1 && items[0].videoId === state.lessonOne.id, "progress is stored against the access code");
+
+  group("Learner accounts, onboarding and catalogue scope");
+  var schoolVideo = (state.visitorCatalogue.videos || []).filter(function (video) {
+    return video.universityLevel === "high-school";
+  })[0];
+  check(!!schoolVideo, "the demo catalogue provides a high-school lesson for the scope check");
+  if (!schoolVideo) throw new Error("The demo catalogue has no high-school lesson for the account-scope flow.");
+  state.schoolVideo = schoolVideo;
+  state.learnerEmail = "flow-" + Date.now() + "@example.test";
+  state.learnerPassword = "Flow-Learner-Password-2026";
+  return request("POST", "/api/auth/register", {
+    displayName: "Flow Learner",
+    email: state.learnerEmail,
+    password: state.learnerPassword,
+    accessCode: state.code
+  });
+}).then(function (response) {
+  check(response.status === 201 && response.json.user, "a learner account is created through the API");
+  state.learnerCookie = cookieFrom(response);
+  check(!!state.learnerCookie, "learner registration establishes a session cookie");
+  check(response.json.user && response.json.user.learnerType === null,
+    "registration leaves learner type unset until onboarding");
+  check(response.json.access && response.json.access.code === state.code,
+    "an existing redeemed code and its package are linked to the new account");
+  return request("GET", "/api/auth/me", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user && response.json.user.learnerType === null,
+    "an existing or newly created account with no learner type remains a valid signed-in session");
+  return request("GET", "/api/catalogue", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 409 && response.json.details && response.json.details.learnerTypeRequired,
+    "a missing learner type is handled with an onboarding response, not an account failure");
+  return request("GET", "/api/progress", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 409 && response.json.details && response.json.details.learnerTypeRequired,
+    "an unconfigured account cannot read mixed-catalogue progress before onboarding");
+  return request("POST", "/api/auth/learner-type", { learnerType: "university" }, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user.learnerType === "university",
+    "onboarding persists the university learner type");
+  return request("GET", "/api/catalogue", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  var catalogue = response.json.catalogue;
+  state.universityCatalogue = catalogue;
+  check(response.status === 200 && catalogue.universities.length > 0 && catalogue.schools.length === 0,
+    "university learners receive universities and no high-school institutions");
+  check(catalogue.courses.length > 0 && catalogue.courses.every(function (course) { return course.universityLevel === "university"; }) &&
+    catalogue.videos.every(function (video) { return video.universityLevel === "university"; }),
+    "the university course and lesson catalogues contain no high-school content");
+  var chosenInstitution = catalogue.universities.filter(function (institution) {
+    return institution.id !== catalogue.universities[0].id;
+  })[0] || catalogue.universities[0];
+  state.chosenInstitution = chosenInstitution;
+  return request("PATCH", "/api/auth/profile", { institutionId: chosenInstitution.id, semester: 2 }, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user.profile.institutionId === state.chosenInstitution.id,
+    "a learner can choose an institution from the returned catalogue rather than a hard-coded school");
+  return request("GET", "/api/auth/me", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.json.user.profile.institutionId === state.chosenInstitution.id && response.json.user.profile.semester === 2,
+    "institution and term preferences persist on the learner profile");
+  return request("GET", "/api/search?q=" + encodeURIComponent("Secondary School Programme"), null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.universities.length === 0 && response.json.courses.length === 0 && response.json.videos.length === 0,
+    "university search results do not expose high-school institutions, courses or lessons");
+  return request("GET", "/api/videos/" + encodeURIComponent(state.schoolVideo.id), null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 404, "a university learner cannot open a high-school lesson directly");
+  return request("POST", "/api/progress", { videoId: state.schoolVideo.id, completed: true, seconds: 45 }, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 404, "a university learner cannot write progress for a high-school lesson");
+  return request("GET", "/api/progress", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.progress.length === 1 &&
+    response.json.progress[0].videoId === state.lessonOne.id,
+    "linked access-code progress is visible in the matching university catalogue");
+  return request("POST", "/api/auth/learner-type", { learnerType: "high_school" }, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user.learnerType === "high_school",
+    "learners can change their learner type from the profile");
+  check(response.json.user.profile.institutionId === "" && response.json.user.profile.semester === 0,
+    "changing learner type clears institution and term preferences that no longer apply");
+  return request("GET", "/api/catalogue", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  var catalogue = response.json.catalogue;
+  check(response.status === 200 && catalogue.universities.length === 0 && catalogue.schools.length > 0,
+    "high-school learners receive schools and no university institutions");
+  check(catalogue.courses.length > 0 && catalogue.courses.every(function (course) { return course.universityLevel === "high-school"; }) &&
+    catalogue.videos.length > 0 && catalogue.videos.every(function (video) { return video.universityLevel === "high-school"; }),
+    "the high-school course and lesson catalogues contain no university content");
+  return request("GET", "/api/progress", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.progress.length === 0,
+    "university progress is not mixed into the high-school dashboard");
+  return request("POST", "/api/progress", { videoId: state.schoolVideo.id, completed: true, seconds: 45 }, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.progress.some(function (item) { return item.videoId === state.schoolVideo.id; }),
+    "high-school learners can save progress for lessons in their catalogue");
+  return request("DELETE", "/api/progress", {}, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.progress.length === 0,
+    "clearing progress only removes entries in the current learner catalogue");
+  return request("POST", "/api/auth/learner-type", { learnerType: "university" }, { cookie: state.learnerCookie });
+}).then(function () {
+  return request("GET", "/api/progress", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.progress.length === 1 &&
+    response.json.progress[0].videoId === state.lessonOne.id,
+    "switching back restores only progress relevant to the selected catalogue");
+  return request("POST", "/api/auth/logout", {}, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200, "a learner can sign out of the account session");
+  return request("POST", "/api/auth/login", { email: state.learnerEmail, password: state.learnerPassword });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user.learnerType === "university",
+    "an existing account logs back in with its saved learner type");
+  state.learnerCookie = cookieFrom(response);
+  return request("GET", "/api/auth/me", null, { cookie: state.learnerCookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.user.learnerType === "university",
+    "the learner session and type persist after a fresh login");
   return request("GET", "/api/admin/overview");
 }).then(function (response) {
   group("Admin gate");

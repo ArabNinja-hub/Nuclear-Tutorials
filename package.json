@@ -2,7 +2,7 @@
   "name": "nuclear-tutorials",
   "version": "1.0.0",
   "private": true,
-  "description": "Nuclear Tutorials — video learning platform for university and secondary students (University / Semester / Course / Video lessons).",
+  "description": "Nuclear Tutorials — an education-level-neutral platform for structured lessons, courses and personalized learning.",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.5.0"

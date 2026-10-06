@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Choose Your Learner Profile — Nuclear Tutorials</title>
+<meta name="description" content="Choose a learner profile to personalize your Nuclear Tutorials catalogue.">
+<link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
+<link rel="stylesheet" href="assets/css/fonts.css">
+<link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body data-page="onboarding">
+<main id="main" tabindex="-1">
+  <section class="learner-onboarding section-body">
+    <div class="container">
+      <div class="learner-onboarding-card card">
+        <div class="onboarding-progress"><span class="onboarding-progress-mark">01</span><span>Personalize your learning space</span></div>
+        <span class="eyebrow">A quick learner profile</span>
+        <h1>What are you studying?</h1>
+        <p class="lede">This helps us show the catalogue and learning options that are relevant to you.</p>
+        <form id="learnerTypeForm" class="learner-type-form">
+          <fieldset class="learner-type-fieldset">
+            <legend class="sr-only">Choose what you are studying</legend>
+            <div class="learner-type-options">
+              <label class="learner-type-option">
+                <input type="radio" name="learnerType" value="university" required>
+                <span class="learner-type-option-card"><span class="learner-type-icon" aria-hidden="true">⌂</span><span class="learner-type-copy"><b>University</b><small>For university-level learning</small></span><span class="learner-type-check" aria-hidden="true"></span></span>
+              </label>
+              <label class="learner-type-option">
+                <input type="radio" name="learnerType" value="high_school" required>
+                <span class="learner-type-option-card"><span class="learner-type-icon" aria-hidden="true">▤</span><span class="learner-type-copy"><b>High School</b><small>For high-school-level learning</small></span><span class="learner-type-check" aria-hidden="true"></span></span>
+              </label>
+            </div>
+          </fieldset>
+          <p class="learner-type-reassurance">This is a learner-profile choice, not a permanent restriction. You can change it later in your Learning Profile.</p>
+          <div id="learnerTypeMessage" aria-live="polite"></div>
+          <button class="btn btn-primary btn-lg" type="submit">Continue to my learning space <span aria-hidden="true">→</span></button>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

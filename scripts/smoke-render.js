@@ -19,9 +19,12 @@ var registry = {};
 var documentQueries = {};
 var documentListeners = {};
 var storage = {};
-var educationRadios = [];
+var learnerRadios = [];
 var fetchLog = [];
 var redirected = "";
+var fakeAccount = null;
+var lastAuthBody = null;
+var loginLearnerType = "university";
 process.on("unhandledRejection", function (error) { console.error("  UNHANDLED  " + ((error && error.stack) || error)); });
 
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
@@ -67,7 +70,7 @@ function makeEl(tag) {
       return this._queries[selector];
     },
     querySelectorAll: function (selector) {
-      if (selector === 'input[name="educationLevel"]') return educationRadios;
+      if (selector === 'input[name="learnerType"]') return learnerRadios;
       return [];
     }
   };
@@ -211,24 +214,90 @@ function jsonResponse(payload, status) {
   };
 }
 
+function requestBody(init) {
+  try { return JSON.parse(init && init.body || "{}"); } catch (error) { return {}; }
+}
+function fakeAuthPayload() {
+  return {
+    ok: true,
+    authenticated: !!fakeAccount,
+    user: fakeAccount ? Object.assign({}, fakeAccount) : null,
+    access: fakeAccount && fakeAccount.access ? Object.assign({}, fakeAccount.access) : { active: false, package: null, level: 0 }
+  };
+}
+function fakeLearner(learnerType, access) {
+  return {
+    id: "smoke-learner",
+    email: "learner@example.test",
+    displayName: "Test Learner",
+    learnerType: learnerType || null,
+    profile: { institutionId: learnerType === "university" ? "unza" : "", semester: learnerType === "university" ? 1 : 0 },
+    access: access || null
+  };
+}
+
 global.fetch = function (url, init) {
   var method = (init && init.method) || "GET";
   var resolved = new URL(String(url), global.location.href);
   var target = resolved.pathname;
   fetchLog.push(method + " " + target + resolved.search);
 
+  if (target === "/api/auth/me") return Promise.resolve(jsonResponse(fakeAuthPayload()));
+  if (target === "/api/auth/register") {
+    lastAuthBody = requestBody(init);
+    var linkedAccess = lastAuthBody.accessCode === "NT-STANDARD-4826"
+      ? { active: true, code: "NT-STANDARD-4826", package: "standard", level: 2, since: "2026-10-01T00:00:00.000Z", expiresAt: "2027-03-30T00:00:00.000Z" }
+      : null;
+    fakeAccount = fakeLearner(null, linkedAccess);
+    return Promise.resolve(jsonResponse(fakeAuthPayload(), 201));
+  }
+  if (target === "/api/auth/login") {
+    lastAuthBody = requestBody(init);
+    fakeAccount = fakeLearner(loginLearnerType, { active: true, code: "NT-STANDARD-4826", package: "standard", level: 2, since: "2026-10-01T00:00:00.000Z", expiresAt: "2027-03-30T00:00:00.000Z" });
+    return Promise.resolve(jsonResponse(fakeAuthPayload()));
+  }
+  if (target === "/api/auth/learner-type") {
+    lastAuthBody = requestBody(init);
+    if (fakeAccount) fakeAccount.learnerType = lastAuthBody.learnerType || null;
+    return Promise.resolve(jsonResponse({ ok: true, user: fakeAccount }));
+  }
+  if (target === "/api/auth/profile") {
+    lastAuthBody = requestBody(init);
+    if (fakeAccount) {
+      if (lastAuthBody.displayName != null) fakeAccount.displayName = lastAuthBody.displayName;
+      fakeAccount.profile = Object.assign({}, fakeAccount.profile, {
+        institutionId: lastAuthBody.institutionId || "",
+        semester: Number(lastAuthBody.semester) || 0
+      });
+    }
+    return Promise.resolve(jsonResponse({ ok: true, user: fakeAccount }));
+  }
+  if (target === "/api/auth/logout") {
+    fakeAccount = null;
+    return Promise.resolve(jsonResponse({ ok: true, authenticated: false, user: null }));
+  }
   if (target === "/api/catalogue") {
     var level = codeLevel(init);
+    var currentUser = global.NT && global.NT.auth ? global.NT.auth.user() : null;
+    var learnerType = currentUser && currentUser.learnerType;
+    var scopedCatalogue = learnerType === "high_school"
+      ? Object.assign({}, CATALOGUE, { universities: [], schools: [SCHOOL], courses: [], videos: [], totals: { universities: 0, schools: 1, courses: 0, videos: 0, levels: { basic: 0, standard: 0, premium: 0 } } })
+      : (learnerType === "university"
+        ? Object.assign({}, CATALOGUE, { schools: [], videos: protectAll(VIDEOS.filter(function (video) { return video.universityLevel === "university"; }), level) })
+        : Object.assign({}, CATALOGUE, { videos: protectAll(CATALOGUE.videos, level) }));
     return Promise.resolve(jsonResponse({
       ok: true,
-      catalogue: Object.assign({}, CATALOGUE, { videos: protectAll(CATALOGUE.videos, level) }),
+      catalogue: scopedCatalogue,
       settings: SETTINGS,
-      access: level ? { active: true, package: ["", "basic", "standard", "premium"][level], level: level } : { active: false, package: null, level: 0 }
+      access: level ? { active: true, package: ["", "basic", "standard", "premium"][level], level: level, code: "NT-STANDARD-4826" } : { active: false, package: null, level: 0 },
+      learnerType: learnerType || null
     }));
   }
   if (/^\/api\/videos\/[^/]+$/.test(target)) {
+    var currentLearner = global.NT && global.NT.auth ? global.NT.auth.user() : null;
     var wanted = decodeURIComponent(target.split("/").pop());
     var found = VIDEOS.filter(function (video) { return video.id === wanted; })[0];
+    if (currentLearner && currentLearner.learnerType === "high_school") found = null;
     if (!found) return Promise.resolve(jsonResponse({ ok: false, error: "That video lesson could not be found." }, 404));
     var tier = codeLevel(init);
     if (tier < (TIER[found.level] || 1)) {
@@ -252,7 +321,12 @@ global.fetch = function (url, init) {
     }));
   }
   if (target === "/api/announcements") return Promise.resolve(jsonResponse({ ok: true, announcements: ANNOUNCEMENTS }));
-  if (target === "/api/search") return Promise.resolve(jsonResponse({ ok: true, universities: [UNZA], courses: [MTH101], videos: [VIDEOS[0]], announcements: [] }));
+  if (target === "/api/search") {
+    var searchUser = global.NT && global.NT.auth ? global.NT.auth.user() : null;
+    return Promise.resolve(jsonResponse(searchUser && searchUser.learnerType === "high_school"
+      ? { ok: true, universities: [], courses: [], videos: [], announcements: [] }
+      : { ok: true, universities: [UNZA], courses: [MTH101], videos: [VIDEOS[0]], announcements: [] }));
+  }
   if (target === "/api/codes/issue") return Promise.resolve(jsonResponse({ ok: true, code: "NT-STANDARD-4826", package: "standard" }, 201));
   if (target === "/api/access/redeem") {
     return Promise.resolve(jsonResponse({
@@ -369,69 +443,87 @@ installStorage();
 
 ["assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/app.js"].forEach(evaluate);
 
-function signIn() {
-  global.NT.store.mutate(function (state) {
-    state.profile.educationLevel = "university";
-    state.profile.universityId = "unza";
-    state.profile.semester = 1;
-    state.access = "standard";
-    state.accessMeta = { source: "access-code", code: "NT-STANDARD-4826", since: new Date().toISOString(), expiresAt: "2027-03-30T00:00:00.000Z" };
-  });
+function signIn(learnerType) {
+  if (learnerType === undefined) learnerType = "university";
+  var access = {
+    active: true,
+    code: "NT-STANDARD-4826",
+    package: "standard",
+    level: 2,
+    since: "2026-10-01T00:00:00.000Z",
+    expiresAt: "2027-03-30T00:00:00.000Z"
+  };
+  fakeAccount = fakeLearner(learnerType, access);
+  global.NT.auth.set({ authenticated: true, user: fakeAccount, access: access });
 }
 
-/* ---------------- public routes ---------------- */
+function signOut() {
+  fakeAccount = null;
+  global.NT.store.reset();
+  global.NT.auth.set({ authenticated: false, user: null, access: null });
+}
 
-group("Public render smoke");
+/* ---------------- public and authenticated routes ---------------- */
+
+group("Public and learner render smoke");
 var PUBLIC = [
-  ["home", "index.html", "", { visitor: ["Choose your university", "Semester 1", "Semester 2"], access: ["Choose your university"] }],
-  ["courses", "courses.html", "", { visitor: ["Mathematics I", "Semester 1"], access: ["Mathematics I"] }],
-  ["courses", "courses.html", "?university=secondary&semester=2&level=high-school", { visitor: ["Secondary School Programme"] }],
-  ["course", "course.html", "?id=unza-mth1010", { visitor: ["Limits and continuity", "Video lessons", "Start learning"], access: ["Limits and continuity"] }],
-  ["course", "course.html", "?id=not-a-course", { visitor: ["Course not found"] }],
-  ["lesson", "lesson.html", "?id=unza-mth1010-v1", { visitor: ["About this lesson", "Compare packages"], access: ["About this lesson", "Watched"] }],
-  ["lesson", "lesson.html", "?id=not-a-lesson", { visitor: ["Lesson not found"] }],
-  ["library", "library.html", "", { visitor: ["Limits and continuity"], access: ["Limits and continuity"] }],
-  ["dashboard", "dashboard.html", "", { visitor: ["Log in to continue"], access: ["Welcome back", "Last watched", "Recently viewed"] }],
-  ["pricing", "pricing.html", "", { visitor: ["Basic", "Standard", "Premium"], access: ["Standard"] }],
-  ["checkout", "checkout.html", "?pkg=standard", { visitor: ["Standard", "Generate access code"] }],
-  ["checkout", "checkout.html", "?pkg=unknown", { visitor: ["Choose a package first"] }],
-  ["access", "access.html", "", { visitor: ["Choose your level"] }],
-  ["profile", "profile.html", "", { visitor: ["Study preferences", "University of Zambia"], access: ["Study preferences", "Standard"] }],
-  ["search", "search.html", "?q=Mathematics", { visitor: ["Mathematics I"] }],
-  ["announcements", "announcements.html", "", { visitor: ["Semester 2 lessons published"] }]
+  { page: "home", file: "index.html", needles: ["Learn smarter.", "Get Started", "Log In", "Structured lessons"] },
+  { page: "about", file: "about.html", needles: ["Learning should feel clear", "organized courses", "Get Started"] },
+  { page: "signup", file: "signup.html", needles: ["Create an account", "Existing access code"] },
+  { page: "login", file: "login.html", needles: ["Continue your learning", "Email address"] },
+  { page: "onboarding", file: "learner-type.html", protected: true, untypedNeedles: ["What are you studying?", "University", "High School"] },
+  { page: "pricing", file: "pricing.html", needles: ["Access packages", "Basic", "Standard", "Premium"], signedNeedles: ["Current package"] },
+  { page: "courses", file: "courses.html", query: "", protected: true, signedNeedles: ["Mathematics I", "Semester 1"] },
+  { page: "courses", file: "courses.html", query: "?university=unza&semester=2", protected: true, signedNeedles: ["Electricity and Magnetism", "Semester 2"] },
+  { page: "course", file: "course.html", query: "?id=unza-mth1010", protected: true, signedNeedles: ["Limits and continuity", "Video lessons", "Continue this course"] },
+  { page: "course", file: "course.html", query: "?id=not-a-course", protected: true, signedNeedles: ["Course not found"] },
+  { page: "lesson", file: "lesson.html", query: "?id=unza-mth1010-v1", protected: true, signedNeedles: ["About this lesson", "Watched"] },
+  { page: "lesson", file: "lesson.html", query: "?id=not-a-lesson", protected: true, signedNeedles: ["Lesson not found"] },
+  { page: "library", file: "library.html", protected: true, signedNeedles: ["Limits and continuity"] },
+  { page: "dashboard", file: "dashboard.html", protected: true, signedNeedles: ["Welcome back", "Learning profile"] },
+  { page: "checkout", file: "checkout.html", query: "?pkg=standard", protected: true, signedNeedles: ["Standard package", "Generate access code"] },
+  { page: "checkout", file: "checkout.html", query: "?pkg=unknown", protected: true, signedNeedles: ["Choose a package first"] },
+  { page: "access", file: "access.html", protected: true, signedNeedles: ["Redeem an access code", "Access code"] },
+  { page: "profile", file: "profile.html", protected: true, signedNeedles: ["What are you studying?", "University", "Standard"] },
+  { page: "search", file: "search.html", query: "?q=Mathematics", protected: true, signedNeedles: ["Mathematics I"] },
+  { page: "announcements", file: "announcements.html", protected: true, signedNeedles: ["Semester 2 lessons published"] }
 ];
 
 var chain = Promise.resolve();
 
-if (LIVE) {
-  chain = chain.then(function () {
-    return global.fetch(LIVE + "/api/catalogue").then(function (response) {
-      return response.text();
-    }).then(function (raw) {
-      var payload = JSON.parse(raw);
-      var catalogue = payload.catalogue;
-      var university = catalogue.universities[0];
-      var semesterOne = catalogue.courses.filter(function (course) { return Number(course.semester) === 1; })[0];
-      var semesterTwo = catalogue.courses.filter(function (course) { return Number(course.semester) === 2; })[0];
-      var video = catalogue.videos.filter(function (item) { return item.courseId === semesterOne.id; })[0];
-      PUBLIC = [
-        ["home", "index.html", "", { visitor: [university.name, "Semester 1", "Semester 2"] }],
-        ["courses", "courses.html", "?university=" + university.id + "&semester=1", { visitor: [semesterOne.title, university.name] }],
-        ["courses", "courses.html", "?semester=2", { visitor: [semesterTwo.title] }],
-        ["course", "course.html", "?id=" + semesterOne.id, { visitor: [semesterOne.title, video.title] }],
-        ["course", "course.html", "?id=missing-course", { visitor: ["Course not found"] }],
-        ["lesson", "lesson.html", "?id=" + video.id, { visitor: [video.title, "About this lesson"] }],
-        ["lesson", "lesson.html", "?id=missing-lesson", { visitor: ["Lesson not found"] }],
-        ["library", "library.html", "?course=" + semesterOne.id, { visitor: [video.title] }],
-        ["dashboard", "dashboard.html", "", { visitor: ["Log in to continue"] }],
-        ["pricing", "pricing.html", "", { visitor: ["Basic", "Standard", "Premium"] }],
-        ["checkout", "checkout.html", "?pkg=standard", { visitor: ["Generate access code"] }],
-        ["access", "access.html", "", { visitor: ["Choose your level"] }],
-        ["profile", "profile.html", "", { visitor: ["Study preferences", university.name] }],
-        ["search", "search.html", "?q=" + encodeURIComponent(university.shortName), { visitor: [university.name] }],
-        ["announcements", "announcements.html", "", { visitor: ["Announcements"] }]
-      ];
-      console.log("Live catalogue: " + university.name + " · " + catalogue.courses.length + " courses · " + catalogue.videos.length + " lessons");
+function renderScenario(entry, mode, expectedNeedles, expectedRedirect) {
+  var stateLabel = mode === "visitor" ? "visitor" : (mode === "untyped" ? "untyped account" : mode);
+  var label = entry.file + (entry.query || "") + " [" + stateLabel + "]";
+  installStorage();
+  signOut();
+  if (mode === "learner" || mode === "high_school") signIn(mode === "high_school" ? "high_school" : "university");
+  if (mode === "untyped") signIn(null);
+  fetchLog = [];
+  redirected = "";
+  resetDom(entry.page, "public");
+  global.location.pathname = "/" + entry.file;
+  global.location.search = entry.query || "";
+  global.location.href = "http://preview.test/" + entry.file + (entry.query || "");
+
+  var refreshed = LIVE ? Promise.resolve() : global.NT.content.reload();
+  return refreshed.then(function () {
+    runDomReady();
+    return drain(45).then(function () {
+      var html = collectHtml(entry.file);
+      ok(html.length > 400, label + " renders a page shell");
+      ok(html.indexOf("undefined") === -1, label + " contains no undefined values");
+      ok(html.indexOf("NaN") === -1, label + " contains no invalid numbers");
+      (expectedNeedles || []).forEach(function (needle) {
+        ok(html.indexOf(needle) !== -1, label + " shows " + JSON.stringify(needle));
+      });
+      if (expectedRedirect) {
+        ok(redirected.indexOf(expectedRedirect) !== -1,
+          label + " redirects to " + expectedRedirect + (redirected ? " (" + redirected + ")" : ""));
+      }
+      if (mode === "high_school") {
+        ok(html.indexOf("University of Zambia") === -1 && html.indexOf("Mathematics I") === -1,
+          label + " excludes university catalogue content");
+      }
     });
   });
 }
@@ -439,39 +531,126 @@ if (LIVE) {
 function renderPublicRoutes() {
   var steps = Promise.resolve();
   PUBLIC.forEach(function (entry) {
-    [false, true].forEach(function (hasAccess) {
-      var label = entry[1] + entry[2] + (hasAccess ? " [package]" : " [visitor]");
+    if (LIVE) {
       steps = steps.then(function () {
-        try {
-          installStorage();
-          global.NT.store.reset();
-          if (hasAccess) signIn();
-          resetDom(entry[0], "public");
-          global.location.pathname = "/" + entry[1];
-          global.location.search = entry[2];
-          global.location.href = "http://preview.test/" + entry[1] + entry[2];
-          runDomReady();
-          return drain(30).then(function () {
-            var html = collectHtml(entry[1]);
-            ok(html.length > 400, label + " renders markup");
-            ok(html.indexOf("undefined") === -1, label + " contains no undefined values");
-            ok(html.indexOf("NaN") === -1, label + " contains no invalid numbers");
-            var needles = (entry[3] && (hasAccess ? entry[3].access : entry[3].visitor)) || [];
-            needles.forEach(function (needle) {
-              ok(html.indexOf(needle) !== -1, label + " shows " + JSON.stringify(needle));
-            });
-          });
-        } catch (error) {
-          ok(false, label + " throws: " + (error && error.stack));
-          return Promise.resolve();
-        }
+        var visitorNeedles = entry.protected ? [] : entry.needles;
+        return renderScenario(entry, "visitor", visitorNeedles, entry.protected ? "login.html" : "");
       });
-    });
+      return;
+    }
+
+    if (entry.protected) {
+      steps = steps.then(function () { return renderScenario(entry, "visitor", [], "login.html"); });
+      if (entry.page === "onboarding") {
+        steps = steps.then(function () { return renderScenario(entry, "untyped", entry.untypedNeedles, ""); });
+      } else {
+        steps = steps.then(function () { return renderScenario(entry, "learner", entry.signedNeedles, ""); });
+      }
+      if (entry.page === "courses" && entry.query === "") {
+        steps = steps.then(function () {
+          return renderScenario(entry, "high_school", [], "").then(function () {
+            var html = collectHtml(entry.file);
+            ok(html.indexOf("University of Zambia") === -1 && html.indexOf("Mathematics I") === -1,
+              "courses.html [high-school learner] excludes university catalogue content");
+          });
+        });
+      }
+    } else {
+      steps = steps.then(function () { return renderScenario(entry, "visitor", entry.needles, ""); });
+      if (entry.signedNeedles) {
+        steps = steps.then(function () { return renderScenario(entry, "learner", entry.signedNeedles, ""); });
+      }
+      if (entry.page === "signup" || entry.page === "login") {
+        steps = steps.then(function () {
+          return renderScenario(entry, "untyped", [], entry.page === "signup" ? "learner-type.html" : "learner-type.html");
+        });
+      }
+    }
   });
   return steps;
 }
 
 chain = chain.then(renderPublicRoutes);
+
+chain = chain.then(function () {
+  if (LIVE) { console.log("\n== Account onboarding ==\n  SKIP  exercised by the live API flow checks"); return; }
+  group("Account signup, login and learner onboarding");
+
+  function openPage(page, file, search) {
+    redirected = "";
+    resetDom(page, "public");
+    global.location.pathname = "/" + file;
+    global.location.search = search || "";
+    global.location.href = "http://preview.test/" + file + (search || "");
+    runDomReady();
+    return drain(20);
+  }
+
+  installStorage();
+  signOut();
+  global.NT.store.setAccess("standard", {
+    code: "NT-STANDARD-4826",
+    since: "2026-10-01T00:00:00.000Z",
+    expiresAt: "2027-03-30T00:00:00.000Z"
+  });
+  fetchLog = [];
+  return openPage("signup", "signup.html", "").then(function () {
+    ok(byId("signupAccessCode").value === "NT-STANDARD-4826", "signup offers to carry forward a redeemed access code");
+    byId("signupName").value = "Test Learner";
+    byId("signupEmail").value = "learner@example.test";
+    byId("signupPassword").value = "long-smoke-password";
+    byId("signupConfirmPassword").value = "long-smoke-password";
+    byId("signupForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("signupForm") });
+    return drain(25);
+  }).then(function () {
+    ok(fetchLog.indexOf("POST /api/auth/register") !== -1, "signup creates the account through the API");
+    ok(lastAuthBody && lastAuthBody.accessCode === "NT-STANDARD-4826", "signup submits the optional existing code for account linking");
+    ok(global.NT.auth.user() && global.NT.auth.user().learnerType === null,
+      "creating an account does not select an education level");
+    ok(global.NT.store.get().access === "standard", "a linked legacy package is retained after registration");
+    ok(global.location.href.indexOf("learner-type.html") !== -1, "signup continues to learner-profile onboarding");
+
+    learnerRadios = [
+      Object.assign(makeEl("input"), { value: "university", checked: false }),
+      Object.assign(makeEl("input"), { value: "high_school", checked: true })
+    ];
+    return openPage("onboarding", "learner-type.html", "?next=dashboard.html");
+  }).then(function () {
+    byId("learnerTypeForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("learnerTypeForm") });
+    return drain(25);
+  }).then(function () {
+    ok(fetchLog.indexOf("POST /api/auth/learner-type") !== -1, "onboarding saves the selected learner type through the API");
+    ok(global.NT.auth.user() && global.NT.auth.user().learnerType === "high_school", "the selected learner type is persisted in the signed-in profile");
+    ok(global.location.href.indexOf("dashboard.html") !== -1, "onboarding continues to the personalized dashboard");
+
+    signOut();
+    loginLearnerType = null;
+    return openPage("login", "login.html", "");
+  }).then(function () {
+    byId("loginEmail").value = "learner@example.test";
+    byId("loginPassword").value = "long-smoke-password";
+    byId("loginForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("loginForm") });
+    return drain(25);
+  }).then(function () {
+    ok(fetchLog.indexOf("POST /api/auth/login") !== -1, "existing users can authenticate with their saved account credentials");
+    ok(global.location.href.indexOf("learner-type.html") !== -1,
+      "an existing account without a saved learner type is routed through onboarding");
+
+    signOut();
+    loginLearnerType = "university";
+    return openPage("login", "login.html", "");
+  }).then(function () {
+    byId("loginEmail").value = "learner@example.test";
+    byId("loginPassword").value = "long-smoke-password";
+    byId("loginForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("loginForm") });
+    return drain(25);
+  }).then(function () {
+    ok(global.NT.auth.user() && global.NT.auth.user().learnerType === "university", "login restores the learner type saved on the account");
+    ok(global.location.href.indexOf("dashboard.html") !== -1, "a returning learner with a saved type goes to the dashboard");
+  });
+}).catch(function (error) {
+  if (!LIVE) ok(false, "account flow throws: " + (error && error.stack));
+});
 
 /* ---------------- access and checkout flows ---------------- */
 
@@ -481,14 +660,12 @@ function drain(ms) { return new Promise(function (resolve) { setTimeout(resolve,
 
 chain = chain.then(function () {
   if (LIVE) { console.log("\n== Access code flow ==\n  SKIP  covered by scripts/check-flows.js against the live server"); return; }
-  group("Access code flow");
+  group("Access code flow — signed-in learner");
   installStorage();
   global.NT.store.reset();
+  fakeAccount = fakeLearner("university", null);
+  global.NT.auth.set({ authenticated: true, user: fakeAccount, access: null });
   fetchLog = [];
-  educationRadios = [
-    Object.assign(makeEl("input"), { value: "high-school", checked: false }),
-    Object.assign(makeEl("input"), { value: "university", checked: false })
-  ];
   documentListeners = {};
   resetDom("access", "public");
   global.document.body.dataset.page = "access";
@@ -497,25 +674,21 @@ chain = chain.then(function () {
   global.location.href = "http://preview.test/access.html";
   evaluate("assets/js/app.js");
   runDomReady();
-  var form = byId("codeForm");
-  var codeInput = byId("codeInput");
-  codeInput.value = "NT-STANDARD-4826";
-  form.dispatch("submit", { preventDefault: function () {}, currentTarget: form });
-  ok(byId("codeMsg").innerHTML.indexOf("Choose your level") !== -1, "submitting without a level is rejected accessibly");
-  ok(global.NT.store.get().access === null, "missing level does not grant package access");
-
-  educationRadios[1].checked = true;
-  form.dispatch("submit", { preventDefault: function () {}, currentTarget: form });
-  return drain(60);
+  return drain(20).then(function () {
+    var form = byId("codeForm");
+    var codeInput = byId("codeInput");
+    codeInput.value = "NT-STANDARD-4826";
+    form.dispatch("submit", { preventDefault: function () {}, currentTarget: form });
+    return drain(60);
+  });
 }).then(function () {
   if (LIVE) return;
   var state = global.NT.store.get();
   ok(state.access === "standard", "redeemed code grants the package returned by the server");
-  ok(state.profile.educationLevel === "university", "selected education level is stored in the student profile");
+  ok(state.profile.educationLevel === "university", "the account's learner type supplies the access catalogue");
   ok(fetchLog.indexOf("POST /api/access/redeem") !== -1, "redemption is validated by the server, not localStorage");
-  ok(byId("codeResult").innerHTML.indexOf("Continue to your courses") !== -1, "success state offers the next learning step");
-  ok(byId("codeResult").innerHTML.indexOf("courses.html?level=university&semester=1") !== -1,
-    "success state routes to Semester 1 of the catalogue for the redeemed level");
+  ok(byId("codeResult").innerHTML.indexOf("Continue to your learning") !== -1, "success state offers the next learning step");
+  ok(byId("codeResult").innerHTML.indexOf("courses.html") !== -1, "success state returns the learner to their catalogue");
 }).catch(function (error) {
   if (!LIVE) ok(false, "access-code flow throws: " + (error && error.stack));
 });
@@ -562,8 +735,10 @@ chain = chain.then(function () {
   global.location.href = "http://preview.test/checkout.html?pkg=standard";
   evaluate("assets/js/app.js");
   runDomReady();
-  byId("generateCode").dispatch("click", { currentTarget: byId("generateCode") });
-  return drain(40);
+  return drain(20).then(function () {
+    byId("generateCode").dispatch("click", { currentTarget: byId("generateCode") });
+    return drain(40);
+  });
 }).then(function () {
   if (LIVE) return;
   ok(byId("checkoutResult").innerHTML.indexOf("NT-STANDARD-4826") !== -1, "checkout shows the server-issued access code");
