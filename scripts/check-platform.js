@@ -41,7 +41,7 @@ var ADMIN_PAGES = [
 ];
 var SCRIPT_FILES = [
   "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js",
-  "assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js",
+  "assets/js/ui.js", "assets/js/app.js", "assets/js/hero-rotator.js", "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js", "server/platform.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
   "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js"
@@ -455,6 +455,13 @@ check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.t
 var heroBlock = home.slice(home.indexOf('class="hero-home"'), home.indexOf("home-promise"));
 check(heroBlock.indexOf("reveal") === -1 && heroBlock.indexOf("data-reveal") === -1,
   "the homepage hero keeps no scroll animation of its own");
+var heroRotator = read("assets/js/hero-rotator.js");
+check(/class="hero-rotator-slot"><span data-hero-rotator>Stay ahead\.<\/span><span class="hero-rotator-sizer" aria-hidden="true">Keep improving\.&nbsp;<\/span><\/span>/.test(home) &&
+  css.indexOf(".hero-home h1 em .hero-rotator-slot { position: relative; display: inline-block;") !== -1 &&
+  css.indexOf(".hero-home h1 em .hero-rotator-sizer { visibility: hidden; }") !== -1 &&
+  heroRotator.indexOf("textNode.nodeValue = phrase.slice(0, position)") !== -1 &&
+  heroRotator.indexOf("text.textContent") === -1,
+  "the hero typewriter stays mounted in a fixed phrase-sized slot and updates its text node in place");
 check(/class="promise-item reveal" data-reveal="up" data-delay="1"/.test(home) &&
   home.indexOf('data-reveal="left"') !== -1 && home.indexOf('data-reveal="right"') !== -1 &&
   home.indexOf('data-reveal="scale"') !== -1 && home.indexOf('data-reveal="fade"') !== -1,

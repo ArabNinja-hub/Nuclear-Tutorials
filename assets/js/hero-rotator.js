@@ -4,6 +4,13 @@
   var text = document.querySelector(".hero-home [data-hero-rotator]");
   if (!text) return;
 
+  // Keep the mounted rotator and its text node in place; only change the text data.
+  var textNode = text.firstChild;
+  if (!textNode || textNode.nodeType !== 3) {
+    textNode = document.createTextNode("");
+    text.insertBefore(textNode, text.firstChild);
+  }
+
   var phrases = [
     "Stay ahead.",
     "Stay focused.",
@@ -36,7 +43,7 @@
 
     var phrase = phrases[index];
     var position = 0;
-    text.textContent = "";
+    textNode.nodeValue = "";
     text.classList.remove("is-erasing");
     text.classList.add("is-typing");
 
@@ -44,7 +51,7 @@
       if (!isCurrentCycle(generation)) return;
 
       position += 1;
-      text.textContent = phrase.slice(0, position);
+      textNode.nodeValue = phrase.slice(0, position);
       if (position === phrase.length) {
         text.classList.remove("is-typing");
         timer = window.setTimeout(function () {
@@ -70,7 +77,7 @@
       if (!isCurrentCycle(generation)) return;
 
       position -= 1;
-      text.textContent = phrase.slice(0, position);
+      textNode.nodeValue = phrase.slice(0, position);
       if (position === 0) {
         text.classList.remove("is-erasing");
         timer = window.setTimeout(function () {
@@ -88,7 +95,7 @@
     cycle += 1;
     clearTimer();
     text.classList.remove("is-typing", "is-erasing");
-    text.textContent = phrases[0];
+    textNode.nodeValue = phrases[0];
   }
 
   function startCycle() {
