@@ -234,6 +234,17 @@ body.admin { background: var(--bg); }
   .adm-side { transition: none !important; }
 }
 
+/* ---------- Dark mode ----------
+   The admin UI shares main.css's theme tokens; these rules cover the few
+   surfaces that hardcode light colours so text stays readable. */
+[data-theme="dark"] .adm-topbar {
+  background: rgba(15,42,58,.94);
+  border-bottom-color: var(--line);
+}
+[data-theme="dark"] .adm-notice { border-color: rgba(232,192,126,.3); }
+[data-theme="dark"] .adm-notice b { color: var(--warn); }
+[data-theme="dark"] .adm-notice-success { border-color: rgba(111,217,164,.3); }
+
 /* ---------- Touch-first administration ---------- */
 .adm-list-row { min-width: 0; }
 .adm-list-pick { min-height: 44px; }
