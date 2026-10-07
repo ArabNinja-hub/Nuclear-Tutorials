@@ -74,7 +74,10 @@
     isOffline: function () { return offline; },
 
     /* Student flow -------------------------------------------------- */
-    issueCode: function (pkg) { return request("/api/codes/issue", { method: "POST", body: { package: pkg }, withCode: false }); },
+    /* Payment is agreed with Nuclear Tutorials on WhatsApp. The enquiry the
+       server stores keeps the package, price and reference; the browser only
+       supplies the package code and the student's own details. */
+    createEnquiry: function (payload) { return request("/api/payment-enquiries", { method: "POST", body: payload }); },
     redeem: function (code) {
       return request("/api/access/redeem", { method: "POST", body: { code: code }, withCode: false });
     },
@@ -121,6 +124,10 @@
       codes: function () { return request("/api/admin/codes"); },
       createCodes: function (pkg, count) { return request("/api/admin/codes", { method: "POST", body: { package: pkg, count: count } }); },
       deleteCode: function (code) { return request("/api/admin/codes/" + encodeURIComponent(code), { method: "DELETE" }); },
+      enquiries: function () { return request("/api/admin/enquiries"); },
+      confirmEnquiry: function (id) { return request("/api/admin/enquiries/" + encodeURIComponent(id) + "/confirm", { method: "POST", body: {} }); },
+      rejectEnquiry: function (id) { return request("/api/admin/enquiries/" + encodeURIComponent(id) + "/reject", { method: "POST", body: {} }); },
+      retryEnquiryEmail: function (id) { return request("/api/admin/enquiries/" + encodeURIComponent(id) + "/email", { method: "POST", body: {} }); },
       announcements: function () { return request("/api/admin/announcements"); },
       createAnnouncement: function (body) { return request("/api/admin/announcements", { method: "POST", body: body }); },
       updateAnnouncement: function (id, body) { return request("/api/admin/announcements/" + encodeURIComponent(id), { method: "PATCH", body: body }); },

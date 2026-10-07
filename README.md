@@ -45,7 +45,9 @@ and vanilla JavaScript.
 
 Environment (see `.env.example`): `PORT`, `HOST`, `NT_DATA_DIR`, `NT_DB_FILE`,
 `NT_ADMIN_PASSWORD`, `NT_REQUIRE_PERSISTENT_STORAGE`, `NT_SESSION_DAYS`,
-`NT_COOKIE_SECURE`, `NT_ALLOWED_ORIGINS`.
+`NT_COOKIE_SECURE`, `NT_ALLOWED_ORIGINS`, `NT_WHATSAPP_NUMBER`,
+`NT_WHATSAPP_CONTACT`, `NT_PUBLIC_URL` and the `NT_SMTP_*` / `NT_MAIL_*` email
+settings.
 
 The server always listens on `process.env.PORT` and binds `0.0.0.0`, so it
 works behind the platform's HTTPS proxy. `HOST` can override the interface for
@@ -152,11 +154,19 @@ under the same mount (`NT_DATA_DIR`), never inside the deploy directory.
    Vimeo embeds, direct MP4/WebM files, otherwise a link to the original
    source), shows topic, description, duration, provider and "up next", and
    records progress.
-4. **Log in with an access code** — `access.html` asks for High School or
+4. **Pay for a package on WhatsApp** — `pricing.html` shows the packages from
+   the server and `checkout.html` collects the student's name and email, stores a
+   payment enquiry with a reference such as `NT-ENQ-8F42A`, and opens WhatsApp on
+   the agreed number with the message ready ("Hello Mr Steven Manda, I want to
+   pay for the Premium package…"). Sending that message does **not** confirm
+   anything: an administrator verifies the payment and confirms it in the
+   console, which issues the access code and emails it. No price or access level
+   is ever taken from the browser.
+5. **Log in with an access code** — `access.html` asks for High School or
    University plus the code issued with a package. Redemption is validated by the
    server, a code works once, and progress is stored against that code, so a
    student can continue on another device.
-5. **Dashboard** — `dashboard.html` shows only real data: continue learning or
+6. **Dashboard** — `dashboard.html` shows only real data: continue learning or
    last watched lesson, recently viewed lessons, the courses of the current
    university and semester, and lesson counts.
 
@@ -181,6 +191,7 @@ matrix and each of those bypass attempts.
 | `admin/courses.html` | Universities/schools and courses: create, edit, delete, pick semester 1 or 2 |
 | `admin/lessons.html` | Video lessons: filter by university → semester → course, add, edit, reorder, publish/unpublish, delete |
 | `admin/codes.html` | Issue access codes per package and see redemption status |
+| `admin/enquiries.html` | Payment enquiries: confirm a WhatsApp payment (one access code, idempotent), reject it, retry the confirmation email, copy an issued code |
 | `admin/announcements.html` | Publish, unpublish and edit announcements |
 | `admin/packages.html` | Package names, prices, taglines, feature lists and the access period |
 | `admin/settings.html` | Support email, access period, administrator password |
@@ -201,8 +212,8 @@ Admin  →  Server API  →  SQLite database  →  Student API request  →  Stu
 ```
 
 - **Server database**: universities, courses, video lessons, access codes,
-  progress, announcements, settings and the administrator password hash. This is
-  the single source of truth.
+  payment enquiries, progress, announcements, settings and the administrator
+  password hash. This is the single source of truth.
 - **localStorage** (per device): the student's access grant (`code`, package,
   expiry), learning preferences (name, level, university, semester) and a mirror
   of public settings. Catalogue content is never cached there — each page loads
@@ -232,8 +243,15 @@ works locally but the data lives in `server/data/` and is disposable.
 - Lessons stream or open from their original public source (for example MIT
   OpenCourseWare under CC BY-NC-SA, and Crash Course). The platform does not
   re-host video files, and lesson playback depends on that source being online.
-- Checkout issues an access code directly; it **does not process a payment** and
-  contacts no payment provider. Prices are set by the platform team.
+- Payment is agreed on WhatsApp with Mr Steven Manda and confirmed by hand in
+  Admin → Payment enquiries; the platform **does not process a payment** itself
+  and integrates with no payment provider (no MTN or Airtel API). A confirmed
+  payment issues exactly one access code — confirming twice shows the existing
+  code instead of minting another.
+- The confirmation email needs `NT_SMTP_*` (or `NT_MAIL_API_URL`) configured. When
+  sending is not configured, the confirmation is still stored, the code is shown
+  in the console, and the enquiry is flagged **Email failed** with a **Retry
+  email** action, so a delivered code is never lost and never duplicated.
 - Access codes are a simple redemption system with no password accounts. The
   server withholds protected URLs from unauthorised clients, but a student who is
   legitimately allowed to watch a lesson can still share that link onward — there

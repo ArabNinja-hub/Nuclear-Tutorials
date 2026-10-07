@@ -105,6 +105,35 @@ var SCHEMA = [
      issued_at   TEXT NOT NULL,
      redeemed_at TEXT
    )`,
+  /* Payments are verified by hand on WhatsApp, so the database keeps the
+     enquiry the student raised, the package/price the server resolved for
+     it, the single access code issued when the payment is confirmed, and
+     whether that code reached the student by email. Purely additive: the
+     table did not exist before and nothing else is touched. */
+  `CREATE TABLE IF NOT EXISTS payment_enquiries (
+     id             TEXT PRIMARY KEY,
+     reference      TEXT NOT NULL UNIQUE,
+     student_name   TEXT NOT NULL,
+     student_email  TEXT NOT NULL,
+     account_id     TEXT REFERENCES learner_accounts(id) ON DELETE SET NULL,
+     package        TEXT NOT NULL,
+     package_name   TEXT NOT NULL,
+     amount         INTEGER NOT NULL DEFAULT 0,
+     access_level   INTEGER NOT NULL DEFAULT 0,
+     status         TEXT NOT NULL DEFAULT 'pending',
+     code           TEXT,
+     code_issued_at TEXT,
+     email_status   TEXT NOT NULL DEFAULT 'not_sent',
+     email_error    TEXT,
+     email_sent_at  TEXT,
+     email_attempts INTEGER NOT NULL DEFAULT 0,
+     confirmed_at   TEXT,
+     rejected_at    TEXT,
+     created_at     TEXT NOT NULL,
+     updated_at     TEXT NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_enquiries_status ON payment_enquiries (status, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_payment_enquiries_account ON payment_enquiries (account_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS announcements (
      id         TEXT PRIMARY KEY,
      title      TEXT NOT NULL,
@@ -201,6 +230,13 @@ function migrate() {
   var codeColumns = db.prepare("PRAGMA table_info(codes)").all().map(function (row) { return row.name; });
   if (codeColumns.indexOf("account_id") === -1) {
     db.exec("ALTER TABLE codes ADD COLUMN account_id TEXT REFERENCES learner_accounts(id) ON DELETE SET NULL");
+  }
+  /* Payment enquiries are additive: an existing production database gains
+     the table (and nothing else changes) the first time this version runs. */
+  var tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all()
+    .map(function (row) { return row.name; });
+  if (tables.indexOf("payment_enquiries") === -1) {
+    db.exec(SCHEMA.filter(function (statement) { return /payment_enquiries/.test(statement); }).join(";\n"));
   }
 }
 
@@ -459,6 +495,97 @@ function learnerCodes(accountId) {
     .all(String(accountId));
 }
 
+/* ---------- payment enquiries ---------- */
+
+/* WhatsApp payment requests raised by students. The package, price and
+   access level stored here always come from the server's own package
+   settings, never from the browser. */
+
+/* A5 alphabet: 32 symbols, no 0/O/1/I to keep references easy to read on a
+   phone. 5 characters give ~33 million combinations, uniqued against the
+   table below. */
+var ENQUIRY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function newEnquiryReference() {
+  for (var attempt = 0; attempt < 10; attempt++) {
+    var bytes = crypto.randomBytes(5);
+    var body = "";
+    for (var index = 0; index < bytes.length; index++) body += ENQUIRY_ALPHABET[bytes[index] % ENQUIRY_ALPHABET.length];
+    var reference = "NT-ENQ-" + body;
+    if (!getDatabase().prepare("SELECT id FROM payment_enquiries WHERE reference = ?").get(reference)) return reference;
+  }
+  /* Vanishingly unlikely: fall back to a longer reference rather than fail. */
+  return "NT-ENQ-" + crypto.randomBytes(8).toString("hex").toUpperCase();
+}
+
+function createPaymentEnquiry(record) {
+  var id = crypto.randomUUID();
+  var timestamp = now();
+  getDatabase().prepare(`
+    INSERT INTO payment_enquiries
+      (id, reference, student_name, student_email, account_id, package, package_name, amount, access_level,
+       status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`)
+    .run(id, record.reference, record.name, record.email, record.accountId || null, record.package,
+      record.packageName, Number(record.amount) || 0, Number(record.accessLevel) || 0, timestamp, timestamp);
+  return paymentEnquiryById(id);
+}
+
+function paymentEnquiryById(id) {
+  if (!id) return null;
+  return getDatabase().prepare("SELECT * FROM payment_enquiries WHERE id = ?").get(String(id)) || null;
+}
+
+function paymentEnquiryByReference(reference) {
+  if (!reference) return null;
+  return getDatabase().prepare("SELECT * FROM payment_enquiries WHERE reference = ?")
+    .get(String(reference).toUpperCase().trim()) || null;
+}
+
+function paymentEnquiries(filter) {
+  var status = filter && filter.status;
+  var limit = Math.min(Math.max(parseInt(filter && filter.limit, 10) || 200, 1), 500);
+  if (status && ["pending", "confirmed", "rejected"].indexOf(status) !== -1) {
+    return getDatabase().prepare("SELECT * FROM payment_enquiries WHERE status = ? ORDER BY created_at DESC LIMIT ?")
+      .all(status, limit);
+  }
+  return getDatabase().prepare("SELECT * FROM payment_enquiries ORDER BY created_at DESC LIMIT ?").all(limit);
+}
+
+/* Confirmation is claimed with a single conditional statement: only the
+   caller that flips the enquiry out of 'pending' may issue a code, so a
+   second click (or a second administrator) can never mint another one. */
+function confirmPaymentEnquiry(id, code) {
+  var timestamp = now();
+  var result = getDatabase().prepare(`
+    UPDATE payment_enquiries
+    SET status = 'confirmed', code = ?, code_issued_at = ?, confirmed_at = ?, updated_at = ?
+    WHERE id = ? AND status = 'pending'`)
+    .run(code, timestamp, timestamp, timestamp, String(id));
+  return result.changes > 0;
+}
+
+function rejectPaymentEnquiry(id) {
+  var timestamp = now();
+  var result = getDatabase().prepare(`
+    UPDATE payment_enquiries
+    SET status = 'rejected', rejected_at = ?, updated_at = ?
+    WHERE id = ? AND status = 'pending'`)
+    .run(timestamp, timestamp, String(id));
+  return result.changes > 0;
+}
+
+function recordEnquiryEmail(id, result) {
+  var timestamp = now();
+  getDatabase().prepare(`
+    UPDATE payment_enquiries
+    SET email_status = ?, email_error = ?, email_sent_at = ?, email_attempts = email_attempts + 1, updated_at = ?
+    WHERE id = ?`)
+    .run(result.status, result.error ? String(result.error).slice(0, 500) : null,
+      result.status === "sent" ? (result.sentAt || timestamp) : null, timestamp, String(id));
+  return paymentEnquiryById(id);
+}
+
 /* ---------- shutdown ---------- */
 
 /* Flush the write-ahead log into the database file and close the handle.
@@ -506,6 +633,14 @@ module.exports = {
   linkCodeToLearner: linkCodeToLearner,
   linkExistingRedeemedCode: linkExistingRedeemedCode,
   learnerCodes: learnerCodes,
+  newEnquiryReference: newEnquiryReference,
+  createPaymentEnquiry: createPaymentEnquiry,
+  paymentEnquiryById: paymentEnquiryById,
+  paymentEnquiryByReference: paymentEnquiryByReference,
+  paymentEnquiries: paymentEnquiries,
+  confirmPaymentEnquiry: confirmPaymentEnquiry,
+  rejectPaymentEnquiry: rejectPaymentEnquiry,
+  recordEnquiryEmail: recordEnquiryEmail,
   SESSION_DAYS: SESSION_DAYS,
   DEFAULT_PACKAGES: DEFAULT_PACKAGES,
   DEFAULT_SETTINGS: DEFAULT_SETTINGS

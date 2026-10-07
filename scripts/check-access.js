@@ -50,7 +50,7 @@ function request(method, path, body, options) {
         var raw = Buffer.concat(chunks).toString("utf8");
         var json = null;
         try { json = JSON.parse(raw); } catch (error) { /* non-JSON */ }
-        resolve({ status: res.statusCode, json: json, raw: raw });
+        resolve({ status: res.statusCode, json: json, raw: raw, setCookie: res.headers["set-cookie"] });
       });
     });
     req.on("error", reject);
@@ -72,7 +72,7 @@ function videoById(catalogue, id) {
   return catalogue.videos.filter(function (video) { return video.id === id; })[0] || null;
 }
 function issueAndRedeem(pack) {
-  return request("POST", "/api/codes/issue", { package: pack }).then(function (response) {
+  return issueCode(pack).then(function (response) {
     var code = response.json && response.json.code;
     check(response.status === 201 && /^NT-(BASIC|STANDARD|PREMIUM)-[0-9A-F]{24}$/.test(code || ""),
       pack + " access code contains 96 bits of unpredictable random data");
@@ -83,6 +83,37 @@ function issueAndRedeem(pack) {
 }
 
 var state = {};
+
+/* Access codes are only ever issued by an administrator (or by the server
+   when a payment is confirmed), so sign in the way the console does. */
+function adminSignIn() {
+  return request("POST", "/api/admin/login", { password: credentials }).then(function (response) {
+    if (response.status !== 200) {
+      check(false, "the administrator signs in to issue codes (" + response.status + ")");
+      return null;
+    }
+    state.adminCookie = (response.setCookie && response.setCookie[0] ? response.setCookie[0].split(";")[0] : "");
+    if (response.json && response.json.mustChangePassword) {
+      var replacement = credentials === "nuclear-admin" ? "Access-check-Password-2026" : credentials;
+      return request("POST", "/api/admin/password",
+        { currentPassword: credentials, newPassword: replacement, confirmPassword: replacement },
+        { cookie: state.adminCookie }).then(function (changed) {
+        credentials = replacement;
+        state.adminCookie = (changed.setCookie && changed.setCookie[0] ? changed.setCookie[0].split(";")[0] : "") || state.adminCookie;
+        check(true, "the first-run password is rotated so codes can be issued");
+      });
+    }
+    return null;
+  });
+}
+
+function issueCode(pack) {
+  return request("POST", "/api/admin/codes", { package: pack, count: 1 }, { cookie: state.adminCookie })
+    .then(function (response) {
+      var codes = response.json && response.json.codes;
+      return { status: response.status === 201 || response.status === 200 ? 201 : response.status, json: { code: codes && codes[0] } };
+    });
+}
 
 request("GET", "/api/catalogue").then(function (response) {
   group("Server-side package matrix");
@@ -113,7 +144,9 @@ request("GET", "/api/catalogue").then(function (response) {
     premium: { basic: true, standard: true, premium: true }
   };
   var packages = ["basic", "standard", "premium"];
-  return packages.reduce(function (chain, pack) {
+  return adminSignIn().then(function () {
+    check(!!state.adminCookie, "the administrator session is ready");
+    return packages.reduce(function (chain, pack) {
     return chain.then(function () {
       return issueAndRedeem(pack).then(function (code) {
         state[pack] = code;
@@ -128,8 +161,9 @@ request("GET", "/api/catalogue").then(function (response) {
         });
       });
     });
-  }, Promise.resolve()).then(function (catalogue) {
-    state.premiumCatalogue = catalogue;
+    }, Promise.resolve()).then(function (catalogue) {
+      state.premiumCatalogue = catalogue;
+    });
   });
 }).then(function () {
   group("Direct API requests to protected lessons");
@@ -202,7 +236,7 @@ request("GET", "/api/catalogue").then(function (response) {
   }, Promise.resolve());
 }).then(function () {
   group("Access code integrity");
-  return request("POST", "/api/codes/issue", { package: "basic" }).then(function (response) {
+  return issueCode("basic").then(function (response) {
     var unused = response.json.code;
     return request("GET", "/api/catalogue", null, { code: unused }).then(function (catalogueResponse) {
       check(catalogueResponse.json.catalogue.videos.every(function (video) { return video.locked === true; }),

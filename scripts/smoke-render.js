@@ -26,6 +26,8 @@ var fakeAccount = null;
 var lastAuthBody = null;
 var loginLearnerType = "university";
 var lastAdminPasswordBody = null;
+var lastEnquiryBody = null;
+var openedWindows = [];
 process.on("unhandledRejection", function (error) { console.error("  UNHANDLED  " + ((error && error.stack) || error)); });
 
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
@@ -180,7 +182,24 @@ var ADMIN_PAYLOADS = {
   "/api/admin/codes": { codes: [{ code: "NT-STANDARD-4826", package: "standard", status: "redeemed", issuedAt: "2026-09-01T08:00:00.000Z", redeemedAt: "2026-09-02T08:00:00.000Z" }] },
   "/api/admin/announcements": { announcements: ANNOUNCEMENTS },
   "/api/admin/settings": { settings: SETTINGS },
-  "/api/admin/session": { authenticated: true }
+  "/api/admin/session": { authenticated: true },
+  "/api/admin/enquiries": {
+    enquiries: [
+      { id: "enq-pending", reference: "NT-ENQ-8F42A", studentName: "Pending Student", studentEmail: "pending@example.test",
+        package: "standard", packageName: "Standard", amount: 100, accessLevel: 2, status: "pending", code: null,
+        codeIssuedAt: null, emailStatus: "not_sent", emailError: "", emailSentAt: null, emailAttempts: 0,
+        createdAt: "2026-10-07T09:00:00.000Z", confirmedAt: null, rejectedAt: null, updatedAt: "2026-10-07T09:00:00.000Z" },
+      { id: "enq-confirmed", reference: "NT-ENQ-T52NP", studentName: "Confirmed Student", studentEmail: "confirmed@example.test",
+        package: "basic", packageName: "Basic", amount: 50, accessLevel: 1, status: "confirmed",
+        code: "NT-BASIC-1234567890ABCDEF12345678", codeIssuedAt: "2026-10-07T09:30:00.000Z",
+        emailStatus: "failed", emailError: "Email delivery is not configured on this server.", emailSentAt: null,
+        emailAttempts: 1, createdAt: "2026-10-07T09:10:00.000Z", confirmedAt: "2026-10-07T09:30:00.000Z",
+        rejectedAt: null, updatedAt: "2026-10-07T09:30:00.000Z" }
+    ],
+    mail: { configured: false, transport: "Not configured - set NT_SMTP_HOST/NT_SMTP_URL and NT_MAIL_FROM" },
+    contact: "Mr Steven Manda",
+    whatsapp: "260764599915"
+  }
 };
 var ADMIN_UNIVERSITY = Object.assign({}, UNZA);
 var ADMIN_COURSE = Object.assign({}, MTH101);
@@ -328,7 +347,22 @@ global.fetch = function (url, init) {
       ? { ok: true, universities: [], courses: [], videos: [], announcements: [] }
       : { ok: true, universities: [UNZA], courses: [MTH101], videos: [VIDEOS[0]], announcements: [] }));
   }
-  if (target === "/api/codes/issue") return Promise.resolve(jsonResponse({ ok: true, code: "NT-STANDARD-4826", package: "standard" }, 201));
+  if (target === "/api/payment-enquiries") {
+    var enquiryBody = requestBody(init);
+    lastEnquiryBody = enquiryBody;
+    return Promise.resolve(jsonResponse({
+      ok: true,
+      enquiry: {
+        id: "enq-1", reference: "NT-ENQ-8F42A", studentName: enquiryBody.name || "", studentEmail: enquiryBody.email || "",
+        package: enquiryBody.package || "standard", packageName: "Standard", amount: 150, accessLevel: 2,
+        status: "pending", code: null, codeIssuedAt: null, emailStatus: "not_sent", emailError: "",
+        emailSentAt: null, emailAttempts: 0, createdAt: "2026-10-07T10:00:00.000Z",
+        confirmedAt: null, rejectedAt: null, updatedAt: "2026-10-07T10:00:00.000Z"
+      },
+      package: { level: "standard", name: "Standard", price: 150, accessLevel: 2 },
+      contact: "Mr Steven Manda", whatsapp: "260764599915"
+    }, 201));
+  }
   if (target === "/api/access/redeem") {
     return Promise.resolve(jsonResponse({
       ok: true,
@@ -369,6 +403,30 @@ global.fetch = function (url, init) {
   if (/^\/api\/admin\/videos\/[^/]+\/move$/.test(target)) return Promise.resolve(jsonResponse({ ok: true, videos: VIDEOS }));
   if (/^\/api\/admin\/videos\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, video: ADMIN_VIDEO }));
   if (target === "/api/admin/codes") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (target === "/api/admin/enquiries") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
+  if (/^\/api\/admin\/enquiries\/[^/]+\/confirm$/.test(target)) {
+    return Promise.resolve(jsonResponse({
+      ok: true, duplicate: false, emailSent: false,
+      enquiry: Object.assign({}, ADMIN_PAYLOADS["/api/admin/enquiries"].enquiries[0], {
+        status: "confirmed", code: "NT-STANDARD-00112233445566778899AABB",
+        emailStatus: "failed", emailError: "Email delivery is not configured on this server.", emailAttempts: 1
+      })
+    }));
+  }
+  if (/^\/api\/admin\/enquiries\/[^/]+\/reject$/.test(target)) {
+    return Promise.resolve(jsonResponse({
+      ok: true, changed: true,
+      enquiry: Object.assign({}, ADMIN_PAYLOADS["/api/admin/enquiries"].enquiries[0], { status: "rejected", rejectedAt: "2026-10-07T10:05:00.000Z" })
+    }));
+  }
+  if (/^\/api\/admin\/enquiries\/[^/]+\/email$/.test(target)) {
+    return Promise.resolve(jsonResponse({
+      ok: true, emailSent: true,
+      enquiry: Object.assign({}, ADMIN_PAYLOADS["/api/admin/enquiries"].enquiries[1], {
+        emailStatus: "sent", emailError: "", emailSentAt: "2026-10-07T10:06:00.000Z", emailAttempts: 2
+      })
+    }));
+  }
   if (/^\/api\/admin\/codes\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, deleted: true }));
   if (target === "/api/admin/announcements") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
   if (/^\/api\/admin\/announcements\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, id: "notice-1" }));
@@ -439,6 +497,7 @@ try { Object.defineProperty(global, "navigator", { value: { clipboard: null }, c
 global.IntersectionObserver = function () { this.observe = function () {}; this.unobserve = function () {}; };
 global.matchMedia = function () { return { matches: false, addListener: function () {} }; };
 global.requestAnimationFrame = function () { return 0; };
+global.open = function (url) { openedWindows.push(String(url)); return null; };
 global.URLSearchParams = URLSearchParams;
 global.URL = URL;
 global.addEventListener = function () {};
@@ -498,7 +557,7 @@ var PUBLIC = [
   { page: "lesson", file: "lesson.html", query: "?id=not-a-lesson", protected: true, signedNeedles: ["Lesson not found"] },
   { page: "library", file: "library.html", protected: true, signedNeedles: ["Limits and continuity"] },
   { page: "dashboard", file: "dashboard.html", protected: true, signedNeedles: ["Welcome back", "Learning profile"] },
-  { page: "checkout", file: "checkout.html", query: "?pkg=standard", protected: true, signedNeedles: ["Standard package", "Generate access code"] },
+  { page: "checkout", file: "checkout.html", query: "?pkg=standard", protected: true, signedNeedles: ["Standard package", "Pay via WhatsApp"] },
   { page: "checkout", file: "checkout.html", query: "?pkg=unknown", protected: true, signedNeedles: ["Choose a package first"] },
   { page: "access", file: "access.html", protected: true, signedNeedles: ["Redeem an access code", "Access code"] },
   { page: "profile", file: "profile.html", protected: true, signedNeedles: ["What are you studying?", "University", "Standard"] },
@@ -741,11 +800,16 @@ chain = chain.then(function () {
 });
 
 chain = chain.then(function () {
-  if (LIVE) { console.log("\n== Checkout code issue ==\n  SKIP  covered by scripts/check-flows.js against the live server"); return; }
-  group("Checkout code issue");
+  if (LIVE) { console.log("\n== WhatsApp payment request ==\n  SKIP  covered by scripts/check-flows.js against the live server"); return; }
+  group("WhatsApp payment request");
   installStorage();
   global.NT.store.reset();
+  fakeAccount = fakeLearner("university", null);
+  global.NT.auth.set({ authenticated: true, user: fakeAccount, access: null });
   documentListeners = {};
+  fetchLog = [];
+  openedWindows = [];
+  lastEnquiryBody = null;
   resetDom("checkout", "public");
   global.location.pathname = "/checkout.html";
   global.location.search = "?pkg=standard";
@@ -753,13 +817,26 @@ chain = chain.then(function () {
   evaluate("assets/js/app.js");
   runDomReady();
   return drain(20).then(function () {
-    byId("generateCode").dispatch("click", { currentTarget: byId("generateCode") });
+    byId("enquiryName").value = "Test Payer";
+    byId("enquiryEmail").value = "payer@example.test";
+    byId("enquiryForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("enquiryForm") });
     return drain(40);
   });
 }).then(function () {
   if (LIVE) return;
-  ok(byId("checkoutResult").innerHTML.indexOf("NT-STANDARD-4826") !== -1, "checkout shows the server-issued access code");
-  ok(fetchLog.indexOf("POST /api/codes/issue") !== -1, "checkout issues codes through the API, not localStorage");
+  ok(fetchLog.indexOf("POST /api/payment-enquiries") !== -1,
+    "the payment request is created on the server, not in localStorage");
+  ok(!!lastEnquiryBody && lastEnquiryBody.package === "standard" && !lastEnquiryBody.amount && !lastEnquiryBody.accessLevel,
+    "the browser sends only the package and the student's details - never a price or a level");
+  ok(byId("checkoutResult").innerHTML.indexOf("NT-ENQ-8F42A") !== -1, "checkout shows the unique enquiry reference");
+  ok(byId("checkoutResult").innerHTML.indexOf("Pending payment") !== -1,
+    "the request is shown as pending until the payment is confirmed");
+  var opened = decodeURIComponent(openedWindows[0] || "");
+  ok((openedWindows[0] || "").indexOf("https://wa.me/260764599915") === 0,
+    "WhatsApp opens on the configured number (" + (openedWindows[0] || "nothing opened") + ")");
+  ok(opened.indexOf("Hello Mr Steven Manda, I want to pay for the Standard package. My name is Test Payer. " +
+    "My email is payer@example.test. Reference: NT-ENQ-8F42A.") !== -1,
+    "the prefilled WhatsApp message carries the package, name, email and reference");
 }).catch(function (error) {
   if (!LIVE) ok(false, "checkout flow throws: " + (error && error.stack));
 });
@@ -768,7 +845,7 @@ chain = chain.then(function () {
 
 chain = chain.then(function () {
   group("Admin render smoke");
-  var ADMIN = LIVE ? [] : ["home", "courses", "lessons", "codes", "announcements", "packages", "settings", "first-run", "login"];
+  var ADMIN = LIVE ? [] : ["home", "courses", "lessons", "codes", "enquiries", "announcements", "packages", "settings", "first-run", "login"];
   if (LIVE) console.log("  SKIP  admin pages need an administrator session (see check-flows.js)");
   var steps = Promise.resolve();
   ADMIN.forEach(function (page) {
@@ -795,6 +872,12 @@ chain = chain.then(function () {
           if (page === "courses") ok(html.indexOf("Semester 1") !== -1, "admin/courses shows the semester context");
           if (page === "home") ok(html.indexOf("Video lessons") !== -1, "admin/home shows real catalogue counts");
           if (page === "packages") ok(html.indexOf("Access period") !== -1, "admin/packages edits package settings");
+          if (page === "enquiries") {
+            ok(html.indexOf("Payment enquiries") !== -1, "admin/enquiries lists WhatsApp payment requests");
+            ok(html.indexOf("Confirm payment") !== -1, "admin/enquiries offers the confirm action");
+            ok(html.indexOf("Email failed") !== -1, "admin/enquiries surfaces a failed confirmation email");
+            ok(html.indexOf("Pending") !== -1 && html.indexOf("Pending Student") !== -1, "admin/enquiries shows the pending enquiry with its student");
+          }
           if (page === "settings") ok(html.indexOf("Administrator password") !== -1, "admin/settings changes the admin password");
           if (page === "first-run") {
             ok(html.indexOf("Set your administrator password") !== -1, "admin/first-run explains the first-run password");

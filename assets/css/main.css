@@ -774,13 +774,29 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 .segmented button.active { background: var(--navy); color: #fff; font-weight: 600; }
 .lib-summary { margin-bottom: 20px; color: var(--muted); font-size: 14px; }
 .lib-gate {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 16px 20px; margin-bottom: 22px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 15px 18px; margin-bottom: 20px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-left: 3px solid var(--brand-600); border-radius: var(--r-lg);
   color: var(--ink-2); font-size: 14px;
 }
-.lib-gate .icon { color: var(--brand-600); }
+.lib-gate > .icon { flex: none; color: var(--brand-600); }
+.lib-gate p { margin: 0; flex: 1 1 260px; min-width: 0; }
 .lib-gate .btn { margin-left: auto; }
+
+/* Lessons are shelved by course so a long library still scans. */
+.lib-group { margin-bottom: 34px; }
+.lib-group:last-child { margin-bottom: 6px; }
+.lib-group-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 14px;
+  margin-bottom: 14px; padding-bottom: 11px; border-bottom: 1px solid var(--line);
+}
+.lib-group-head h2 { font-size: clamp(1.08rem, 2vw, 1.3rem); }
+.lib-group-meta {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 4px; color: var(--muted); font-size: 12.5px;
+}
+.lib-group-count { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; }
 
 /* ---------- Dashboard ---------- */
 .dashboard-page { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
@@ -956,6 +972,17 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 .checkout-back { margin-top: 6px; font-size: 13px; }
 .checkout-result { padding: 18px; margin-top: 18px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
 .checkout-result p { color: var(--muted); font-size: 13px; }
+.checkout-help { margin-top: 12px; color: var(--muted-2); font-size: 12.5px; line-height: 1.55; }
+.price-pay-note {
+  display: flex; align-items: flex-start; gap: 7px; margin-top: 11px;
+  color: var(--muted-2); font-size: 12px; line-height: 1.5;
+}
+.price-pay-note .icon { flex: none; margin-top: 1px; color: var(--brand-600); }
+.enquiry-sent { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.enquiry-sent h3 { font-size: 1.15rem; }
+.enquiry-sent > p { margin: 0; }
+.enquiry-steps { margin: 4px 0 6px; padding-left: 20px; color: var(--ink-2); font-size: 13.5px; line-height: 1.7; }
+.enquiry-sent .lesson-notice-actions { margin-top: 2px; }
 .preview-code { display: block; padding: 12px; margin: 12px 0; border-radius: var(--r-sm); background: var(--surface); color: var(--brand-700); font: 700 16px var(--mono); letter-spacing: .06em; overflow-wrap: anywhere; }
 
 /* ---------- Loading, empty and offline states ---------- */
@@ -1019,12 +1046,27 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 .modal-x { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: var(--r-sm); background: none; color: var(--muted); cursor: pointer; }
 .modal-x:hover { background: var(--bg-soft); color: var(--ink); }
 
-/* ---------- Scroll entrances ---------- */
-.reveal { opacity: 0; transform: translateY(14px); transition: opacity .45s ease, transform .45s cubic-bezier(.22, .8, .28, 1); }
+/* ---------- Scroll entrances ----------
+   Entrances are opacity/transform only and are applied by NT.initReveal's
+   IntersectionObserver, so nothing animates off-screen and no scroll handler
+   runs. data-reveal picks the direction and data-delay steps the stagger, so
+   a row of cards never moves as one block. */
+.reveal {
+  opacity: 0; transform: translateY(16px);
+  transition: opacity .5s ease, transform .55s cubic-bezier(.22, .8, .28, 1);
+  transition-delay: var(--reveal-delay, 0s);
+}
 .reveal.is-in { opacity: 1; transform: none; }
-.reveal[data-delay="1"] { transition-delay: .06s; }
-.reveal[data-delay="2"] { transition-delay: .12s; }
-.reveal[data-delay="3"] { transition-delay: .18s; }
+.reveal[data-reveal="fade"] { transform: none; }
+.reveal[data-reveal="left"] { transform: translateX(-20px); }
+.reveal[data-reveal="right"] { transform: translateX(20px); }
+.reveal[data-reveal="scale"] { transform: translateY(10px) scale(.965); }
+.reveal[data-delay="1"] { --reveal-delay: .07s; }
+.reveal[data-delay="2"] { --reveal-delay: .14s; }
+.reveal[data-delay="3"] { --reveal-delay: .21s; }
+.reveal[data-delay="4"] { --reveal-delay: .28s; }
+.reveal[data-delay="5"] { --reveal-delay: .35s; }
+.reveal[data-delay="6"] { --reveal-delay: .42s; }
 
 /* ============================================================
    RESPONSIVE

@@ -548,6 +548,10 @@
 
     var state = { universityId: "", semester: 0, courseId: "", status: "all", level: "", query: "" };
 
+    /* Show the shelf while the catalogue is on its way in, so the page never
+       looks broken on a slow connection. */
+    root.innerHTML = NT.skeletonCards(6);
+
     NT.content.load().then(function () {
       var university = NT.qs("university");
       if (university && NT.content.university(university)) state.universityId = university;
@@ -568,10 +572,7 @@
       render();
 
       if (NT.store.isActive()) {
-        NT.progress.load().then(function () {
-          if (gate) gate.classList.add("hidden");
-          render();
-        });
+        NT.progress.load().then(function () { render(); }, function () { /* progress stays empty offline */ });
       }
     }, function () {
       root.innerHTML = NT.offlinePanel("retryLib");
@@ -698,6 +699,66 @@
       });
     }
 
+    /* Group the visible lessons by course so a library of 50 cards still
+       reads as a shelf of courses rather than one endless grid. */
+    function groupsOf(videos) {
+      var order = [];
+      var byCourse = {};
+      videos.forEach(function (video) {
+        var key = video.courseId || video.courseTitle || "more";
+        if (!byCourse[key]) {
+          byCourse[key] = {
+            id: key,
+            title: video.courseTitle || "More lessons",
+            meta: [video.courseCode, video.universityShort || video.universityName,
+              video.semester ? NT.semesterLabel(video.semester) : ""].filter(Boolean),
+            videos: []
+          };
+          order.push(byCourse[key]);
+        }
+        byCourse[key].videos.push(video);
+      });
+      return order;
+    }
+
+    function lessonsMarkup(videos) {
+      var groups = groupsOf(videos);
+      function cards(list) {
+        return '<div class="video-grid">' + list.map(function (video) { return NT.videoCard(video); }).join("") + "</div>";
+      }
+      if (groups.length < 2 || state.courseId) return cards(videos);
+      return groups.map(function (group) {
+        return '<section class="lib-group" aria-label="' + NT.esc(group.title) + '">' +
+          '<header class="lib-group-head"><div><h2>' + NT.esc(group.title) + "</h2>" +
+          (group.meta.length ? '<p class="lib-group-meta">' + group.meta.map(NT.esc).join(" · ") + "</p>" : "") +
+          "</div><span class=\"lib-group-count\">" + NT.plural(group.videos.length, "lesson") + "</span></header>" +
+          cards(group.videos) + "</section>";
+      }).join("");
+    }
+
+    /* The onboarding note is only about access, never about signing in: a
+       signed-in learner without a package sees what to do next, and a learner
+       whose package is active never sees the note at all. */
+    function renderGate() {
+      if (!gate) return;
+      if (NT.store.isActive()) {
+        gate.classList.add("hidden");
+        gate.innerHTML = "";
+        return;
+      }
+      var signedIn = !!NT.auth.user();
+      gate.classList.remove("hidden");
+      gate.innerHTML = NT.icon("lock") +
+        "<p><b>These lessons are not unlocked yet.</b> " +
+        (signedIn
+          ? "Redeem the access code issued for your package, or choose a package to see what it includes."
+          : "Sign in and redeem an access code to unlock the lessons your package includes.") +
+        "</p>" +
+        '<a class="btn btn-secondary btn-sm" href="' + NT.base() +
+        (signedIn ? "pricing.html" : "login.html?next=" + encodeURIComponent("library.html")) + '">' +
+        (signedIn ? "Compare access packages" : "Sign in") + "</a>";
+    }
+
     function render() {
       renderState();
       renderStatus();
@@ -716,15 +777,22 @@
         return (video.title + " " + video.topic + " " + video.description + " " + video.courseTitle + " " + video.universityName)
           .toLowerCase().indexOf(query) !== -1;
       });
+      var catalogueSize = NT.content.videos().length;
 
       root.innerHTML = videos.length
-        ? '<div class="video-grid">' + videos.map(function (video) { return NT.videoCard(video); }).join("") + "</div>"
-        : NT.empty({
-          icon: "video",
-          title: "No lessons match these filters",
-          message: "Clear a filter or search a different topic.",
-          action: '<button class="btn btn-secondary" type="button" id="clearLibFilters">' + NT.icon("rotate") + "Reset filters</button>"
-        });
+        ? lessonsMarkup(videos)
+        : NT.empty(catalogueSize
+          ? {
+            icon: "video",
+            title: "No lessons match these filters",
+            message: "Clear a filter or search a different topic.",
+            action: '<button class="btn btn-secondary" type="button" id="clearLibFilters">' + NT.icon("rotate") + "Reset filters</button>"
+          }
+          : {
+            icon: "book-open",
+            title: "No published lessons yet",
+            message: "Lessons appear here as soon as they are published to your catalogue."
+          });
       var reset = document.getElementById("clearLibFilters");
       if (reset) reset.addEventListener("click", function () {
         state.universityId = "";
@@ -739,10 +807,15 @@
       });
 
       if (summary) {
-        summary.textContent = videos.length + " of " + NT.content.videos().length + " published lessons shown" +
-          (NT.store.isActive() ? "" : " · log in to unlock included lessons");
+        var included = videos.filter(function (video) { return NT.isUnlocked(video); }).length;
+        summary.textContent = videos.length + " of " + catalogueSize + " published lessons shown" +
+          (NT.store.isActive()
+            ? (included === videos.length
+              ? " · every lesson shown is included in your package"
+              : " · " + included + " of these included in your package")
+            : " · unlock lessons with an access package");
       }
-      if (gate) gate.classList.toggle("hidden", NT.store.isActive());
+      renderGate();
       NT.initReveal();
     }
 
@@ -1175,20 +1248,22 @@
           (current
             ? '<button class="btn btn-secondary btn-block" type="button" disabled>' + NT.icon("check-circle") + "Current package</button>"
             : '<a class="btn btn-primary btn-block" href="' + NT.base() + "checkout.html?pkg=" + encodeURIComponent(level) + '">' +
-              "Choose " + NT.esc(details.name) + "</a>") +
+              NT.icon("key") + "Get this package</a>" +
+              '<p class="price-pay-note">' + NT.icon("message-circle", "icon-sm") +
+              "Pay by WhatsApp with Mr Steven Manda — your code is emailed once the payment is confirmed.</p>") +
           "</article>";
       }).join("");
       NT.initReveal();
     }, { count: 3 });
   }
 
-  /* ============================ CHECKOUT (access code preview) ============================ */
+  /* ============================ CHECKOUT (WhatsApp payment request) ============================ */
   function pageCheckout() {
     var root = document.getElementById("checkoutRoot");
     if (!root) return;
     var pkg = NT.qs("pkg");
     loadFor(root, function () {
-      var pack = D.PACKAGES[pkg] ? NT.packageDetails(pkg) : null;
+      var pack = D.LEVELS.indexOf(pkg) !== -1 ? NT.packageDetails(pkg) : null;
       if (!pack) {
         root.innerHTML = NT.empty({
           icon: "layers",
@@ -1198,35 +1273,99 @@
         });
         return;
       }
+      var user = NT.auth.user() || {};
+      var profile = user.profile || {};
+      var startName = profile.name || user.displayName || "";
+      var startEmail = user.email || "";
+
       root.innerHTML = '<div class="card card-pad checkout-preview-card">' +
-        '<span class="eyebrow">Access code</span><h2>' + NT.esc(pack.name) + " package</h2>" +
+        '<span class="eyebrow">Payment request</span><h2>' + NT.esc(pack.name) + " package</h2>" +
         '<div class="checkout-summary">' +
         "<div><span>Price</span><b>" + NT.kwacha(pack.price) + "</b></div>" +
         "<div><span>Access period</span><b>" + NT.accessDays() + " days</b></div>" +
         "<div><span>Lessons included</span><b>" + NT.availableFor(pkg) + " of " + NT.counts().total + "</b></div></div>" +
-        '<p class="muted">This build issues an access code directly, without a payment provider. ' +
-        "The code is stored on the server, so it can be used on any device, once.</p>" +
-        '<button class="btn btn-primary btn-lg" type="button" id="generateCode">' + NT.icon("key") + "Generate access code</button>" +
+        '<p class="muted">Send your payment request to Nuclear Tutorials on WhatsApp. ' +
+        "Your access code is emailed as soon as the payment is confirmed. " +
+        "No payment is processed on this page.</p>" +
+        '<form id="enquiryForm" novalidate>' +
+        '<div class="field"><label for="enquiryName">Full name</label>' +
+        '<input class="input" id="enquiryName" name="name" type="text" autocomplete="name" required value="' + NT.esc(startName) + '"></div>' +
+        '<div class="field"><label for="enquiryEmail">Email address</label>' +
+        '<input class="input" id="enquiryEmail" name="email" type="email" autocomplete="email" required value="' + NT.esc(startEmail) + '">' +
+        '<span class="field-hint">Your access code is emailed to this address.</span></div>' +
+        '<div id="enquiryMessage" class="access-message" role="alert" aria-live="polite"></div>' +
+        '<button class="btn btn-primary btn-lg btn-block" type="submit" id="enquirySubmit">' +
+        NT.icon("message-circle") + "Pay via WhatsApp</button>" +
+        '<p class="checkout-help">Sending the message does not confirm your payment. ' +
+        "Nuclear Tutorials verifies it by hand, then emails your access code.</p>" +
+        "</form>" +
         '<div id="checkoutResult" class="checkout-result hidden" aria-live="polite"></div>' +
-        '<a class="link-arrow checkout-back" href="' + NT.base() + 'pricing.html">Back to access packages ' + NT.icon("arrow-right", "icon-sm") + "</a></div>";
+        '<a class="link-arrow checkout-back" href="' + NT.base() + 'pricing.html">Back to access packages ' +
+        NT.icon("arrow-right", "icon-sm") + "</a></div>";
 
-      document.getElementById("generateCode").addEventListener("click", function (event) {
-        var button = event.currentTarget;
-        button.disabled = true;
-        NT.api.issueCode(pkg).then(function (payload) {
-          var code = payload.code;
+      var form = document.getElementById("enquiryForm");
+      var alertHost = document.getElementById("enquiryMessage");
+
+      function fieldError(field, text) {
+        alertHost.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") +
+          "<div><b>" + NT.esc(text) + "</b></div></div>";
+        var input = document.getElementById(field);
+        if (input) input.focus();
+      }
+
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var name = document.getElementById("enquiryName").value.trim();
+        var email = document.getElementById("enquiryEmail").value.trim();
+        alertHost.innerHTML = "";
+        if (name.length < 2) return fieldError("enquiryName", "Enter the full name for your access.");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fieldError("enquiryEmail", "Enter a valid email address.");
+
+        var submit = document.getElementById("enquirySubmit");
+        submit.disabled = true;
+        NT.api.createEnquiry({ package: pkg, name: name, email: email }).then(function (payload) {
+          var enquiry = payload.enquiry;
+          var link = NT.whatsappLink({
+            number: payload.whatsapp,
+            contact: payload.contact,
+            enquiry: enquiry,
+            customer: { name: name, email: email }
+          });
+          form.classList.add("hidden");
           var result = document.getElementById("checkoutResult");
           result.classList.remove("hidden");
-          result.innerHTML = "<p>Keep this code safe. It can be redeemed once, on any device.</p>" +
-            '<code class="preview-code">' + NT.esc(code) + "</code>" +
-            '<div class="lesson-notice-actions"><button class="btn btn-secondary" type="button" id="copyPreviewCode">' +
-            NT.icon("copy") + "Copy code</button>" +
-            '<a class="btn btn-primary" href="' + NT.base() + "access.html?code=" + encodeURIComponent(code) + '">Redeem code</a></div>';
-          button.textContent = "Code generated";
-          document.getElementById("copyPreviewCode").addEventListener("click", function () { NT.copy(code); });
+          result.innerHTML = '<div class="enquiry-sent">' +
+            '<span class="badge badge-warn">' + NT.icon("clock") + "Pending payment</span>" +
+            "<h3>Request " + NT.esc(enquiry.reference) + " is waiting for confirmation</h3>" +
+            "<p>Nuclear Tutorials has your request for the " + NT.esc(enquiry.packageName) + " package (" +
+            NT.kwacha(enquiry.amount) + ").</p>" +
+            '<ol class="enquiry-steps">' +
+            "<li>Send the WhatsApp message with your name, email and reference.</li>" +
+            "<li>Your payment is verified by hand.</li>" +
+            "<li>Your access code arrives by email and is redeemed like any other code.</li></ol>" +
+            '<div class="lesson-notice-actions">' +
+            '<a class="btn btn-primary" href="' + NT.esc(link) + '" target="_blank" rel="noopener">' +
+            NT.icon("arrow-right") + "Open WhatsApp</a>" +
+            '<button class="btn btn-ghost" type="button" id="copyReference">' + NT.icon("copy") + "Copy reference</button></div>" +
+            '<p class="muted small">Keep your reference <b>' + NT.esc(enquiry.reference) +
+            "</b> — it identifies your payment if you need help.</p></div>";
+          document.getElementById("copyReference").addEventListener("click", function () {
+            NT.copy(enquiry.reference);
+          });
+          NT.toast("Payment request " + enquiry.reference + " created", "success");
+          /* Hand the student straight to WhatsApp with the message ready. A
+             blocked pop-up still leaves the button above. */
+          try { window.open(link, "_blank", "noopener"); } catch (error) { /* the button remains */ }
         }, function (error) {
-          button.disabled = false;
-          NT.toast(error.status === 0 ? "The content service is unreachable" : error.message, "error");
+          submit.disabled = false;
+          alertHost.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") +
+            "<div><b>That request could not be sent.</b><br>" +
+            NT.esc(error.status === 0 ? "The learning service is unreachable. Please try again shortly." : error.message) +
+            "</div></div>";
+          if (error.details && error.details.field) {
+            var input = document.getElementById(error.details.field === "email" ? "enquiryEmail" : "enquiryName");
+            if (input) input.focus();
+          }
         });
       });
     });

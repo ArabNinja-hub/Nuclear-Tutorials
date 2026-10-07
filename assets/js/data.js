@@ -75,6 +75,25 @@
     return Number.isFinite(days) && days > 0 ? days : 180;
   };
 
+  /* ---------- WhatsApp payment request ---------- */
+
+  /* Builds the WhatsApp conversation the student sends after raising a
+     payment request. The number and the contact name come from the server
+     with the enquiry, so the interface never prints the number itself. */
+  NT.whatsappLink = function (options) {
+    var opts = options || {};
+    var enquiry = opts.enquiry || {};
+    var customer = opts.customer || {};
+    var number = String(opts.number || "").replace(/[^0-9]/g, "");
+    var contact = opts.contact || "Mr Steven Manda";
+    var message = "Hello " + contact + ", I want to pay for the " +
+      (enquiry.packageName || "selected") + " package. " +
+      "My name is " + (customer.name || enquiry.studentName || "") + ". " +
+      "My email is " + (customer.email || enquiry.studentEmail || "") + ". " +
+      "Reference: " + (enquiry.reference || "") + ".";
+    return "https://wa.me/" + number + "?text=" + encodeURIComponent(message);
+  };
+
   /* ---------- levels and access ---------- */
 
   NT.levelOf = function (video) {

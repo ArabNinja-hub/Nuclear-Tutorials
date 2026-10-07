@@ -132,6 +132,13 @@ body.admin { background: var(--bg); }
 }
 .adm-notice .icon { margin-top: 2px; flex: none; }
 .adm-notice b { color: #6d480c; }
+.adm-notice + .adm-card, .adm-notice + .adm-cards { margin-top: 4px; }
+.adm-notice-success {
+  margin-bottom: 16px; border-color: #bfe3cd; background: var(--success-bg); color: var(--success);
+}
+.adm-notice-success b { color: var(--success); }
+.adm-notice .mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.adm-hint { color: var(--muted-2); font-size: 11.5px; line-height: 1.4; }
 
 /* ---------- Lists ---------- */
 .adm-list { display: flex; flex-direction: column; gap: 6px; }
