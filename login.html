@@ -8,27 +8,110 @@
 <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg">
 <link rel="stylesheet" href="assets/css/fonts.css?v=da690b1f">
 <link rel="stylesheet" href="assets/css/main.css?v=dfdae303">
+<link rel="stylesheet" href="assets/css/auth.css?v=c7389802">
 </head>
 <body data-page="login">
 <main id="main" tabindex="-1">
-  <section class="auth-page section-body">
-    <div class="container auth-page-layout auth-page-login">
-      <div class="auth-intro">
-        <span class="eyebrow">Welcome back</span>
-        <h1>Pick up where<br>you left off.</h1>
-        <p class="lede">Log in to your account to return to your personalized learning space, courses and progress.</p>
-        <a class="link-arrow auth-back-link" href="index.html">Back to Nuclear Tutorials <span aria-hidden="true">→</span></a>
+  <section class="auth-page" aria-label="Account access">
+    <div class="auth-shell" data-auth-root data-mode="login">
+      <a class="auth-brand" href="index.html" aria-label="Nuclear Tutorials — home">
+        <span class="auth-brand-mark"><img src="assets/img/logo.jpg" alt="" width="46" height="46" decoding="async"></span>
+        <span class="auth-brand-copy">
+          <span class="auth-brand-name">Nuclear <strong>Tutorials</strong></span>
+          <span class="auth-brand-caption">Structured learning</span>
+        </span>
+      </a>
+
+      <div class="auth-card">
+        <div class="auth-stage" data-auth-stage>
+          <section class="auth-panel" data-auth-panel="login" aria-labelledby="loginTitle" aria-hidden="false">
+            <header class="auth-card-heading">
+              <span class="auth-kicker"><span aria-hidden="true"></span> Your learning space</span>
+              <h1 id="loginTitle" tabindex="-1">Welcome back</h1>
+              <p>Continue your learning journey.</p>
+            </header>
+            <form id="loginForm" class="auth-form" novalidate>
+              <div class="field auth-field">
+                <label for="loginEmail">Email address</label>
+                <input class="input" id="loginEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" required placeholder="you@example.com">
+                <span class="auth-field-error" id="loginEmailError" aria-live="polite"></span>
+              </div>
+              <div class="field auth-field">
+                <label for="loginPassword">Password</label>
+                <div class="auth-password-input">
+                  <input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+                  <button class="auth-password-toggle" type="button" data-password-toggle aria-label="Show password" aria-pressed="false" aria-controls="loginPassword">
+                    <span data-password-icon></span>
+                  </button>
+                </div>
+                <span class="auth-field-error" id="loginPasswordError" aria-live="polite"></span>
+              </div>
+              <div class="auth-message" id="loginAuthMessage" data-auth-message aria-live="polite" aria-atomic="true"></div>
+              <button class="btn btn-primary btn-block auth-submit" type="submit">
+                <span class="auth-submit-spinner" aria-hidden="true"></span>
+                <span data-auth-submit-label data-idle-label="Log in" data-loading-label="Logging in…">Log in</span>
+              </button>
+            </form>
+            <p class="auth-switch">Don't have an account? <a href="signup.html" data-auth-switch="signup">Create account</a></p>
+          </section>
+
+          <section class="auth-panel" data-auth-panel="signup" aria-labelledby="signupTitle" aria-hidden="true" hidden inert>
+            <header class="auth-card-heading">
+              <span class="auth-kicker"><span aria-hidden="true"></span> Create an account</span>
+              <h1 id="signupTitle" tabindex="-1">Create your account</h1>
+              <p>Start your learning journey.</p>
+            </header>
+            <form id="signupForm" class="auth-form" novalidate>
+              <div class="field auth-field">
+                <label for="signupName">Name <span class="muted">(optional)</span></label>
+                <input class="input" id="signupName" name="name" type="text" maxlength="60" autocomplete="name" placeholder="Your name">
+              </div>
+              <div class="field auth-field">
+                <label for="signupEmail">Email address</label>
+                <input class="input" id="signupEmail" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" required placeholder="you@example.com">
+              </div>
+              <div class="field auth-field">
+                <label for="signupAccessCode">Existing access code <span class="muted">(optional)</span></label>
+                <input class="input" id="signupAccessCode" name="accessCode" type="text" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Redeemed access code">
+                <span class="field-hint">Already have an active package? Link its code to your account.</span>
+              </div>
+              <div class="field auth-field">
+                <label for="signupPassword">Password</label>
+                <div class="auth-password-input">
+                  <input class="input" id="signupPassword" name="password" type="password" minlength="10" maxlength="256" autocomplete="new-password" required aria-describedby="passwordHint">
+                  <button class="auth-password-toggle" type="button" data-password-toggle aria-label="Show password" aria-pressed="false" aria-controls="signupPassword">
+                    <span data-password-icon></span>
+                  </button>
+                </div>
+                <span class="field-hint" id="passwordHint">Use at least 10 characters.</span>
+              </div>
+              <div class="field auth-field">
+                <label for="signupConfirmPassword">Confirm password</label>
+                <div class="auth-password-input">
+                  <input class="input" id="signupConfirmPassword" name="confirmPassword" type="password" minlength="10" maxlength="256" autocomplete="new-password" required>
+                  <button class="auth-password-toggle" type="button" data-password-toggle aria-label="Show password" aria-pressed="false" aria-controls="signupConfirmPassword">
+                    <span data-password-icon></span>
+                  </button>
+                </div>
+              </div>
+              <div class="field consent-field auth-consent-field">
+                <label class="consent-label" for="signupConsent">
+                  <input class="consent-checkbox" id="signupConsent" name="consent" type="checkbox" required>
+                  <span>I agree to the <a href="terms-and-conditions.html">Terms &amp; Conditions</a> and acknowledge the <a href="privacy-policy.html">Privacy Policy</a>.</span>
+                </label>
+              </div>
+              <div class="auth-message" id="signupAuthMessage" data-auth-message aria-live="polite" aria-atomic="true"></div>
+              <button class="btn btn-primary btn-block auth-submit" type="submit">
+                <span class="auth-submit-spinner" aria-hidden="true"></span>
+                <span data-auth-submit-label data-idle-label="Create account" data-loading-label="Creating account…">Create account</span>
+              </button>
+            </form>
+            <p class="auth-switch">Already have an account? <a href="login.html" data-auth-switch="login">Log in</a></p>
+          </section>
+        </div>
       </div>
-      <section class="card auth-card" aria-labelledby="loginTitle">
-        <div class="auth-card-heading"><span class="eyebrow">Log in</span><h2 id="loginTitle">Continue your learning</h2><p>Enter your account details to continue.</p></div>
-        <form id="loginForm" class="auth-form" novalidate>
-          <div class="field"><label for="loginEmail">Email address</label><input class="input" id="loginEmail" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
-          <div class="field"><label for="loginPassword">Password</label><input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required></div>
-          <div id="authMessage" aria-live="polite"></div>
-          <button class="btn btn-primary btn-lg btn-block" type="submit">Log in</button>
-        </form>
-        <p class="auth-switch">New to Nuclear Tutorials? <a href="signup.html">Get Started</a></p>
-      </section>
+
+      <a class="auth-back-link" href="index.html">Back to Nuclear Tutorials <span aria-hidden="true">→</span></a>
     </div>
   </section>
 </main>
@@ -37,6 +120,7 @@
 <script src="assets/js/store.js?v=2cfd6470"></script>
 <script src="assets/js/api.js?v=54082798"></script>
 <script src="assets/js/ui.js?v=22dff565"></script>
-<script src="assets/js/app.js?v=df36bc97"></script>
+<script src="assets/js/app.js?v=9f4bf173"></script>
+<script src="assets/js/auth-experience.js?v=4967f4ee"></script>
 </body>
 </html>
