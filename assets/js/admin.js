@@ -35,6 +35,7 @@
     { route: "courses", href: "courses.html", label: "Universities & courses", icon: "building" },
     { route: "lessons", href: "lessons.html", label: "Video lessons", icon: "video" },
     { route: "codes", href: "codes.html", label: "Access codes", icon: "key" },
+    { route: "enquiries", href: "enquiries.html", label: "Payment enquiries", icon: "message-circle" },
     { route: "announcements", href: "announcements.html", label: "Announcements", icon: "bell" },
     { route: "packages", href: "packages.html", label: "Packages", icon: "layers" },
     { route: "settings", href: "settings.html", label: "Settings", icon: "settings" }
@@ -49,6 +50,7 @@
     courses: { title: "Universities & courses", sub: "Organise the catalogue by institution and semester" },
     lessons: { title: "Video lessons", sub: "Add, order, publish and edit lessons inside a course" },
     codes: { title: "Access codes", sub: "Issue and manage student access" },
+    enquiries: { title: "Payment enquiries", sub: "Confirm WhatsApp payments and email student access codes" },
     announcements: { title: "Announcements", sub: "Short updates shown to students" },
     packages: { title: "Access packages", sub: "Names, prices and what each package includes" },
     settings: { title: "Settings", sub: "Support contact, access period and administrator password" }
@@ -1179,7 +1181,208 @@
     }, function (error) { fail(host, error); });
   }
 
+  /* ------------------------------------------------------------ payment enquiries */
+
+  function enquiryStatusBadge(item) {
+    if (item.status === "rejected") {
+      return '<span class="badge badge-outline">' + NT.icon("x") + "Rejected</span>";
+    }
+    if (item.status === "pending") {
+      return '<span class="badge badge-warn">' + NT.icon("clock") + "Pending</span>";
+    }
+    if (item.emailStatus === "failed") {
+      return '<span class="badge badge-warn">' + NT.icon("circle-alert") + "Email failed</span>";
+    }
+    return '<span class="badge badge-success">' + NT.icon("check-circle") +
+      (item.emailStatus === "sent" ? "Emailed" : "Confirmed") + "</span>";
+  }
+
+  function pageEnquiries() {
+    shell("enquiries", loading());
+    var host = document.getElementById("admContent");
+    var filter = "all";
+
+    function statCard(value, label, hint) {
+      return '<article class="adm-card adm-stat"><span class="adm-stat-value">' + value +
+        '</span><span class="adm-stat-label">' + label + "</span>" +
+        (hint ? '<span class="adm-stat-hint">' + hint + "</span>" : "") + "</article>";
+    }
+
+    function rowsMarkup(items) {
+      return '<div class="table-wrap"><table class="nt-table"><thead><tr>' +
+        "<th>Student</th><th>Package</th><th>Reference</th><th>Requested</th><th>Status</th><th></th>" +
+        "</tr></thead><tbody>" + items.map(function (item) {
+          var actions = "";
+          if (item.status === "pending") {
+            actions = '<button class="btn btn-primary btn-sm" type="button" data-confirm-enquiry="' + NT.esc(item.id) + '">' +
+              NT.icon("check") + "Confirm payment</button>" +
+              '<button class="btn btn-ghost btn-sm adm-danger" type="button" data-reject-enquiry="' + NT.esc(item.id) + '">' +
+              NT.icon("x") + "Reject</button>";
+          } else if (item.status === "confirmed") {
+            actions = '<button class="btn btn-ghost btn-sm" type="button" data-copy-code="' + NT.esc(item.code || "") + '">' +
+              NT.icon("copy") + "Copy code</button>" +
+              '<button class="btn btn-ghost btn-sm" type="button" data-email-enquiry="' + NT.esc(item.id) + '">' +
+              NT.icon("rotate") + (item.emailStatus === "sent" ? "Resend email" : "Retry email") + "</button>";
+          } else {
+            actions = '<span class="muted small">No code issued</span>';
+          }
+          return "<tr>" +
+            '<td class="td-strong">' + NT.esc(item.studentName) +
+            '<br><span class="muted small">' + NT.esc(item.studentEmail) + "</span></td>" +
+            '<td><span class="badge badge-' + NT.esc(item.package) + '">' + NT.esc(item.packageName) + "</span>" +
+            '<br><span class="muted small">' + NT.kwacha(item.amount) + "</span></td>" +
+            '<td class="mono">' + NT.esc(item.reference) + "</td>" +
+            "<td>" + NT.fmtDate(item.createdAt) + "</td>" +
+            "<td>" + enquiryStatusBadge(item) +
+            (item.code ? '<br><span class="mono small">' + NT.esc(item.code) + "</span>" : "") +
+            (item.emailStatus === "failed" && item.emailError
+              ? '<br><span class="adm-hint">' + NT.esc(item.emailError.slice(0, 90)) + "</span>"
+              : "") +
+            "</td>" +
+            '<td class="adm-row-end">' + actions + "</td></tr>";
+        }).join("") + "</tbody></table></div>";
+    }
+
+    function load() {
+      host.innerHTML = loading("Loading payment enquiries…");
+      NT.api.admin.enquiries().then(function (payload) {
+        var all = payload.enquiries || [];
+        var mail = payload.mail || {};
+        var items = filter === "all" ? all : all.filter(function (item) { return item.status === filter; });
+        var pending = all.filter(function (item) { return item.status === "pending"; }).length;
+        var confirmed = all.filter(function (item) { return item.status === "confirmed"; }).length;
+        var failed = all.filter(function (item) {
+          return item.status === "confirmed" && item.emailStatus === "failed";
+        }).length;
+        var rejected = all.filter(function (item) { return item.status === "rejected"; }).length;
+        var filters = [
+          { id: "all", label: "All (" + all.length + ")" },
+          { id: "pending", label: "Pending (" + pending + ")" },
+          { id: "confirmed", label: "Confirmed (" + confirmed + ")" },
+          { id: "rejected", label: "Rejected (" + rejected + ")" }
+        ];
+        host.innerHTML =
+          '<div class="adm-cards">' +
+          statCard(String(pending), "Awaiting confirmation", "Payment still to be verified") +
+          statCard(String(confirmed), "Confirmed payments", "Access codes issued") +
+          statCard(String(failed), "Email failed", failed ? "Needs attention" : "Nothing to retry") +
+          statCard(String(rejected), "Rejected", "No code issued") +
+          "</div>" +
+          '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Payment enquiries</h2>' +
+          "<p>Students agree the package with " + NT.esc(payload.contact || "Nuclear Tutorials") +
+          " on WhatsApp. Confirming a payment issues one access code and emails it; rejecting issues none.</p></div>" +
+          '<div class="segmented">' + filters.map(function (option) {
+            return '<button type="button" data-enquiry-filter="' + option.id + '" class="' +
+              (filter === option.id ? "active" : "") + '" aria-pressed="' + (filter === option.id) + '">' +
+              option.label + "</button>";
+          }).join("") + "</div></div>" +
+          (mail.configured
+            ? ""
+            : '<div class="adm-notice">' + NT.icon("circle-alert") +
+              "<div><b>Email delivery is not configured on this server.</b> Access codes are still issued and shown here; " +
+              "configure sending and use <b>Retry email</b>. " + NT.esc(mail.transport || "") + "</div></div>") +
+          (items.length
+            ? rowsMarkup(items)
+            : '<div class="adm-empty-inline">' +
+              (all.length ? "No enquiries with this status." : "No payment enquiries yet. Requests raised on the package page appear here.") +
+              "</div>") +
+          "</section>";
+
+        host.querySelectorAll("[data-enquiry-filter]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            filter = button.dataset.enquiryFilter;
+            load();
+          });
+        });
+        host.querySelectorAll("[data-copy-code]").forEach(function (button) {
+          button.addEventListener("click", function () { NT.copy(button.dataset.copyCode); });
+        });
+        host.querySelectorAll("[data-confirm-enquiry]").forEach(function (button) {
+          button.addEventListener("click", function () { confirmEnquiry(button.dataset.confirmEnquiry, button); });
+        });
+        host.querySelectorAll("[data-reject-enquiry]").forEach(function (button) {
+          button.addEventListener("click", function () { rejectEnquiry(button.dataset.rejectEnquiry); });
+        });
+        host.querySelectorAll("[data-email-enquiry]").forEach(function (button) {
+          button.addEventListener("click", function () { retryEmail(button.dataset.emailEnquiry, button); });
+        });
+      }, function (error) { fail(host, error); });
+    }
+
+    function showResult(html) {
+      var existing = document.getElementById("enquiryResult");
+      if (existing) existing.remove();
+      var notice = document.createElement("div");
+      notice.id = "enquiryResult";
+      notice.className = "adm-notice adm-notice-success";
+      notice.innerHTML = html;
+      host.insertBefore(notice, host.firstChild);
+      NT.initReveal();
+    }
+
+    /* Confirming twice never mints a second code: the server answers with the
+       code that was already issued, and the console says so. */
+    function confirmEnquiry(id, button) {
+      button.disabled = true;
+      NT.api.admin.confirmEnquiry(id).then(function (payload) {
+        var item = payload.enquiry;
+        showResult(NT.icon("check-circle") + "<div><b>Payment confirmed for " + NT.esc(item.studentName) +
+          ".</b> Access code <span class=\"mono\">" + NT.esc(item.code || "") + "</span> for the " +
+          NT.esc(item.packageName) + " package." +
+          (payload.duplicate ? " This enquiry was already confirmed, so the existing code was kept — no new code was issued." : "") +
+          (payload.emailSent
+            ? " The code was emailed to " + NT.esc(item.studentEmail) + "."
+            : " The code could not be emailed yet" + (item.emailError ? " (" + NT.esc(item.emailError) + ")" : "") +
+              ". Use <b>Retry email</b> once delivery is available — the code is already saved.") +
+          "</div>");
+        NT.toast(payload.duplicate ? "Already confirmed — code shown again" : "Payment confirmed", "success");
+        load();
+      }, function (error) {
+        button.disabled = false;
+        NT.toast(error.message, "error");
+      });
+    }
+
+    function rejectEnquiry(id) {
+      var modal = NT.modal({
+        title: "Reject this payment enquiry?",
+        body: '<p class="muted">No access code is issued and the student is not emailed. The request stays on the list as rejected.</p>',
+        footer: '<button class="btn btn-ghost" data-close>Keep it</button>' +
+          '<button class="btn btn-danger-soft" id="confirmReject">Reject enquiry</button>'
+      });
+      modal.querySelector("#confirmReject").addEventListener("click", function () {
+        var button = modal.querySelector("#confirmReject");
+        button.disabled = true;
+        NT.api.admin.rejectEnquiry(id).then(function (payload) {
+          modal.close();
+          NT.toast("Enquiry " + payload.enquiry.reference + " rejected", "success");
+          load();
+        }, function (error) {
+          button.disabled = false;
+          NT.toast(error.message, "error");
+        });
+      });
+    }
+
+    function retryEmail(id, button) {
+      button.disabled = true;
+      NT.api.admin.retryEnquiryEmail(id).then(function (payload) {
+        var item = payload.enquiry;
+        showResult(NT.icon("check-circle") + "<div><b>Access code emailed.</b> " +
+          NT.esc(item.packageName) + " code sent to " + NT.esc(item.studentEmail) +
+          " (attempt " + item.emailAttempts + ").</div>");
+        load();
+      }, function (error) {
+        button.disabled = false;
+        NT.toast(error.message, "error");
+      });
+    }
+
+    load();
+  }
+
   /* ------------------------------------------------------------ router */
+
 
   var routes = {
     login: pageLogin,
@@ -1188,6 +1391,7 @@
     courses: pageCourses,
     lessons: pageLessons,
     codes: pageCodes,
+    enquiries: pageEnquiries,
     announcements: pageAnnouncements,
     packages: pagePackages,
     settings: pageSettings

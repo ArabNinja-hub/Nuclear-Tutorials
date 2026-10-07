@@ -21,6 +21,7 @@
 
 var crypto = require("crypto");
 var db = require("./db");
+var mailer = require("./mailer");
 
 var SEMESTERS = [1, 2];
 var LEVELS = ["basic", "standard", "premium"];
@@ -958,17 +959,209 @@ route("GET", "/api/settings", function (req, res) {
   ok(res, { settings: publicSettings() });
 });
 
+/* ------------------------------------------------------------
+   Payment enquiries (WhatsApp) and the confirmation email
+
+   Students agree a package with Mr Steven Manda on WhatsApp. The platform
+   stores the request they raise, resolves the price and access level from
+   its own package settings, and mints exactly one access code when an
+   administrator confirms the payment by hand. A browser can never supply a
+   price, an access level or a status that is trusted here.
+   ------------------------------------------------------------ */
+
+/* The number the WhatsApp button opens, in the international format wa.me
+   expects (configurable through NT_WHATSAPP_NUMBER). The interface never
+   prints it as raw text. */
+var PAYMENT_WHATSAPP = text(process.env.NT_WHATSAPP_NUMBER, 24).replace(/[^0-9]/g, "") || "260764599915";
+var PAYMENT_CONTACT = text(process.env.NT_WHATSAPP_CONTACT, 60) || "Mr Steven Manda";
+
+function packageFor(level) {
+  var details = (db.getSettings().packages || {})[level];
+  if (!details) return null;
+  var price = Number(details.price);
+  return {
+    level: level,
+    name: text(details.name, 40) || LEVEL_LABEL[level],
+    price: Number.isFinite(price) && price >= 0 ? Math.round(price) : 0,
+    accessLevel: LEVEL_RANK[level] || 0
+  };
+}
+
+function enquiryPayload(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    reference: row.reference,
+    studentName: row.student_name,
+    studentEmail: row.student_email,
+    package: row.package,
+    packageName: row.package_name,
+    amount: Number(row.amount) || 0,
+    accessLevel: Number(row.access_level) || 0,
+    status: row.status,
+    code: row.code || null,
+    codeIssuedAt: row.code_issued_at || null,
+    emailStatus: row.email_status,
+    emailError: row.email_error || "",
+    emailSentAt: row.email_sent_at || null,
+    emailAttempts: Number(row.email_attempts) || 0,
+    createdAt: row.created_at,
+    confirmedAt: row.confirmed_at || null,
+    rejectedAt: row.rejected_at || null,
+    updatedAt: row.updated_at
+  };
+}
+
+/* A short window per connection keeps the public enquiry form from being
+   used as a spam relay without ever blocking a real student for long. */
+var ENQUIRY_WINDOW_MS = 10 * 60 * 1000;
+var ENQUIRY_MAX_PER_WINDOW = 10;
+var enquiryHits = {};
+
+function remoteAddress(req) {
+  var forwarded = text(req.headers["x-forwarded-for"], 200).split(",")[0].trim();
+  if (forwarded) return forwarded;
+  return (req.socket && (req.socket.remoteAddress || req.socket.servername)) || "unknown";
+}
+
+function enquiryAllowed(address) {
+  var key = String(address || "unknown");
+  var currentTime = Date.now();
+  var hits = (enquiryHits[key] || []).filter(function (time) { return currentTime - time < ENQUIRY_WINDOW_MS; });
+  if (hits.length >= ENQUIRY_MAX_PER_WINDOW) {
+    enquiryHits[key] = hits;
+    return false;
+  }
+  hits.push(currentTime);
+  enquiryHits[key] = hits;
+  if (Object.keys(enquiryHits).length > 5000) enquiryHits = {};
+  return true;
+}
+
+function publicBase(req) {
+  var configured = text(process.env.NT_PUBLIC_URL, 300).replace(/\/+$/, "");
+  if (configured) return configured;
+  var forwarded = (text(req.headers["x-forwarded-proto"], 60).split(",")[0] || "").trim();
+  var protocol = forwarded || (req.socket && req.socket.encrypted ? "https" : "http");
+  var host = (text(req.headers["x-forwarded-host"], 200).split(",")[0] || "").trim() || text(req.headers.host, 200);
+  return protocol + "://" + (host || "localhost:8080");
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function confirmationEmail(row, base) {
+  var redeemUrl = base + "/access.html?code=" + encodeURIComponent(row.code);
+  var price = "K" + (Number(row.amount) || 0);
+  var name = text(row.student_name, 80) || "there";
+  var packageName = text(row.package_name, 40);
+  var lines = [
+    "Hello " + name + ",",
+    "",
+    "Your payment for the " + packageName + " package (" + price + ") has been confirmed.",
+    "",
+    "Access code: " + row.code,
+    "Package: " + packageName + " - " + price,
+    "Payment reference: " + row.reference,
+    "",
+    "Redeem your access:",
+    "1. Open " + redeemUrl,
+    "2. Sign in with this email address, or create your account first.",
+    "3. Enter the access code. Each code is redeemed once and works on any device.",
+    "",
+    "Keep this email - the access code unlocks the lessons included in your package.",
+    "",
+    "Nuclear Tutorials"
+  ];
+  var html = '<div style="margin:0;padding:24px;background:#f4f7fb">' +
+    '<div style="max-width:560px;margin:0 auto;padding:28px;background:#ffffff;border:1px solid #dde6f0;' +
+    'border-radius:14px;font-family:Inter,Helvetica,Arial,sans-serif;color:#12263a;line-height:1.6;font-size:15px">' +
+    "<p style=\"margin:0 0 14px\">Hello " + escapeHtml(name) + ",</p>" +
+    "<p style=\"margin:0 0 16px\">Your payment for the <b>" + escapeHtml(packageName) + "</b> package (" +
+    escapeHtml(price) + ") has been confirmed.</p>" +
+    '<p style="margin:0 0 16px;padding:14px 18px;border:1px solid #dde6f0;border-radius:10px;background:#f7fafd;' +
+    'font-size:19px;font-weight:700;letter-spacing:1px">' + escapeHtml(row.code) + "</p>" +
+    '<p style="margin:0 0 4px"><b>Package:</b> ' + escapeHtml(packageName) + " &middot; " + escapeHtml(price) + "</p>" +
+    '<p style="margin:0 0 20px"><b>Payment reference:</b> ' + escapeHtml(row.reference) + "</p>" +
+    '<p style="margin:0 0 20px"><a href="' + escapeHtml(redeemUrl) + '" style="display:inline-block;padding:12px 22px;' +
+    'background:#0e5c8f;color:#ffffff;border-radius:9px;text-decoration:none;font-weight:600">Redeem Access</a></p>' +
+    "<ol style=\"margin:0 0 18px;padding-left:20px\">" +
+    "<li>Open the redemption page (the button above already carries your code).</li>" +
+    "<li>Sign in with this email address, or create your account first.</li>" +
+    "<li>Enter the access code. It is redeemed once and works on any device.</li></ol>" +
+    "<p style=\"margin:0;color:#5b7185;font-size:13px\">Keep this email &mdash; the access code unlocks the lessons included in your package.</p>" +
+    '<p style="margin:18px 0 0;color:#5b7185;font-size:13px">Nuclear Tutorials</p></div></div>';
+  return {
+    subject: "Your Nuclear Tutorials access code (" + packageName + " package)",
+    text: lines.join("\n"),
+    html: html
+  };
+}
+
+/* Email the access code. A mail outage never touches the code itself: the
+   confirmation is kept, the failure is recorded on the enquiry, and an
+   administrator can retry from the console. */
+function deliverEnquiryEmail(row, base) {
+  if (!row || row.status !== "confirmed" || !row.code) {
+    return Promise.resolve(row);
+  }
+  var message = confirmationEmail(row, base);
+  return mailer.sendMail({ to: row.student_email, subject: message.subject, text: message.text, html: message.html })
+    .then(function () {
+      return db.recordEnquiryEmail(row.id, { status: "sent" });
+    }, function (error) {
+      return db.recordEnquiryEmail(row.id, {
+        status: "failed",
+        error: (error && error.message) || String(error || "The email could not be sent.")
+      });
+    });
+}
+
 /* ---------- student access flow ---------- */
 
-route("POST", "/api/codes/issue", async function (req, res, params, ctx) {
+/* Codes are issued by an administrator (Admin → Access codes), or by the
+   server when a payment enquiry is confirmed. There is deliberately no
+   anonymous way to mint a working access code. */
+
+/* A student asks to pay for a package on WhatsApp. Only the package code and
+   the student's own details are accepted; the price, the access level and the
+   status all come from the server. Sending the WhatsApp message does NOT
+   confirm anything — the enquiry stays pending until an administrator
+   confirms the payment on the other side. */
+route("POST", "/api/payment-enquiries", async function (req, res) {
+  if (!enquiryAllowed(remoteAddress(req))) {
+    return fail(res, 429, "Too many payment requests from this connection. Please try again in a few minutes.");
+  }
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
   var pkg = text(body.package, 20);
-  if (LEVELS.indexOf(pkg) === -1) return fail(res, 400, "Choose a package (basic, standard or premium).");
-  var code = newAccessCode(pkg);
-  db.db().prepare("INSERT INTO codes (code, package, status, issued_at) VALUES (?, ?, 'unused', ?)")
-    .run(code, pkg, db.now());
-  ok(res, { code: code, package: pkg }, 201);
+  var pack = LEVELS.indexOf(pkg) !== -1 ? packageFor(pkg) : null;
+  if (!pack) return fail(res, 400, "Choose a package (basic, standard or premium).", { field: "package" });
+  var name = text(body.name, 80);
+  if (name.length < 2) return fail(res, 400, "Enter the full name that should appear on your access.", { field: "name" });
+  var email = text(body.email, 254).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return fail(res, 400, "Enter a valid email address so your access code can reach you.", { field: "email" });
+  }
+  var account = currentLearner(req);
+  var enquiry = db.createPaymentEnquiry({
+    reference: db.newEnquiryReference(),
+    name: name,
+    email: email,
+    accountId: account ? account.id : null,
+    package: pkg,
+    packageName: pack.name,
+    amount: pack.price,
+    accessLevel: pack.accessLevel
+  });
+  ok(res, {
+    enquiry: enquiryPayload(enquiry),
+    package: { level: pkg, name: pack.name, price: pack.price, accessLevel: pack.accessLevel },
+    contact: PAYMENT_CONTACT,
+    whatsapp: PAYMENT_WHATSAPP
+  }, 201);
 });
 
 route("POST", "/api/access/redeem", async function (req, res) {
@@ -1376,6 +1569,89 @@ route("POST", "/api/admin/codes", async function (req, res) {
 route("DELETE", "/api/admin/codes/:id", function (req, res, params) {
   db.db().prepare("DELETE FROM codes WHERE code = ?").run(String(params.id).toUpperCase());
   ok(res, { deleted: params.id });
+});
+
+/* ------------------------------------------------------------
+   Admin — payment enquiries
+
+   Confirm mints the student's access code exactly once (the database only
+   lets one caller take an enquiry out of 'pending'), rejects leave the
+   enquiry without a code, and a failed confirmation email can be retried
+   without ever issuing a second code.
+   ------------------------------------------------------------ */
+
+route("GET", "/api/admin/enquiries", function (req, res, params, ctx) {
+  var status = text(ctx.query.get("status"), 20);
+  var filter = ["pending", "confirmed", "rejected"].indexOf(status) !== -1 ? status : null;
+  ok(res, {
+    enquiries: db.paymentEnquiries({ status: filter }).map(enquiryPayload),
+    mail: { configured: mailer.isConfigured(), transport: mailer.describe() },
+    contact: PAYMENT_CONTACT,
+    whatsapp: PAYMENT_WHATSAPP
+  });
+});
+
+route("POST", "/api/admin/enquiries/:id/confirm", function (req, res, params) {
+  var row = db.paymentEnquiryById(params.id);
+  if (!row) return fail(res, 404, "That payment enquiry could not be found.");
+  if (row.status === "rejected") {
+    return fail(res, 409, "This enquiry was rejected. It cannot be confirmed as it stands.");
+  }
+  var pack = packageFor(row.package);
+  if (!pack) return fail(res, 409, "The package on this enquiry is no longer offered. Update the packages first.");
+
+  /* Already confirmed: hand the same code back instead of minting another. */
+  if (row.status === "confirmed" && row.code) {
+    return ok(res, { enquiry: enquiryPayload(row), duplicate: true, emailSent: row.email_status === "sent" });
+  }
+
+  var code = newAccessCode(row.package);
+  if (!db.confirmPaymentEnquiry(row.id, code)) {
+    /* Another administrator confirmed it in the meantime — same outcome. */
+    var claimed = db.paymentEnquiryById(row.id);
+    if (!claimed) return fail(res, 404, "That payment enquiry could not be found.");
+    if (!claimed.code) {
+      return fail(res, 409, "This enquiry was confirmed but has no access code. Check the access-code list.");
+    }
+    return ok(res, { enquiry: enquiryPayload(claimed), duplicate: true, emailSent: claimed.email_status === "sent" });
+  }
+  db.db().prepare("INSERT INTO codes (code, package, status, issued_at) VALUES (?, ?, 'unused', ?)")
+    .run(code, row.package, db.now());
+  var confirmed = db.paymentEnquiryById(row.id);
+
+  /* Email last: the code is already stored, so a mail failure loses nothing
+     and is recorded for the administrator to retry. */
+  return deliverEnquiryEmail(confirmed, publicBase(req)).then(function (updated) {
+    var payload = enquiryPayload(updated || confirmed);
+    ok(res, { enquiry: payload, duplicate: false, emailSent: payload.emailStatus === "sent" });
+  });
+});
+
+route("POST", "/api/admin/enquiries/:id/reject", function (req, res, params) {
+  var row = db.paymentEnquiryById(params.id);
+  if (!row) return fail(res, 404, "That payment enquiry could not be found.");
+  if (row.status === "confirmed") {
+    return fail(res, 409, "This payment is already confirmed and its access code has been issued.");
+  }
+  var changed = db.rejectPaymentEnquiry(row.id);
+  ok(res, { enquiry: enquiryPayload(db.paymentEnquiryById(row.id)), changed: changed });
+});
+
+/* Retry the confirmation email. The access code is never re-issued here —
+   the stored one is simply sent again. */
+route("POST", "/api/admin/enquiries/:id/email", function (req, res, params) {
+  var row = db.paymentEnquiryById(params.id);
+  if (!row) return fail(res, 404, "That payment enquiry could not be found.");
+  if (row.status !== "confirmed" || !row.code) {
+    return fail(res, 409, "Confirm the payment first — the access code is what gets emailed.");
+  }
+  if (!mailer.isConfigured()) {
+    return fail(res, 409, mailer.describe());
+  }
+  return deliverEnquiryEmail(row, publicBase(req)).then(function (updated) {
+    var payload = enquiryPayload(updated || row);
+    ok(res, { enquiry: payload, emailSent: payload.emailStatus === "sent" });
+  });
 });
 
 /* ------------------------------------------------------------

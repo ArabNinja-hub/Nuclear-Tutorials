@@ -70,6 +70,39 @@ function cookieFrom(response) {
   return header ? header.split(";")[0] : "";
 }
 
+/* Access codes are no longer issued to anonymous callers, so the flows mint
+   them the way an administrator does: sign in, then use the admin endpoint.
+   A fresh installation is rotated once here exactly as the console does. */
+function adminSignIn() {
+  return request("POST", "/api/admin/login", { password: state.adminPassword || PASSWORD })
+    .then(function (response) {
+      if (response.status !== 200) {
+        check(false, "the administrator signs in so codes can be issued (" + response.status + ")");
+        return null;
+      }
+      state.adminCookie = cookieFrom(response);
+      if (response.json && response.json.mustChangePassword) {
+        var replacement = (state.adminPassword || PASSWORD) === "nuclear-admin" ? ROTATED : (state.adminPassword || PASSWORD);
+        return request("POST", "/api/admin/password",
+          { currentPassword: state.adminPassword || PASSWORD, newPassword: replacement, confirmPassword: replacement },
+          { cookie: state.adminCookie }).then(function (changed) {
+          state.adminPassword = replacement;
+          state.adminCookie = cookieFrom(changed) || state.adminCookie;
+          return state.adminCookie;
+        });
+      }
+      return state.adminCookie;
+    });
+}
+
+function issueCode(pkg) {
+  return request("POST", "/api/admin/codes", { package: pkg, count: 1 }, { cookie: state.adminCookie })
+    .then(function (response) {
+      var codes = response.json && response.json.codes;
+      return { status: response.status === 201 ? 201 : response.status, json: { code: codes && codes[0] } };
+    });
+}
+
 function firstCourse(catalogue, universityId, semester) {
   return catalogue.courses.filter(function (course) {
     return course.universityId === universityId && Number(course.semester) === Number(semester);
@@ -96,10 +129,15 @@ request("GET", "/api/health").then(function (response) {
   }), "a visitor receives every lesson locked and without a source URL");
   check(!/"sourceUrl"\s*:\s*"https?:/.test(visitorResponse.raw), "a visitor response contains no video source URL");
 
-  /* Issue and redeem a premium code so the student flow below is signed in. */
-  return request("POST", "/api/codes/issue", { package: "premium" });
+  /* Issue and redeem a premium code so the student flow below is signed in.
+     The code comes from the administrator endpoint: students can no longer
+     mint their own access. */
+  return adminSignIn().then(function () {
+    check(!!state.adminCookie, "the administrator session is ready to issue codes");
+    return issueCode("premium");
+  });
 }).then(function (response) {
-  check(response.status === 201 && response.json.code, "a code can be issued for the student flow");
+  check(response.status === 201 && response.json.code, "an administrator issues the student-flow code");
   state.flowCode = response.json.code;
   return request("POST", "/api/access/redeem", { code: state.flowCode, educationLevel: "university" });
 }).then(function (response) {
@@ -157,9 +195,9 @@ request("GET", "/api/health").then(function (response) {
 
   /* ---- access codes and progress ---- */
   group("Access code and progress");
-  return request("POST", "/api/codes/issue", { package: "premium" });
+  return issueCode("premium");
 }).then(function (response) {
-  check(response.status === 201 && response.json.code, "a package code can be issued");
+  check(response.status === 201 && response.json.code, "an administrator issues a package code");
   var code = response.json.code;
   state.code = code;
   return request("POST", "/api/access/redeem", { code: code, educationLevel: "university" });
@@ -304,7 +342,7 @@ request("GET", "/api/health").then(function (response) {
   return request("POST", "/api/admin/login", { password: "definitely-wrong-password" });
 }).then(function (response) {
   check(response.status === 401, "the wrong administrator password is rejected");
-  return request("POST", "/api/admin/login", { password: PASSWORD });
+  return request("POST", "/api/admin/login", { password: state.adminPassword || PASSWORD });
 }).then(function (response) {
   check(response.status === 200, "administrator sign-in succeeds");
   state.cookie = cookieFrom(response);
@@ -314,7 +352,7 @@ request("GET", "/api/health").then(function (response) {
        the admin API serves anything else. Admin → Settings is locked too,
        so the rotation has to work from the sign-in session alone — that is
        the endpoint the first-run screen uses. */
-    var replacement = PASSWORD === "nuclear-admin" ? ROTATED : PASSWORD;
+    var replacement = (state.adminPassword || PASSWORD) === "nuclear-admin" ? ROTATED : (state.adminPassword || PASSWORD);
     return request("GET", "/api/admin/overview", null, { cookie: state.cookie }).then(function (blocked) {
       check(blocked.status === 403, "catalogue management is locked until the first-run password is changed");
       return request("GET", "/api/admin/settings", null, { cookie: state.cookie });
@@ -325,7 +363,7 @@ request("GET", "/api/health").then(function (response) {
       check(page.status === 200 && /Set your administrator password/.test(page.raw),
         "the first-run password screen is the page the lock points at");
       return request("POST", "/api/admin/password",
-        { currentPassword: PASSWORD, newPassword: replacement, confirmPassword: replacement }, { cookie: state.cookie });
+        { currentPassword: state.adminPassword || PASSWORD, newPassword: replacement, confirmPassword: replacement }, { cookie: state.cookie });
     }).then(function (changed) {
       check(changed.status === 200 && changed.json.mustChangePassword === false,
         "the first-run password can be replaced, guided by the confirmation field");
@@ -339,6 +377,7 @@ request("GET", "/api/health").then(function (response) {
       check(relogin.status === 200 && relogin.json.mustChangePassword === false,
         "the replaced password signs in and unlocks administration");
       state.cookie = cookieFrom(relogin);
+      state.adminCookie = state.cookie;
     });
   }
 }).then(function () {
@@ -434,6 +473,66 @@ request("GET", "/api/health").then(function (response) {
 }).then(function (response) {
   var ids = response.json.catalogue.videos.map(function (video) { return video.id; });
   check(ids.indexOf(state.createdVideo.id) === -1, "removing it takes it off the student catalogue");
+  return request("POST", "/api/payment-enquiries", {
+    package: "standard",
+    name: "Flow Payment Student",
+    email: "flow-payment-" + Date.now() + "@example.test",
+    /* A browser can send anything; the server must ignore all of it. */
+    amount: 1,
+    accessLevel: 99,
+    price: 1,
+    status: "confirmed",
+    code: "NT-STANDARD-FORGED"
+  });
+}).then(function (response) {
+  group("Payment enquiry → confirmation → access code → email");
+  check(response.status === 201 && response.json.enquiry, "a student raises a WhatsApp payment enquiry");
+  var enquiry = response.json.enquiry;
+  state.paymentEnquiry = enquiry;
+  check(/^NT-ENQ-[A-Z0-9]{5}$/.test(enquiry.reference || ""), "the enquiry carries a unique reference (" + enquiry.reference + ")");
+  check(enquiry.status === "pending", "sending the WhatsApp request does not confirm the payment");
+  check(enquiry.code === null && enquiry.amount === 100 && enquiry.accessLevel === 2,
+    "the server keeps its own price and access level (" + enquiry.amount + " / level " + enquiry.accessLevel + ")");
+  check(response.json.whatsapp === "260764599915", "the server hands the browser the configured WhatsApp number");
+  return request("GET", "/api/admin/enquiries", null, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200 && (response.json.enquiries || []).some(function (item) {
+    return item.reference === state.paymentEnquiry.reference && item.status === "pending";
+  }), "the pending enquiry is listed in the administration API");
+  return request("POST", "/api/admin/enquiries/" + encodeURIComponent(state.paymentEnquiry.id) + "/confirm", null, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.enquiry.status === "confirmed", "confirming the payment marks the enquiry confirmed");
+  check(response.json.duplicate === false, "the first confirmation is not a duplicate");
+  state.paymentCode = response.json.enquiry.code;
+  check(/^NT-STANDARD-[0-9A-F]{24}$/.test(state.paymentCode || ""), "confirming issues one access code through the existing generator");
+  state.paymentEmailStatus = response.json.enquiry.emailStatus;
+  check(["sent", "failed"].indexOf(response.json.enquiry.emailStatus) !== -1,
+    "the confirmation email is attempted and recorded (" + response.json.enquiry.emailStatus + ")");
+  return request("POST", "/api/admin/enquiries/" + encodeURIComponent(state.paymentEnquiry.id) + "/confirm", null, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.duplicate === true, "confirming a second time is recognised as a duplicate");
+  check(response.json.enquiry.code === state.paymentCode, "the duplicate confirmation shows the same code and mints no second one");
+  return request("POST", "/api/admin/enquiries/" + encodeURIComponent(state.paymentEnquiry.id) + "/reject", null, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 409, "a confirmed payment cannot be rejected afterwards");
+  return request("POST", "/api/payment-enquiries", { package: "basic", name: "Rejected Payer", email: "reject-" + Date.now() + "@example.test" });
+}).then(function (response) {
+  state.rejectedEnquiry = response.json.enquiry;
+  return request("POST", "/api/admin/enquiries/" + encodeURIComponent(state.rejectedEnquiry.id) + "/reject", null, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200 && response.json.enquiry.status === "rejected" && !response.json.enquiry.code,
+    "rejecting an enquiry issues no access code");
+  return request("POST", "/api/access/redeem", { code: state.paymentCode, educationLevel: "university" });
+}).then(function (response) {
+  check(response.status === 200 && response.json.access && response.json.access.package === "standard",
+    "the confirmed code redeems through the existing access flow");
+  return request("GET", "/api/admin/enquiries", null, { cookie: state.cookie });
+}).then(function (response) {
+  var item = (response.json.enquiries || []).filter(function (entry) {
+    return entry.reference === state.paymentEnquiry.reference;
+  })[0];
+  check(!!item && item.emailAttempts >= 1 && (item.emailStatus === "sent" || item.emailError),
+    "the enquiry records the email attempt so a failure can be retried");
   return request("POST", "/api/admin/logout", null, { cookie: state.cookie });
 }).then(function (response) {
   check(response.status === 200, "administrator sign-out succeeds");

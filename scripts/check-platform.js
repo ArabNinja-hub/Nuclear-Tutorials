@@ -37,7 +37,7 @@ var PUBLIC_PAGES = [
 ];
 var ADMIN_PAGES = [
   "admin/login.html", "admin/first-run.html", "admin/index.html", "admin/courses.html", "admin/lessons.html",
-  "admin/codes.html", "admin/announcements.html", "admin/packages.html", "admin/settings.html"
+  "admin/codes.html", "admin/enquiries.html", "admin/announcements.html", "admin/packages.html", "admin/settings.html"
 ];
 var SCRIPT_FILES = [
   "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js",
@@ -417,11 +417,51 @@ check(serverApi.indexOf("function requestAccess") !== -1 && serverApi.indexOf("p
   "the server resolves the access code and redacts protected lesson sources");
 check(/crypto\.randomBytes\(12\)/.test(serverApi) && serverApi.indexOf("function newAccessCode") !== -1,
   "access codes use a high-entropy random value instead of a guessable short numeric suffix");
+check(serverApi.indexOf('route("POST", "/api/payment-enquiries"') !== -1 &&
+  serverApi.indexOf("packageFor(pkg)") !== -1 && serverApi.indexOf("amount: pack.price") !== -1,
+  "payment enquiries store the price and access level the server resolved, not the values a browser sent");
+check(serverApi.indexOf("amount: pack.price") !== -1 &&
+  !/body\.(price|amount|accessLevel)\b/.test(serverApi.slice(serverApi.indexOf("route(\"POST\", \"/api/payment-enquiries\""),
+    serverApi.indexOf("route(\"POST\", \"/api/access/redeem\""))),
+  "the public enquiry route ignores any price or level in the request body");
+check(serverApi.indexOf("confirmPaymentEnquiry(row.id, code)") !== -1 &&
+  serverDb.indexOf("WHERE id = ? AND status = 'pending'") !== -1,
+  "a payment is claimed with a single conditional update, so a second confirm cannot mint another code");
+check(serverApi.indexOf("if (row.status === \"confirmed\" && row.code)") !== -1 &&
+  serverApi.indexOf("duplicate: true") !== -1,
+  "confirming an already confirmed enquiry returns the existing access code");
+check(/route\("GET", "\/api\/admin\/enquiries"/.test(serverApi) &&
+  /route\("POST", "\/api\/admin\/enquiries\/:id\/confirm"/.test(serverApi) &&
+  /route\("POST", "\/api\/admin\/enquiries\/:id\/reject"/.test(serverApi) &&
+  /route\("POST", "\/api\/admin\/enquiries\/:id\/email"/.test(serverApi),
+  "payment enquiries are listed, confirmed, rejected and re-emailed behind the administrator gate");
+check(serverApi.indexOf("deliverEnquiryEmail") !== -1 && serverApi.indexOf("recordEnquiryEmail") !== -1 &&
+  read("server/mailer.js").indexOf("function sendMail") !== -1,
+  "the confirmation email is sent through the platform mailer and its result is recorded");
+check(serverApi.indexOf("NT_WHATSAPP_NUMBER") !== -1 && serverApi.indexOf('260764599915') !== -1 &&
+  read("assets/js/data.js").indexOf("NT.whatsappLink") !== -1,
+  "the WhatsApp number is server configuration and the browser builds the prefilled message");
+check(envExample.indexOf("NT_MAIL_FROM") !== -1 && envExample.indexOf("NT_SMTP_HOST") !== -1 &&
+  envExample.indexOf("NT_WHATSAPP_NUMBER") !== -1,
+  ".env.example documents the WhatsApp and email settings");
+check(read("assets/js/admin.js").indexOf("function pageEnquiries") !== -1 &&
+  adminJs.indexOf("confirmEnquiry") !== -1 && adminJs.indexOf("retryEnquiryEmail") !== -1,
+  "the existing Admin Console gains a Payment enquiries page with confirm, reject and retry");
 check(serverApi.indexOf("sourceUrl: allowed ? video.sourceUrl : null") !== -1,
   "protected video URLs are withheld from unauthorised responses");
 check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.test(serverApi),
   "direct requests to a protected lesson are refused with 403");
 
+var heroBlock = home.slice(home.indexOf('class="hero-home"'), home.indexOf("home-promise"));
+check(heroBlock.indexOf("reveal") === -1 && heroBlock.indexOf("data-reveal") === -1,
+  "the homepage hero keeps no scroll animation of its own");
+check(/class="promise-item reveal" data-reveal="up" data-delay="1"/.test(home) &&
+  home.indexOf('data-reveal="left"') !== -1 && home.indexOf('data-reveal="right"') !== -1 &&
+  home.indexOf('data-reveal="scale"') !== -1 && home.indexOf('data-reveal="fade"') !== -1,
+  "the homepage below the hero staggers upward, sideways, faded and scaled entrances");
+check(css.indexOf('.reveal[data-reveal="left"]') !== -1 && css.indexOf('.reveal[data-reveal="scale"]') !== -1 &&
+  css.indexOf('.reveal[data-delay="3"]') !== -1,
+  "scroll entrance variants and stagger steps are styled");
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1,
   "home has no invented social proof or student metrics");
 check(home.indexOf("learning-preview") === -1 && home.indexOf("hero-visual") === -1 && home.indexOf("hero-orbit") === -1 &&
@@ -453,16 +493,21 @@ check(read("index.html").indexOf("homeStats") === -1 && app.indexOf("function pa
   "the public homepage does not load or feature the full catalogue");
 check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1 && app.indexOf("NT.embedUrl") !== -1,
   "lesson pages play the lesson instead of promising unavailable material");
-check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.indexOf("Generate access code") !== -1,
-  "checkout issues an access code and states that it processes no payment");
+check(read("checkout.html").indexOf("No payment is processed") !== -1 &&
+  app.indexOf("Pay via WhatsApp") !== -1 && app.indexOf("createEnquiry") !== -1,
+  "checkout raises a WhatsApp payment request and states that it processes no payment");
+check(app.indexOf("issueCode") === -1 && app.indexOf("/api/codes/issue") === -1,
+  "the checkout page can no longer mint an access code by itself");
+check(!/route\("POST", "\/api\/codes\/issue"/.test(serverApi),
+  "no anonymous endpoint issues access codes");
 check(app.indexOf("loadFor(grid, function () {") !== -1 && app.indexOf("loadFor(root || grid") === -1,
   "the access packages page renders into its live grid instead of a detached node");
 
 /* The first-run route key is quoted because of its hyphen, exactly as the
    rest of the admin routes are keyed. */
 var adminRoutes = ["login: pageLogin", '"first-run": pageFirstRun', "home: pageHome", "courses: pageCourses",
-  "lessons: pageLessons", "codes: pageCodes", "announcements: pageAnnouncements", "packages: pagePackages",
-  "settings: pageSettings"];
+  "lessons: pageLessons", "codes: pageCodes", "enquiries: pageEnquiries", "announcements: pageAnnouncements",
+  "packages: pagePackages", "settings: pageSettings"];
 var missingRoutes = adminRoutes.filter(function (entry) { return adminJs.indexOf(entry) === -1; });
 check(missingRoutes.length === 0, "every admin page maps to an implemented route" + (missingRoutes.length ? ": " + missingRoutes.join(", ") : ""));
 
