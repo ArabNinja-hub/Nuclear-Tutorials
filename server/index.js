@@ -45,6 +45,7 @@ var seed = require("./seed");
 var platform = require("./platform");
 
 var ROOT = path.resolve(__dirname, "..");
+var ROOT_REALPATH = fs.realpathSync(ROOT);
 var PORT = process.env.PORT || 8080;
 var DEFAULT_HOST = "0.0.0.0";
 var HOST = process.env.HOST || DEFAULT_HOST;
@@ -105,9 +106,22 @@ var BLOCKED_IN_PRODUCTION = [
 
 function isBlocked(pathname) {
   var list = IS_PRODUCTION ? BLOCKED.concat(BLOCKED_IN_PRODUCTION) : BLOCKED;
-  return list.some(function (prefix) {
-    return pathname === prefix || pathname.indexOf(prefix + "/") === 0;
+  var lowerPathname = pathname.toLowerCase();
+  if (list.some(function (prefix) {
+    var lowerPrefix = prefix.toLowerCase();
+    return lowerPathname === lowerPrefix || lowerPathname.indexOf(lowerPrefix + "/") === 0;
+  })) return true;
+  /* Environment files can contain deployment credentials. Block the whole
+     family in every mode, not just the exact .env filename. */
+  return pathname.split("/").some(function (segment) {
+    return segment.toLowerCase().indexOf(".env") === 0;
   });
+}
+
+function isInsideRoot(root, filePath) {
+  var relative = path.relative(root, filePath);
+  return relative === "" || (!path.isAbsolute(relative) && relative !== ".." &&
+    relative.indexOf(".." + path.sep) !== 0);
 }
 
 function sendFile(res, filePath, stat) {
@@ -121,39 +135,86 @@ function sendFile(res, filePath, stat) {
   else headers["Cache-Control"] = "no-cache";
   res.writeHead(200, headers);
   if (res.req && res.req.method === "HEAD") return res.end();
-  fs.createReadStream(filePath).pipe(res);
+  var stream = fs.createReadStream(filePath);
+  stream.on("error", function (error) {
+    console.error("[static] Could not read " + filePath + " — " + error.message);
+    if (!res.headersSent) return notFound(res.req, res, filePath);
+    if (!res.destroyed) res.destroy();
+  });
+  stream.pipe(res);
+}
+
+function sendStaticFile(req, res, filePath, target) {
+  fs.realpath(filePath, function (error, realPath) {
+    if (error) return notFound(req, res, target);
+    if (!isInsideRoot(ROOT_REALPATH, realPath)) {
+      res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Forbidden");
+    }
+    /* A public symlink must not become a route to a blocked source/config file. */
+    var relative = path.relative(ROOT_REALPATH, realPath).split(path.sep).join("/");
+    if (isBlocked("/" + relative)) {
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Not found");
+    }
+    fs.stat(realPath, function (statError, stat) {
+      if (statError || !stat.isFile()) return notFound(req, res, target);
+      sendFile(res, realPath, stat);
+    });
+  });
 }
 
 function serveStatic(req, res, pathname) {
-  if (isBlocked(pathname)) {
+  var decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch (error) {
+    res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end("Malformed URL path");
+  }
+  /* Backslashes and control characters are ambiguous across filesystems and
+     can also make fs APIs throw. Reject them before touching the filesystem. */
+  if (/[\u0000-\u001f\u007f\\]/.test(decoded)) {
+    res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    return res.end("Invalid URL path");
+  }
+  decoded = path.posix.normalize(decoded);
+  if (!decoded.startsWith("/")) decoded = "/" + decoded;
+  if (isBlocked(decoded)) {
     res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     return res.end("Not found");
   }
-  var decoded;
-  try { decoded = decodeURIComponent(pathname); } catch (error) { decoded = pathname; }
+
   var target = decoded === "/" ? "/index.html" : decoded;
   if (target.endsWith("/")) target += "index.html";
-  var filePath = path.join(ROOT, target);
-  if (filePath.indexOf(ROOT) !== 0) {
+  /* Treat the request path as relative to the web root and check the real
+     relative path. A raw prefix check would accept sibling paths such as
+     Nuclear-Tutorials-private. */
+  var filePath = path.resolve(ROOT, "." + target);
+  if (!isInsideRoot(ROOT, filePath)) {
     res.writeHead(403, { "Content-Type": "text/plain; charset=utf-8" });
     return res.end("Forbidden");
   }
   fs.stat(filePath, function (error, stat) {
     if (!error && stat.isDirectory()) {
       var indexFile = path.join(filePath, "index.html");
-      return fs.stat(indexFile, function (innerError, innerStat) {
-        if (innerError) return notFound(req, res, target);
-        sendFile(res, indexFile, innerStat);
-      });
+      return sendStaticFile(req, res, indexFile, target);
     }
     if (error || !stat.isFile()) {
       /* Friendly fallback: serve a matching .html file without the extension. */
-      if (!path.extname(filePath) && fs.existsSync(filePath + ".html")) {
-        return sendFile(res, filePath + ".html", fs.statSync(filePath + ".html"));
+      var htmlFile = filePath + ".html";
+      if (!path.extname(filePath) && fs.existsSync(htmlFile)) {
+        return sendStaticFile(req, res, htmlFile, target + ".html");
       }
       return notFound(req, res, target);
     }
-    sendFile(res, filePath, stat);
+    sendStaticFile(req, res, filePath, target);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, function (character) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[character];
   });
 }
 
@@ -161,7 +222,7 @@ function notFound(req, res, target) {
   var page = fs.existsSync(path.join(ROOT, "404.html")) ? path.join(ROOT, "404.html") : null;
   res.writeHead(404, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
   if (page && req.method !== "HEAD") {
-    res.end(fs.readFileSync(page, "utf8").replace("{{path}}", target));
+    res.end(fs.readFileSync(page, "utf8").replace(/\{\{path\}\}/g, escapeHtml(target)));
     return;
   }
   res.end("<h1>404</h1><p>That page does not exist on Nuclear Tutorials.</p>");
@@ -197,6 +258,21 @@ var server = http.createServer(function (req, res) {
       if (!handled) {
         res.writeHead(404, { "Content-Type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ ok: false, error: "Unknown API endpoint: " + pathname }));
+      }
+    }).catch(function (error) {
+      /* Keep an unexpected router rejection local to this request. Bad input
+         must never become an unhandled rejection that exits the server. */
+      console.error("[api] Unhandled request error", error);
+      if (!res.headersSent) {
+        var body = JSON.stringify({ ok: false, error: "The server could not complete that request." });
+        res.writeHead(500, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Length": Buffer.byteLength(body),
+          "Cache-Control": "no-store"
+        });
+        res.end(body);
+      } else if (!res.writableEnded && !res.destroyed) {
+        res.end();
       }
     });
     return;

@@ -495,23 +495,31 @@
     return { youtube: "YouTube", vimeo: "Vimeo", direct: "Direct video", other: "External link" }[provider] || "External link";
   };
 
-  /* YouTube lessons play inside the page; other sources open in a new tab. */
+  /* YouTube and Vimeo lessons play inside the page; unknown hosts open in a tab. */
   NT.embedUrl = function (video) {
     if (!video || !video.sourceUrl) return "";
     try {
       var url = new URL(video.sourceUrl);
       var host = url.hostname.replace(/^www\./, "");
-      if (host === "youtu.be") return "https://www.youtube.com/embed/" + url.pathname.split("/").filter(Boolean)[0];
-      if (host.endsWith("youtube.com")) {
+      var youtubeHost = host === "youtube.com" || host.endsWith(".youtube.com") ||
+        host === "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com");
+      var vimeoHost = host === "vimeo.com" || host.endsWith(".vimeo.com");
+      if (host === "youtu.be") {
+        var shortId = url.pathname.split("/").filter(Boolean)[0];
+        if (shortId) return "https://www.youtube.com/embed/" + shortId;
+      }
+      if (youtubeHost) {
         var id = url.searchParams.get("v");
         if (!id && /\/(embed|shorts|live)\//.test(url.pathname)) id = url.pathname.split("/").filter(Boolean)[1];
         if (id) return "https://www.youtube.com/embed/" + id;
       }
-      if (host.endsWith("vimeo.com")) {
-        var vimeoId = url.pathname.split("/").filter(Boolean)[0];
-        if (vimeoId && /^\d+$/.test(vimeoId)) return "https://player.vimeo.com/video/" + vimeoId;
+      if (vimeoHost) {
+        var pathParts = url.pathname.split("/").filter(Boolean);
+        var vimeoIds = pathParts.filter(function (part) { return /^\d+$/.test(part); });
+        var vimeoId = vimeoIds.length ? vimeoIds[vimeoIds.length - 1] : "";
+        if (vimeoId) return "https://player.vimeo.com/video/" + vimeoId;
       }
-      if (/\.(mp4|webm|ogg)(\?|$)/i.test(url.pathname)) return video.sourceUrl;
+      if (/\.(mp4|webm|ogg)$/i.test(url.pathname)) return video.sourceUrl;
     } catch (error) {
       return "";
     }
