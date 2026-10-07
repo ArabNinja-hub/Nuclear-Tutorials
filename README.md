@@ -36,6 +36,8 @@ and vanilla JavaScript.
 | `npm run seed:demo` | Loads the development sample catalogue (refused when `NODE_ENV=production`) |
 | `npm run seed:clear` | Empties the catalogue (keeps codes, progress, announcements, settings) |
 | `npm run seed:status` | Prints the database path, catalogue counts and content source |
+| `npm run assets:version` | Refreshes the `?v=` cache-busting hash on every page's CSS and JavaScript references (run it after editing an asset) |
+| `npm run assets:check` | Fails when a page asks for a stale asset version (included in `npm run check`) |
 | `npm run check` | Structural, accessibility and render checks (no server required) |
 | `npm run check:flows` | Student and admin journeys against a running server |
 | `npm run check:access` | Package access control: the Basic/Standard/Premium matrix and bypass attempts |
@@ -97,6 +99,22 @@ commit `.env` or `NT_ADMIN_PASSWORD` to the repository.
 Then run `npm run check:production` (with `BASE=https://your-app.up.railway.app`
 or your Render URL) against the deployment to confirm the live behaviour before
 handing it over.
+
+### Caching and cache busting
+
+Stylesheets and scripts are served with `Cache-Control: public, max-age=3600`,
+so browsers may reuse them for an hour. Every page therefore requests its local
+assets with a short content hash — `assets/css/main.css?v=cf14805a` — which
+changes exactly when the file changes. After editing any CSS or JavaScript, run:
+
+```
+npm run assets:version     # refresh the ?v= markers (235 references, 28 pages)
+```
+
+`npm run assets:check` (part of `npm run check` and `npm run check:production`)
+fails if any page carries a stale or missing version, so a fix can never ship
+behind an old cached stylesheet. Assets that did not change keep their URL, and
+HTML itself is already served with `Cache-Control: no-cache`.
 
 Start-up never deletes, recreates or reseeds anything: an existing database is
 opened, its schema is `CREATE TABLE IF NOT EXISTS` plus additive column

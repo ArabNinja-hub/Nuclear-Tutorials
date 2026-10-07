@@ -13,6 +13,8 @@
     "seed:demo": "node server/seed.js --demo --force",
     "seed:clear": "node server/seed.js --clear",
     "seed:status": "node server/seed.js",
+    "assets:version": "node scripts/version-assets.js",
+    "assets:check": "node scripts/version-assets.js --check",
     "check": "node scripts/check-platform.js && node scripts/smoke-render.js",
     "check:live": "node scripts/check-platform.js && BASE=http://127.0.0.1:8080 node scripts/smoke-render.js",
     "check:flows": "node scripts/check-flows.js",

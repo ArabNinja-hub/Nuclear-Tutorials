@@ -45,7 +45,8 @@ var SCRIPT_FILES = [
   "assets/js/ui.js", "assets/js/app.js", "assets/js/hero-rotator.js", "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js", "server/platform.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
-  "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js"
+  "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js",
+  "scripts/version-assets.js"
 ];
 var ASSETS = [
   "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
@@ -126,6 +127,15 @@ SCRIPT_FILES.forEach(function (file) {
   var result = childProcess.spawnSync(process.execPath, ["--check", path.join(ROOT, file)], { encoding: "utf8" });
   check(result.status === 0, file + " parses" + (result.status === 0 ? "" : ": " + (result.stderr || result.stdout).trim()));
 });
+
+/* CSS and JavaScript are served with `max-age=3600`, so every page must ask for
+   them with a current content hash (`assets/css/main.css?v=1f3c9a02`); otherwise
+   a returning visitor keeps the old stylesheet for up to an hour after a fix.
+   scripts/version-assets.js is the single source of truth and fixes the markers. */
+var versionCheck = childProcess.spawnSync(process.execPath, [path.join(ROOT, "scripts/version-assets.js"), "--check"],
+  { encoding: "utf8" });
+check(versionCheck.status === 0, "every page requests its CSS and JavaScript with a current content-hash version" +
+  (versionCheck.status === 0 ? "" : ": " + ((versionCheck.stderr || "") + (versionCheck.stdout || "")).trim().split("\n").slice(0, 3).join(" ")));
 
 /* ---------------- icon library ---------------- */
 
