@@ -170,7 +170,10 @@
     var input = document.getElementById("admPassword");
 
     NT.api.admin.session().then(function (payload) {
-      if (payload.authenticated) location.replace("index.html");
+      if (!payload.authenticated) return;
+      /* An un-rotated session belongs on the first-run screen, not in the
+         catalogue. */
+      location.replace(payload.mustChangePassword ? "first-run.html" : "index.html");
     }, function () { /* server unreachable — let the form explain */ });
 
     form.addEventListener("submit", function (event) {
@@ -184,7 +187,9 @@
       submit.disabled = true;
       NT.api.admin.login(password).then(function (payload) {
         if (payload && payload.mustChangePassword) {
-          location.href = "settings.html?first-run=1";
+          /* First run: the console stays locked until a real password is set,
+             so go straight to that screen instead of a catalogue page. */
+          location.href = "first-run.html";
           return;
         }
         location.href = NT.qs("next") || "index.html";
@@ -195,6 +200,91 @@
         input.select();
       });
     });
+  }
+
+  /* ------------------------------------------------------------ first run
+
+     Shown after signing in with the first-run password and whenever a
+     protected admin page is opened while the rotation is still pending.
+     It is the only screen the server lets an un-rotated session use: it
+     explains the situation and replaces the temporary password with the
+     administrator's own. No catalogue endpoint is called here. */
+
+  function pageFirstRun() {
+    if (!root) return;
+    document.body.classList.add("adm-login-body");
+    root.innerHTML =
+      '<div class="adm-login">' +
+      '<div class="adm-login-card">' +
+      '<a class="adm-brand adm-brand-center" href="../index.html">' +
+      '<img src="../assets/img/logo.jpg" alt="" width="42" height="42">' +
+      '<span><b>Nuclear Tutorials</b><small>Administration</small></span></a>' +
+      "<h1>Set your administrator password</h1>" +
+      '<p class="muted">This installation is still using its first-run password, so the Admin Console stays ' +
+      "locked. Choose the password you will sign in with from now on and the console opens immediately.</p>" +
+      '<form id="admFirstRunForm" novalidate>' +
+      '<div class="field"><label for="frCurrent">First-run password</label>' +
+      '<input class="input" id="frCurrent" type="password" autocomplete="current-password" ' +
+      'placeholder="The password you just signed in with" required></div>' +
+      '<div class="field"><label for="frNext">New password</label>' +
+      '<input class="input" id="frNext" type="password" autocomplete="new-password" ' +
+      'placeholder="At least 8 characters" required></div>' +
+      '<div class="field"><label for="frConfirm">Confirm new password</label>' +
+      '<input class="input" id="frConfirm" type="password" autocomplete="new-password" ' +
+      'placeholder="Type the new password again" required></div>' +
+      '<p class="field-hint">Use at least 8 characters, and never reuse the first-run password from the ' +
+      "server log. Setting it signs out every other administrator session.</p>" +
+      '<div class="adm-login-message" id="admFirstRunMessage" aria-live="polite"></div>' +
+      '<button class="btn btn-primary btn-block btn-lg" type="submit" id="admFirstRunSubmit">' +
+      NT.icon("key") + "Set password</button>" +
+      "</form>" +
+      '<button class="btn btn-secondary btn-block" type="button" id="admFirstRunSignOut">' +
+      NT.icon("log-out") + "Sign out</button>" +
+      '<a class="link-arrow adm-login-back" href="../index.html">' +
+      NT.icon("arrow-left", "icon-sm") + "Back to the student site</a>" +
+      "</div></div>";
+
+    var form = document.getElementById("admFirstRunForm");
+    var message = document.getElementById("admFirstRunMessage");
+    var submit = document.getElementById("admFirstRunSubmit");
+    var current = document.getElementById("frCurrent");
+    var next = document.getElementById("frNext");
+    var confirm = document.getElementById("frConfirm");
+
+    function complain(text) {
+      message.innerHTML = '<div class="alert alert-error">' + NT.icon("circle-alert") + "<div>" + NT.esc(text) + "</div></div>";
+    }
+
+    document.getElementById("admFirstRunSignOut").addEventListener("click", function () {
+      NT.api.admin.logout().then(function () {
+        location.href = "login.html";
+      }, function () {
+        location.href = "login.html";
+      });
+    });
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      message.innerHTML = "";
+      if (!current.value) { complain("Enter the first-run password you signed in with."); current.focus(); return; }
+      if (!next.value) { complain("Choose a new administrator password."); next.focus(); return; }
+      if (next.value.length < 8) { complain("Use at least 8 characters for the new password."); next.focus(); return; }
+      if (confirm.value !== next.value) { complain("The two new passwords do not match."); confirm.focus(); return; }
+      submit.disabled = true;
+      NT.api.admin.changePassword(current.value, next.value, confirm.value).then(function () {
+        /* The server clears the rotation flag and issues a fresh session, so
+           the dashboard loads normally from here on. */
+        NT.toast("Password set. Loading the Admin Console…", "success");
+        window.setTimeout(function () { location.href = "index.html"; }, 600);
+      }, function (error) {
+        submit.disabled = false;
+        var text = error.status === 0 ? "The server is unreachable. Start Nuclear Tutorials and try again." : error.message;
+        complain(text);
+        if (error.status === 401) current.select();
+      });
+    });
+
+    current.focus();
   }
 
   /* ------------------------------------------------------------ overview */
@@ -1025,14 +1115,15 @@
         "</form></section>" +
         '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Administrator password</h2>' +
         "<p>Changing the password signs out every other administrator session.</p></div></div>" +
-        '<div id="passwordBanner"></div>' +
         '<form class="adm-form" id="passwordForm">' +
         '<div class="field"><label for="pwCurrent">Current password</label>' +
         '<input class="input" id="pwCurrent" type="password" autocomplete="current-password"></div>' +
         '<div class="field"><label for="pwNext">New password</label>' +
         '<input class="input" id="pwNext" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>' +
+        '<div class="field"><label for="pwConfirm">Confirm new password</label>' +
+        '<input class="input" id="pwConfirm" type="password" autocomplete="new-password" placeholder="Type the new password again"></div>' +
         '<div class="adm-form-actions"><button class="btn btn-secondary" type="submit" id="pwSubmit">' + NT.icon("key") + "Change password</button>" +
-        '<span class="field-hint" id="pwNote"></span></div>' +
+        "</div>" +
         "</form></section></div>" +
         '<section class="adm-card adm-block"><div class="adm-block-head"><div><h2>Data model</h2>' +
         "<p>Everything students see comes from the server database.</p></div></div>" +
@@ -1061,34 +1152,25 @@
       });
 
       /* A first-run password must be replaced before the admin API accepts
-         catalogue management, so say so plainly on this page. */
-      function showRotationNotice() {
-        var banner = document.getElementById("passwordBanner");
-        var note = document.getElementById("pwNote");
-        var submit = document.getElementById("pwSubmit");
-        if (!banner) return;
-        banner.innerHTML = '<div class="adm-notice">' + NT.icon("circle-alert") +
-          "<div><b>Change the first-run password.</b> Until you do, catalogue management stays disabled for every " +
-          "administrator session. The password you received from the server log is temporary" +
-          (NT.qs("first-run") ? " — you are here because of it." : ".") + "</div></div>";
-        if (note) note.textContent = "Required before the admin area unlocks.";
-        if (submit) submit.className = "btn btn-primary";
-      }
-      NT.api.admin.session().then(function (payload) {
-        if (payload && payload.mustChangePassword) showRotationNotice();
-      }, function () { /* the page already reported the failure */ });
+         catalogue management. That now happens on its own screen
+         (first-run.html), which this router sends un-rotated sessions to,
+         so by the time Settings loads there is nothing left to explain. */
 
       document.getElementById("passwordForm").addEventListener("submit", function (event) {
         event.preventDefault();
         var current = document.getElementById("pwCurrent").value;
         var next = document.getElementById("pwNext").value;
+        var confirm = document.getElementById("pwConfirm").value;
         if (next.length < 8) return NT.toast("Use at least 8 characters for the new password", "error");
+        if (confirm !== next) return NT.toast("The two new passwords do not match", "error");
         var button = event.currentTarget.querySelector("button");
         button.disabled = true;
-        NT.api.admin.changePassword(current, next).then(function () {
-          NT.toast("Password changed. Sign in again.", "success");
-          /* Changing the password clears every session, so sign in again. */
-          window.setTimeout(function () { location.href = "login.html"; }, 900);
+        NT.api.admin.changePassword(current, next, confirm).then(function () {
+          /* The server clears every other session and issues this browser a
+             fresh one, so the dashboard is loaded instead of the sign-in
+             page. */
+          NT.toast("Password changed", "success");
+          window.setTimeout(function () { location.href = "index.html"; }, 700);
         }, function (error) {
           button.disabled = false;
           NT.toast(error.message, "error");
@@ -1101,6 +1183,7 @@
 
   var routes = {
     login: pageLogin,
+    "first-run": pageFirstRun,
     home: pageHome,
     courses: pageCourses,
     lessons: pageLessons,
@@ -1125,6 +1208,18 @@
     NT.api.admin.session().then(function (payload) {
       if (!payload || !payload.authenticated) {
         location.replace("login.html?next=" + encodeURIComponent(route + ".html"));
+        return;
+      }
+      /* First run: the console stays locked until the first-run password is
+         replaced, so the only page that can load is the password screen.
+         Once the password is set, that screen sends the administrator on to
+         the dashboard. */
+      if (payload.mustChangePassword && route !== "first-run") {
+        location.replace("first-run.html");
+        return;
+      }
+      if (!payload.mustChangePassword && route === "first-run") {
+        location.replace("index.html");
         return;
       }
       handler();

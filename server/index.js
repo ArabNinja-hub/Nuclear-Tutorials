@@ -273,10 +273,11 @@ function start() {
     if (admin.generated) {
       console.log("[setup] This password is shown once and was not chosen by a human — it is stored in memory only.");
     }
-    console.log("[setup] The administrator password must be changed in Admin → Settings before the admin " +
-      "API accepts any other request.");
+    console.log("[setup] The administrator password must be changed on the first-run screen " +
+      "(/admin/first-run.html) before the admin area unlocks.");
   } else if (db.adminMustChangePassword()) {
-    console.log("[setup] The administrator password still has to be changed in Admin → Settings.");
+    console.log("[setup] The administrator password still has to be changed on the first-run screen " +
+      "(/admin/first-run.html).");
   }
 
   var catalogue = seed.summary();

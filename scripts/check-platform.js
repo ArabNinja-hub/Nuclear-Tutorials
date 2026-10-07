@@ -35,7 +35,7 @@ var PUBLIC_PAGES = [
   "search.html", "profile.html", "pricing.html", "checkout.html", "access.html", "announcements.html"
 ];
 var ADMIN_PAGES = [
-  "admin/login.html", "admin/index.html", "admin/courses.html", "admin/lessons.html",
+  "admin/login.html", "admin/first-run.html", "admin/index.html", "admin/courses.html", "admin/lessons.html",
   "admin/codes.html", "admin/announcements.html", "admin/packages.html", "admin/settings.html"
 ];
 var SCRIPT_FILES = [
@@ -222,6 +222,15 @@ check((serverApi.match(/adminMustChangePassword/g) || []).length >= 3 && serverA
   "the API enforces the rotation flag and reports it to the admin UI");
 check(serverApi.indexOf("DEFAULT_FIRST_RUN_PASSWORD") !== -1 && /cannot be used for normal use/.test(serverApi),
   "the shipped default password is refused as a production credential");
+/* The bootstrap escape hatch: while the rotation is pending exactly one
+   admin route (the password change) is served, and only to a signed-in
+   administrator — never to the public. */
+check(/FIRST_RUN_UNLOCK_PATH = "\/api\/admin\/password"/.test(serverApi),
+  "the first-run lock exempts exactly one admin route: the authenticated password change");
+check(serverApi.indexOf("body.confirmPassword") !== -1 && serverApi.indexOf("The two new passwords do not match.") !== -1,
+  "the password change requires the current password, a new password and a confirmation");
+check(serverApi.indexOf("mustChange: false") !== -1 && serverApi.indexOf("sessionCookie(req, session.token") !== -1,
+  "a successful change clears the rotation flag and hands the browser a fresh session");
 
 check(/localStorage/.test(gitignore) === false && /^\/\.env/m.test(gitignore) === false && /\.env\b/.test(gitignore),
   "local environment files are git-ignored");
@@ -318,6 +327,9 @@ check(/ICON_CHOICES/.test(adminJs) && adminJs.indexOf("createVideo") !== -1 && a
   "admin forms offer a fixed icon list and use the video create/reorder API");
 check(adminJs.indexOf("NT.api.admin.login") !== -1 && adminJs.indexOf("NT.api.admin.changePassword") !== -1,
   "the admin area signs in through the server and can rotate its password");
+check(adminJs.indexOf("function pageFirstRun") !== -1 && /payload\.mustChangePassword && route !== "first-run"/.test(adminJs) &&
+  api.indexOf("confirmPassword") !== -1,
+  "the admin UI has a dedicated first-run screen, sends un-rotated sessions to it and confirms the new password");
 
 var ui = read("assets/js/ui.js");
 check(/site-header/.test(ui) && ui.indexOf("dashboard.html") !== -1, "authenticated navigation fits the learner dashboard");
@@ -426,8 +438,11 @@ check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.ind
 check(app.indexOf("loadFor(grid, function () {") !== -1 && app.indexOf("loadFor(root || grid") === -1,
   "the access packages page renders into its live grid instead of a detached node");
 
-var adminRoutes = ["login: pageLogin", "home: pageHome", "courses: pageCourses", "lessons: pageLessons",
-  "codes: pageCodes", "announcements: pageAnnouncements", "packages: pagePackages", "settings: pageSettings"];
+/* The first-run route key is quoted because of its hyphen, exactly as the
+   rest of the admin routes are keyed. */
+var adminRoutes = ["login: pageLogin", '"first-run": pageFirstRun', "home: pageHome", "courses: pageCourses",
+  "lessons: pageLessons", "codes: pageCodes", "announcements: pageAnnouncements", "packages: pagePackages",
+  "settings: pageSettings"];
 var missingRoutes = adminRoutes.filter(function (entry) { return adminJs.indexOf(entry) === -1; });
 check(missingRoutes.length === 0, "every admin page maps to an implemented route" + (missingRoutes.length ? ": " + missingRoutes.join(", ") : ""));
 
