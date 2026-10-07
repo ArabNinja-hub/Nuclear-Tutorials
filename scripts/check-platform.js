@@ -462,6 +462,10 @@ check(/class="hero-rotator-slot"><span data-hero-rotator>Stay ahead\.<\/span><sp
   heroRotator.indexOf("textNode.nodeValue = phrase.slice(0, position)") !== -1 &&
   heroRotator.indexOf("text.textContent") === -1,
   "the hero typewriter stays mounted in a fixed phrase-sized slot and updates its text node in place");
+check(heroRotator.indexOf("pinToPhrase(phrase, true)") !== -1 &&
+  heroRotator.indexOf("pinToPhrase(phrase, false)") !== -1 &&
+  heroRotator.indexOf('text.style.transform = ""') !== -1,
+  "the hero typewriter pins the running text to the completed phrase so it types in place");
 check(/class="promise-item reveal" data-reveal="up" data-delay="1"/.test(home) &&
   home.indexOf('data-reveal="left"') !== -1 && home.indexOf('data-reveal="right"') !== -1 &&
   home.indexOf('data-reveal="scale"') !== -1 && home.indexOf('data-reveal="fade"') !== -1,
