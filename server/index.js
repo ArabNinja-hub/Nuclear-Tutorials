@@ -206,6 +206,11 @@ function serveStatic(req, res, pathname) {
       if (!path.extname(filePath) && fs.existsSync(htmlFile)) {
         return sendStaticFile(req, res, htmlFile, target + ".html");
       }
+      var stripped = decoded.replace(/\/+$/, "");
+      var strippedHtml = stripped ? path.resolve(ROOT, "." + stripped + ".html") : "";
+      if (strippedHtml && isInsideRoot(ROOT, strippedHtml) && fs.existsSync(strippedHtml)) {
+        return sendStaticFile(req, res, strippedHtml, stripped + ".html");
+      }
       return notFound(req, res, target);
     }
     sendStaticFile(req, res, filePath, target);

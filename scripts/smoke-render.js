@@ -543,9 +543,11 @@ function signOut() {
 
 group("Public and learner render smoke");
 var PUBLIC = [
-  { page: "home", file: "index.html", needles: ["Learn smarter.", "Get Started", "Log In", "Structured lessons"] },
-  { page: "about", file: "about.html", needles: ["Learning should feel clear", "organized courses", "Get Started"] },
-  { page: "signup", file: "signup.html", needles: ["Create an account", "Existing access code"] },
+  { page: "home", file: "index.html", needles: ["Learn smarter.", "Get Started", "Log In", "Structured lessons", "Privacy Policy", "Terms &amp; Conditions"] },
+  { page: "about", file: "about.html", needles: ["Learning should feel clear", "organized courses", "Get Started", "What We Do", "What Students Get", "Our Approach", "Why Nuclear Tutorials"] },
+  { page: "privacy-policy", file: "privacy-policy.html", needles: ["Privacy Policy", "Data Protection Act No. 3 of 2021", "mandasteven23@gmail.com", "+260 764 599 915"] },
+  { page: "terms-and-conditions", file: "terms-and-conditions.html", needles: ["Terms &amp; Conditions", "Electronic Communications and Transactions Act No. 4 of 2021", "Cyber Security Act No. 3 of 2025", "mandasteven23@gmail.com", "+260 764 599 915"] },
+  { page: "signup", file: "signup.html", needles: ["Create an account", "Existing access code", "I agree to the", "Terms &amp; Conditions", "Privacy Policy"] },
   { page: "login", file: "login.html", needles: ["Continue your learning", "Email address"] },
   { page: "onboarding", file: "learner-type.html", protected: true, untypedNeedles: ["What are you studying?", "University", "High School"] },
   { page: "pricing", file: "pricing.html", needles: ["Access packages", "Basic", "Standard", "Premium"], signedNeedles: ["Current package"] },
@@ -672,10 +674,14 @@ chain = chain.then(function () {
   fetchLog = [];
   return openPage("signup", "signup.html", "").then(function () {
     ok(byId("signupAccessCode").value === "NT-STANDARD-4826", "signup offers to carry forward a redeemed access code");
+    ok(byId("signupConsent").checked === false, "signup consent checkbox is unchecked by default");
     byId("signupName").value = "Test Learner";
     byId("signupEmail").value = "learner@example.test";
     byId("signupPassword").value = "long-smoke-password";
     byId("signupConfirmPassword").value = "long-smoke-password";
+    byId("signupForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("signupForm") });
+    ok(fetchLog.indexOf("POST /api/auth/register") === -1, "signup requires accepting Terms & Conditions and Privacy Policy before registering");
+    byId("signupConsent").checked = true;
     byId("signupForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("signupForm") });
     return drain(25);
   }).then(function () {

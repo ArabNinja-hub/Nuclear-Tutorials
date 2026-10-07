@@ -31,7 +31,8 @@ function check(condition, label) {
 function group(label) { console.log("\n== " + label + " =="); }
 
 var PUBLIC_PAGES = [
-  "index.html", "about.html", "signup.html", "login.html", "learner-type.html",
+  "index.html", "about.html", "privacy-policy.html", "terms-and-conditions.html",
+  "signup.html", "login.html", "learner-type.html",
   "courses.html", "course.html", "lesson.html", "library.html", "dashboard.html",
   "search.html", "profile.html", "pricing.html", "checkout.html", "access.html", "announcements.html"
 ];
@@ -494,11 +495,32 @@ check(home.indexOf('href="signup.html">Get Started</a>') !== -1 &&
   "home presents clear Get Started and Log In calls to action");
 check(!/university|high.school|school|institution/i.test(home),
   "the public homepage does not feature a specific education category or institution");
-var levelNeutralPages = ["index.html", "about.html", "pricing.html", "signup.html", "login.html", "access.html", "checkout.html"];
+var levelNeutralPages = ["index.html", "pricing.html", "signup.html", "login.html", "access.html", "checkout.html"];
 var nonNeutralPublicPages = levelNeutralPages.filter(function (file) { return /university|high.school|University of Zambia/i.test(read(file)); });
 check(nonNeutralPublicPages.length === 0,
   "public marketing and account pages keep education-level-specific messaging out" +
   (nonNeutralPublicPages.length ? ": " + nonNeutralPublicPages.join(", ") : ""));
+var aboutPage = read("about.html");
+check(aboutPage.indexOf("tutorial group") !== -1 && aboutPage.indexOf("What We Do") !== -1 &&
+  aboutPage.indexOf("What Students Get") !== -1 && aboutPage.indexOf("Our Approach") !== -1 &&
+  aboutPage.indexOf("Why Nuclear Tutorials") !== -1,
+  "about page explains the tutorial group, what it does, what students get, its approach and why Nuclear Tutorials");
+var privacyPage = read("privacy-policy.html");
+check(privacyPage.indexOf("Data Protection Act No. 3 of 2021") !== -1 &&
+  privacyPage.indexOf("mandasteven23@gmail.com") !== -1 && privacyPage.indexOf("+260 764 599 915") !== -1 &&
+  privacyPage.indexOf("Office of the Data Protection Commissioner") !== -1,
+  "privacy policy references the Zambian Data Protection Act No. 3 of 2021 and official contact details");
+var termsPage = read("terms-and-conditions.html");
+check(termsPage.indexOf("Electronic Communications and Transactions Act No. 4 of 2021") !== -1 &&
+  termsPage.indexOf("Cyber Security Act No. 3 of 2025") !== -1 &&
+  termsPage.indexOf("mandasteven23@gmail.com") !== -1 && termsPage.indexOf("+260 764 599 915") !== -1,
+  "terms and conditions reference the Electronic Communications and Transactions Act No. 4 of 2021, Cyber Security Act No. 3 of 2025 and official contact details");
+var signupPage = read("signup.html");
+check(signupPage.indexOf('id="signupConsent"') !== -1 &&
+  !/id="signupConsent"[^>]*\bchecked\b/i.test(signupPage) &&
+  signupPage.indexOf('href="terms-and-conditions.html"') !== -1 &&
+  signupPage.indexOf('href="privacy-policy.html"') !== -1,
+  "signup includes an unchecked consent checkbox linking to Terms & Conditions and Privacy Policy");
 check(read("index.html").indexOf("homeStats") === -1 && app.indexOf("function pageHome()") !== -1 &&
   app.slice(app.indexOf("function pageHome()"), app.indexOf("/* ============================ COURSES")).indexOf("NT.content") === -1,
   "the public homepage does not load or feature the full catalogue");
@@ -572,7 +594,7 @@ function fetchJson(url) {
 function runHttp(base) {
   group("HTTP smoke (" + base + ")");
   var root = base.replace(/\/$/, "");
-  var paths = PUBLIC_PAGES.concat(ADMIN_PAGES).concat(ASSETS);
+  var paths = PUBLIC_PAGES.concat(["privacy-policy", "terms-and-conditions"]).concat(ADMIN_PAGES).concat(ASSETS);
   /* The platform liveness probe comes first: if /health is not a plain 200
      JSON answer, Railway SIGTERMs the container and nothing below matters. */
   return fetchHttp(root + "/health").then(function (response) {

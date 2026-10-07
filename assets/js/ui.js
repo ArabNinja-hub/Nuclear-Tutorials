@@ -418,10 +418,13 @@
       '<a href="' + base + 'about.html">About</a>' +
       '<a href="' + base + 'index.html#how-it-works">How it works</a>' +
       '<a href="' + base + 'pricing.html">Access Packages</a>' +
+      '<a href="' + base + 'privacy-policy.html">Privacy Policy</a>' +
+      '<a href="' + base + 'terms-and-conditions.html">Terms &amp; Conditions</a>' +
       '<a class="footer-admin-link" href="/admin/login.html">Admin Console</a></div>' +
       learningColumn +
       (contactLink ? '<div class="footer-col"><h4>Contact</h4><a href="mailto:' + encodeURIComponent(supportEmail) + '">' + NT.esc(supportEmail) + "</a></div>" : "") +
       '</div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " Nuclear Tutorials</span>" +
+      '<span class="footer-legal-links"><a href="' + base + 'privacy-policy.html">Privacy Policy</a><span class="dot-sep" aria-hidden="true">·</span><a href="' + base + 'terms-and-conditions.html">Terms &amp; Conditions</a></span>' +
       (contactLink ? "<span>Support: " + contactLink + "</span>" : "") + "</div></div>";
     document.body.appendChild(footer);
   };
