@@ -200,6 +200,20 @@
     var whatsappLink = "https://wa.me/" + whatsappNumber;
     var themePref = NT.theme ? NT.theme.getPreference() : "system";
 
+    /* Desktop header: a single icon button that flips the site between the
+       light and dark themes. It shows the icon of the theme you are in (a sun
+       when dark, a moon when light) and promises the opposite on click. The
+       light/dark/system choice in the mobile sheet and the More menu stays in
+       sync through the same nt:themechange event. */
+    function themeToggleHtml() {
+      var effective = NT.theme ? NT.theme.getEffective() : "light";
+      var next = effective === "dark" ? "light" : "dark";
+      var label = "Switch to the " + next + " theme";
+      return '<button class="header-theme-toggle" id="headerThemeToggle" type="button" ' +
+        'data-theme-toggle data-theme-state="' + effective + '" aria-label="' + label + '" title="' + label + '">' +
+        NT.icon(effective === "dark" ? "sun" : "moon") + "</button>";
+    }
+
     function themeOptionsHtml(extraClass) {
       var pref = NT.theme ? NT.theme.getPreference() : themePref;
       var opts = [
@@ -329,7 +343,7 @@
       '<a class="skip-link" href="#main">Skip to main content</a>' +
       '<div class="container header-inner">' + brandHtml() +
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
-      '<div class="header-actions">' + actions +
+      '<div class="header-actions">' + themeToggleHtml() + actions +
       '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-controls="mobileSheet" aria-expanded="false" aria-haspopup="dialog">' +
       NT.icon("menu") + "</button></div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
@@ -469,12 +483,35 @@
       });
     }
 
+    /* The header icon button mirrors whatever theme is in force, so a change
+       made from the sheet, the More menu or the operating system repaints it
+       as well as the radio-style options. */
+    function syncThemeToggle() {
+      var buttons = document.querySelectorAll("[data-theme-toggle]");
+      if (!buttons.length) return;
+      var effective = NT.theme ? NT.theme.getEffective() : "light";
+      var next = effective === "dark" ? "light" : "dark";
+      var label = "Switch to the " + next + " theme";
+      var markup = NT.icon(effective === "dark" ? "sun" : "moon");
+      buttons.forEach(function (btn) {
+        btn.setAttribute("aria-label", label);
+        btn.setAttribute("title", label);
+        btn.setAttribute("data-theme-state", effective);
+        if (btn.innerHTML === markup) return;
+        btn.innerHTML = markup;
+        btn.classList.remove("is-swapping");
+        void btn.offsetWidth; /* restart the swap animation */
+        btn.classList.add("is-swapping");
+      });
+    }
+
     function syncThemeUI() {
       var pref = NT.theme ? NT.theme.getPreference() : "system";
       document.querySelectorAll("[data-theme-option]").forEach(function (btn) {
         var isChecked = btn.getAttribute("data-theme-option") === pref;
         btn.setAttribute("aria-checked", isChecked ? "true" : "false");
       });
+      syncThemeToggle();
     }
 
     function setPublicMoreOpen(open, trigger) {
@@ -578,9 +615,21 @@
       syncThemeUI();
     }
 
+    /* The header icon flips light and dark. From a "system" preference the
+       first click pins the site to the opposite of what the system asked for,
+       and the icon then stays in step with the theme on screen. */
+    function handleThemeToggleClick() {
+      if (!NT.theme) return;
+      NT.theme.set(NT.theme.getEffective() === "dark" ? "light" : "dark");
+      syncThemeUI();
+    }
+
     document.addEventListener("click", function (event) {
-      if (event.target.closest && event.target.closest("[data-theme-option]")) {
+      if (!event.target || !event.target.closest) return;
+      if (event.target.closest("[data-theme-option]")) {
         handleThemeOptionClick(event);
+      } else if (event.target.closest("[data-theme-toggle]")) {
+        handleThemeToggleClick();
       }
     });
 
