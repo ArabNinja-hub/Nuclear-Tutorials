@@ -25,6 +25,7 @@ var redirected = "";
 var fakeAccount = null;
 var lastAuthBody = null;
 var loginLearnerType = "university";
+var lastAdminPasswordBody = null;
 process.on("unhandledRejection", function (error) { console.error("  UNHANDLED  " + ((error && error.stack) || error)); });
 
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), "utf8"); }
@@ -341,6 +342,9 @@ global.fetch = function (url, init) {
   if (target === "/api/admin/session" && process.env.SMOKE_SIGNED_OUT === "1") {
     return Promise.resolve(jsonResponse({ ok: true, authenticated: false }));
   }
+  if (target === "/api/admin/session" && process.env.SMOKE_MUST_CHANGE === "1") {
+    return Promise.resolve(jsonResponse({ ok: true, authenticated: true, mustChangePassword: true }));
+  }
   if (ADMIN_PAYLOADS[target] && method === "GET") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
   if (target === "/api/admin/login") return Promise.resolve(jsonResponse({ ok: true, session: { authenticated: true } }));
   if (target === "/api/admin/logout") return Promise.resolve(jsonResponse({ ok: true }));
@@ -369,7 +373,10 @@ global.fetch = function (url, init) {
   if (target === "/api/admin/announcements") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
   if (/^\/api\/admin\/announcements\//.test(target)) return Promise.resolve(jsonResponse({ ok: true, id: "notice-1" }));
   if (target === "/api/admin/settings") return Promise.resolve(jsonResponse(ADMIN_PAYLOADS[target]));
-  if (target === "/api/admin/password") return Promise.resolve(jsonResponse({ ok: true, changed: true }));
+  if (target === "/api/admin/password") {
+    lastAdminPasswordBody = JSON.parse((init && init.body) || "{}");
+    return Promise.resolve(jsonResponse({ ok: true, changed: true, mustChangePassword: false }));
+  }
   return Promise.resolve(jsonResponse({ ok: false, error: "Unknown route: " + target }, 404));
 };
 
@@ -751,7 +758,7 @@ chain = chain.then(function () {
 
 chain = chain.then(function () {
   group("Admin render smoke");
-  var ADMIN = LIVE ? [] : ["home", "courses", "lessons", "codes", "announcements", "packages", "settings", "login"];
+  var ADMIN = LIVE ? [] : ["home", "courses", "lessons", "codes", "announcements", "packages", "settings", "first-run", "login"];
   if (LIVE) console.log("  SKIP  admin pages need an administrator session (see check-flows.js)");
   var steps = Promise.resolve();
   ADMIN.forEach(function (page) {
@@ -762,12 +769,15 @@ chain = chain.then(function () {
         redirected = "";
         documentListeners = {};
         resetDom(page, "admin");
+        /* The first-run screen only renders while the rotation is pending. */
+        if (page === "first-run") process.env.SMOKE_MUST_CHANGE = "1";
         global.location.pathname = "/admin/" + (page === "home" ? "index" : page) + ".html";
         global.location.search = "";
         global.location.href = "http://preview.test/admin/" + page + ".html";
         evaluate("assets/js/admin.js");
         runDomReady();
         return drain(40).then(function () {
+          if (page === "first-run") delete process.env.SMOKE_MUST_CHANGE;
           var html = collectHtml();
           ok(html.length > 80, "admin/" + page + " renders markup");
           ok(html.indexOf("undefined") === -1, "admin/" + page + " contains no undefined values");
@@ -776,14 +786,91 @@ chain = chain.then(function () {
           if (page === "home") ok(html.indexOf("Video lessons") !== -1, "admin/home shows real catalogue counts");
           if (page === "packages") ok(html.indexOf("Access period") !== -1, "admin/packages edits package settings");
           if (page === "settings") ok(html.indexOf("Administrator password") !== -1, "admin/settings changes the admin password");
+          if (page === "first-run") {
+            ok(html.indexOf("Set your administrator password") !== -1, "admin/first-run explains the first-run password");
+            ok(html.indexOf("First-run password") !== -1 && html.indexOf("Confirm new password") !== -1,
+              "admin/first-run asks for the current password, the new password and its confirmation");
+          }
         });
       } catch (error) {
+        delete process.env.SMOKE_MUST_CHANGE;
         ok(false, "admin/" + page + " throws: " + (error && error.stack));
         return Promise.resolve();
       }
     });
   });
   return steps;
+});
+
+/* ------------------------------------------------------------
+   First-run mode: while the first-run password is still pending,
+   a signed-in administrator may only reach the password screen.
+   This is the bootstrap that used to deadlock (the session could
+   not open Settings, and nothing else could clear the flag).
+   ------------------------------------------------------------ */
+chain = chain.then(function () {
+  if (LIVE) return;
+  group("First-run password gate");
+  process.env.SMOKE_MUST_CHANGE = "1";
+
+  /* Catalogue pages must not even try to load: every admin endpoint except
+     the password change answers 403 until the password is rotated. */
+  installStorage();
+  fetchLog = [];
+  redirected = "";
+  documentListeners = {};
+  resetDom("home", "admin");
+  global.location.pathname = "/admin/index.html";
+  global.location.search = "";
+  global.location.href = "http://preview.test/admin/index.html";
+  evaluate("assets/js/admin.js");
+  runDomReady();
+  return drain(40).then(function () {
+    ok(redirected.indexOf("first-run.html") !== -1,
+      "an un-rotated admin session is sent to the first-run screen instead of the dashboard");
+    ok(fetchLog.indexOf("GET /api/admin/overview") === -1,
+      "the first-run visit never calls a locked catalogue endpoint");
+    ok(collectHtml("admin/index.html").indexOf("adm-nav-link") === -1,
+      "no management controls render while the first-run password is pending");
+
+    /* The screen itself loads, explains itself, and rotates the password. */
+    installStorage();
+    fetchLog = [];
+    redirected = "";
+    documentListeners = {};
+    resetDom("first-run", "admin");
+    global.location.pathname = "/admin/first-run.html";
+    global.location.search = "";
+    global.location.href = "http://preview.test/admin/first-run.html";
+    evaluate("assets/js/admin.js");
+    runDomReady();
+    return drain(20).then(function () {
+      var html = collectHtml("admin/first-run.html");
+      ok(html.indexOf("Set your administrator password") !== -1, "the first-run screen renders its own form");
+      ok(html.indexOf("Admin Console stays") !== -1, "the first-run screen explains why the console is locked");
+      ok(html.indexOf("adm-nav-link") === -1, "the first-run screen shows no administration navigation");
+      byId("frCurrent").value = "Temp-First-Run-Password";
+      byId("frNext").value = "Chosen-Admin-Password-2026";
+      byId("frConfirm").value = "Chosen-Admin-Password-2026";
+      byId("admFirstRunForm").dispatch("submit", { preventDefault: function () {}, currentTarget: byId("admFirstRunForm") });
+      return drain(40);
+    }).then(function () {
+      ok(lastAdminPasswordBody && lastAdminPasswordBody.currentPassword === "Temp-First-Run-Password" &&
+        lastAdminPasswordBody.newPassword === "Chosen-Admin-Password-2026" &&
+        lastAdminPasswordBody.confirmPassword === "Chosen-Admin-Password-2026",
+        "the first-run form sends the current password, the new password and the confirmation");
+      return drain(700);
+    }).then(function () {
+      ok(/index\.html$/.test(global.location.href),
+        "a successful change continues to the admin dashboard (" + global.location.href + ")");
+      delete process.env.SMOKE_MUST_CHANGE;
+      /* Leave an absolute URL behind for the checks that follow. */
+      global.location.href = "http://preview.test/admin/index.html";
+    });
+  });
+}).catch(function (error) {
+  delete process.env.SMOKE_MUST_CHANGE;
+  ok(false, "first-run gate check throws: " + (error && error.stack));
 });
 
 /* ------------------------------------------------------------

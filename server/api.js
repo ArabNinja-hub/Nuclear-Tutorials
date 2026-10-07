@@ -34,6 +34,18 @@ var LEARNER_COOKIE = "nt_learner";
    version and is refused even if an old database still carries it. */
 var DEFAULT_FIRST_RUN_PASSWORD = "nuclear-admin";
 
+/* First-run (bootstrap) rule.
+
+   Until the first-run password is replaced, an authenticated administrator
+   session may call exactly one administrative route: its own password
+   change. That is the only way out of the bootstrap state, so it must not
+   depend on any other admin endpoint (Admin → Settings itself is locked
+   while the rotation is pending — that was the deadlock). The route still
+   needs a valid administrator session, so the endpoint is never public. */
+var FIRST_RUN_UNLOCK_PATH = "/api/admin/password";
+var FIRST_RUN_LOCK_MESSAGE = "Change the first-run administrator password before managing the catalogue. " +
+  "Open Admin → Set your administrator password (/admin/first-run.html).";
+
 /* ------------------------------------------------------------
    Small utilities
    ------------------------------------------------------------ */
@@ -1430,17 +1442,45 @@ route("PATCH", "/api/admin/settings", async function (req, res) {
   ok(res, { settings: db.getSettings() });
 });
 
+/* The one administrative operation that works while the first-run password
+   is still pending, and the normal way to change the password afterwards —
+   the same endpoint is used by the first-run screen and by Admin → Settings.
+
+   It always requires:
+     • a valid authenticated administrator session (never public)
+     • the current administrator password
+     • a new password that passes the existing rules
+     • the same new password a second time (confirmation)
+
+   Success hashes the new password with the existing scrypt mechanism, clears
+   the must-change flag on the existing administrator row and signs out every
+   other session, then hands this browser a fresh session cookie so it can go
+   straight on to the dashboard. */
 route("POST", "/api/admin/password", async function (req, res) {
+  if (!adminSession(req)) return fail(res, 401, "Administrator sign-in required.");
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
   var current = String(body.currentPassword || "");
   var next = String(body.newPassword || "");
+  var confirm = String(body.confirmPassword || "");
   if (!db.verifyAdminPassword(current)) return fail(res, 401, "The current password is not correct.");
   if (next.length < 8) return fail(res, 400, "Choose a password with at least 8 characters.");
   if (next === DEFAULT_FIRST_RUN_PASSWORD) return fail(res, 400, "Choose a password other than the shipped default.");
+  if (confirm !== next) return fail(res, 400, "The two new passwords do not match.");
+  /* The same administrator row (id = 1) is updated; nothing is deleted or
+     recreated, and must_change is cleared in the same statement. */
   db.setAdminPassword(next, { mustChange: false });
+  /* Every other signed-in browser is signed out, and this one continues with
+     a brand new session instead of being bounced to the sign-in page. */
   db.db().prepare("DELETE FROM sessions").run();
-  ok(res, { changed: true });
+  var session = db.createSession();
+  res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400));
+  ok(res, {
+    changed: true,
+    authenticated: true,
+    mustChangePassword: false,
+    expiresAt: session.expiresAt
+  });
 });
 
 /* ------------------------------------------------------------
@@ -1469,10 +1509,14 @@ function handle(req, res, pathname, query) {
         fail(res, 401, "Administrator sign-in required.");
         return resolve(true);
       }
-      /* Until the first-run password is replaced, only the session probe and
-         the password change are served — no catalogue management. */
-      if (db.adminMustChangePassword() && pathname !== "/api/admin/password") {
-        fail(res, 403, "Change the first-run administrator password before managing the catalogue. Open Admin → Settings.");
+      /* Bootstrap rule: while the first-run password still has to be
+         replaced, the authenticated session may do exactly one thing —
+         replace that password. The session probe stays open (it is not
+         behind this gate), the password change is the only exempt route,
+         and every other administration endpoint answers 403, so a leaked
+         first-run credential can never manage the catalogue. */
+      if (db.adminMustChangePassword() && pathname !== FIRST_RUN_UNLOCK_PATH) {
+        fail(res, 403, FIRST_RUN_LOCK_MESSAGE);
         return resolve(true);
       }
     }

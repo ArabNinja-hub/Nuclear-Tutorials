@@ -63,10 +63,16 @@ Open `/admin/login.html`.
   server generates and prints **once** in its log. The password shipped in early
   builds is never created by this version and is refused if an old database
   still carries it.
-- **The first-run password must be changed.** Until it is, a signed-in
-  administrator can only reach the session probe and the password change: every
-  other `/api/admin/*` route answers `403`, so a temporary password is never a
-  production credential.
+- **The first-run password must be changed.** Signing in with it opens a
+  dedicated **Set your administrator password** screen
+  (`/admin/first-run.html`) instead of the catalogue: the console stays locked
+  until a password of your own is set, and every other `/api/admin/*` route
+  answers `403`. That screen is the single exception, and it still needs a
+  valid signed-in administrator session — it asks for the first-run password,
+  the new password and the new password again. Nothing about it is public, so
+  a temporary password is never a production credential. Setting the password
+  clears the restriction, refreshes the session, and lands on the Admin
+  Dashboard with Admin → Settings working normally from then on.
 - Administration pages are marked `noindex`, never appear in the student
   navigation, and every `/api/admin/*` route answers `401` without a valid
   session cookie. Students signed in with an access code are refused too.
@@ -82,8 +88,9 @@ commit `.env` or `NT_ADMIN_PASSWORD` to the repository.
 2. Start the service. It comes up **empty**: no universities, courses, video
    lessons, codes or announcements — and no sample content can be created on a
    deployed host.
-3. Sign in at `/admin/login.html`, change the first-run password (required
-   before the admin API unlocks), then add the client's real catalogue.
+3. Sign in at `/admin/login.html`. The **Set your administrator password**
+   screen appears (required before the admin API unlocks) — set your own
+   password there, then add the client's real catalogue.
 
 Then run `npm run check:production` (with `BASE=https://your-app.up.railway.app`
 or your Render URL) against the deployment to confirm the live behaviour before
@@ -118,7 +125,7 @@ Manual setup on Railway:
 2. **Variables** — `NODE_ENV=production`, `NT_DATA_DIR=/var/data`,
    `NT_REQUIRE_PERSISTENT_STORAGE=1`, and either `NT_ADMIN_PASSWORD` (a strong
    value you choose) or nothing (read the generated first-run password once
-   from the deploy log and change it in Admin → Settings).
+   from the deploy log and set your own on the first-run screen).
 3. **Networking** — Railway assigns `PORT` and terminates HTTPS in front of the
    container. The server binds `0.0.0.0`, trusts the forwarded protocol only
    for the `Secure` cookie flag, and keeps the admin cookie `HttpOnly` and
@@ -177,6 +184,7 @@ matrix and each of those bypass attempts.
 | `admin/announcements.html` | Publish, unpublish and edit announcements |
 | `admin/packages.html` | Package names, prices, taglines, feature lists and the access period |
 | `admin/settings.html` | Support email, access period, administrator password |
+| `admin/first-run.html` | First run: replace the temporary password before the console unlocks |
 
 Adding a lesson only needs the university, semester and course selection (shown
 at the top of every form), a title, a video URL and optionally a topic,

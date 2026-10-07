@@ -311,19 +311,34 @@ request("GET", "/api/health").then(function (response) {
   check(!!state.cookie, "sign-in sets a session cookie");
   if (response.json && response.json.mustChangePassword) {
     /* First run: the platform requires the password to be replaced before
-       the admin API serves anything else. */
+       the admin API serves anything else. Admin → Settings is locked too,
+       so the rotation has to work from the sign-in session alone — that is
+       the endpoint the first-run screen uses. */
+    var replacement = PASSWORD === "nuclear-admin" ? ROTATED : PASSWORD;
     return request("GET", "/api/admin/overview", null, { cookie: state.cookie }).then(function (blocked) {
       check(blocked.status === 403, "catalogue management is locked until the first-run password is changed");
-      var replacement = PASSWORD === "nuclear-admin" ? ROTATED : PASSWORD;
-      return request("POST", "/api/admin/password", { currentPassword: PASSWORD, newPassword: replacement },
-        { cookie: state.cookie }).then(function (changed) {
-        check(changed.status === 200, "the first-run password can be replaced");
+      return request("GET", "/api/admin/settings", null, { cookie: state.cookie });
+    }).then(function (blocked) {
+      check(blocked.status === 403, "Admin → Settings stays locked while the first-run password is pending");
+      return request("GET", "/admin/first-run.html");
+    }).then(function (page) {
+      check(page.status === 200 && /Set your administrator password/.test(page.raw),
+        "the first-run password screen is the page the lock points at");
+      return request("POST", "/api/admin/password",
+        { currentPassword: PASSWORD, newPassword: replacement, confirmPassword: replacement }, { cookie: state.cookie });
+    }).then(function (changed) {
+      check(changed.status === 200 && changed.json.mustChangePassword === false,
+        "the first-run password can be replaced, guided by the confirmation field");
+      var fresh = cookieFrom(changed);
+      check(!!fresh, "the replacement hands the browser a fresh session");
+      return request("GET", "/api/admin/settings", null, { cookie: fresh }).then(function (settings) {
+        check(settings.status === 200, "the refreshed session opens Admin → Settings straight away");
         return request("POST", "/api/admin/login", { password: replacement });
-      }).then(function (relogin) {
-        check(relogin.status === 200 && relogin.json.mustChangePassword === false,
-          "the replaced password signs in and unlocks administration");
-        state.cookie = cookieFrom(relogin);
       });
+    }).then(function (relogin) {
+      check(relogin.status === 200 && relogin.json.mustChangePassword === false,
+        "the replaced password signs in and unlocks administration");
+      state.cookie = cookieFrom(relogin);
     });
   }
 }).then(function () {

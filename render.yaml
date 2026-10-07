@@ -13,7 +13,7 @@
 #   Environment → NT_DATA_DIR = /var/data
 #
 # Set NT_ADMIN_PASSWORD once (or read the generated first-run password
-# from the service log) and change it in Admin → Settings on first use.
+# from the service log) and set your own on the first-run screen on first use.
 # ============================================================
 services:
   - type: web

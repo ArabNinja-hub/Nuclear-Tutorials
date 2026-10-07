@@ -127,7 +127,12 @@
       deleteAnnouncement: function (id) { return request("/api/admin/announcements/" + encodeURIComponent(id), { method: "DELETE" }); },
       settings: function () { return request("/api/admin/settings"); },
       saveSettings: function (body) { return request("/api/admin/settings", { method: "PATCH", body: body }); },
-      changePassword: function (currentPassword, newPassword) { return request("/api/admin/password", { method: "POST", body: { currentPassword: currentPassword, newPassword: newPassword } }); }
+      changePassword: function (currentPassword, newPassword, confirmPassword) {
+        return request("/api/admin/password", {
+          method: "POST",
+          body: { currentPassword: currentPassword, newPassword: newPassword, confirmPassword: confirmPassword }
+        });
+      }
     }
   };
 

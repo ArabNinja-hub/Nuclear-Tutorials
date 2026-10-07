@@ -195,23 +195,55 @@ freePort().then(function (chosen) {
   var cookie = response.setCookie && response.setCookie[0] ? response.setCookie[0].split(";")[0] : "";
   check(!!cookie, "sign-in sets an HttpOnly session cookie");
   var session = { cookie: cookie };
-  /* Even with a valid session, management stays closed until rotation. */
+  /* Even with a valid session, management stays closed until rotation —
+     including Admin → Settings itself, which used to be the screen the
+     lock screen pointed operators at. */
   return request(port, "GET", "/api/admin/universities", null, session).then(function (blocked) {
     check(blocked.status === 403, "catalogue reads stay locked before the password is changed (403)");
     return request(port, "POST", "/api/admin/universities", { name: "Blocked University" }, session);
   }).then(function (blocked) {
     check(blocked.status === 403, "catalogue writes stay locked before the password is changed (403)");
+    return request(port, "GET", "/api/admin/settings", null, session);
+  }).then(function (blocked) {
+    check(blocked.status === 403, "the settings API stays locked too — the lock screen never points at a locked page");
+    check(/first-run\.html/.test(blocked.json.error || ""), "the 403 tells the administrator which screen unlocks the console");
+    return request(port, "GET", "/admin/first-run.html");
+  }).then(function (page) {
+    check(page.status === 200 && /Set your administrator password/.test(page.raw),
+      "the first-run password screen is served while the rotation is pending");
     return request(port, "GET", "/api/admin/session", null, session);
   }).then(function (probe) {
     check(probe.status === 200 && probe.json.mustChangePassword === true,
       "the session probe tells the admin UI to show the rotation screen");
-    return request(port, "POST", "/api/admin/password", { currentPassword: firstRunPassword, newPassword: "nuclear-admin" }, session);
+    return request(port, "POST", "/api/admin/password", { currentPassword: firstRunPassword, newPassword: "nuclear-admin", confirmPassword: "nuclear-admin" }, session);
   }).then(function (rejected) {
     check(rejected.status === 400, "the shipped default cannot be chosen as the new password");
     return request(port, "POST", "/api/admin/password", { currentPassword: firstRunPassword, newPassword: "Lusaka-2026-nuclear" }, session);
+  }).then(function (unconfirmed) {
+    check(unconfirmed.status === 400, "the new password must be confirmed (400 without a confirmation)");
+    return request(port, "POST", "/api/admin/password",
+      { currentPassword: firstRunPassword, newPassword: "Lusaka-2026-nuclear", confirmPassword: "Lusaka-2026-nuclears" }, session);
+  }).then(function (mismatch) {
+    check(mismatch.status === 400, "a confirmation that does not match is refused (400)");
+    return request(port, "POST", "/api/admin/password", { currentPassword: "not-the-password", newPassword: "Lusaka-2026-nuclear", confirmPassword: "Lusaka-2026-nuclear" }, session);
+  }).then(function (wrongCurrent) {
+    check(wrongCurrent.status === 401, "the change is refused when the current password is wrong (401)");
+    return request(port, "POST", "/api/admin/password",
+      { currentPassword: firstRunPassword, newPassword: "Lusaka-2026-nuclear", confirmPassword: "Lusaka-2026-nuclear" }, session);
   }).then(function (changed) {
-    check(changed.status === 200, "a real password can be set");
-    return request(port, "POST", "/api/admin/login", { password: "Lusaka-2026-nuclear" });
+    check(changed.status === 200 && changed.json.changed === true, "a real password can be set");
+    check(changed.json.mustChangePassword === false, "the response clears the first-run flag");
+    var fresh = changed.setCookie && changed.setCookie[0] ? changed.setCookie[0].split(";")[0] : "";
+    check(!!fresh, "the change hands the browser a fresh session cookie");
+    /* The same browser continues into the console instead of being signed out. */
+    return request(port, "GET", "/api/admin/session", null, { cookie: fresh }).then(function (probe) {
+      check(probe.status === 200 && probe.json.authenticated === true && probe.json.mustChangePassword === false,
+        "the refreshed session is authenticated and no longer first-run");
+      return request(port, "GET", "/api/admin/settings", null, { cookie: fresh });
+    }).then(function (settings) {
+      check(settings.status === 200, "Admin → Settings loads immediately after the password is set");
+      return request(port, "POST", "/api/admin/login", { password: "Lusaka-2026-nuclear" });
+    });
   }).then(function (response) {
     check(response.status === 200 && response.json.mustChangePassword === false,
       "the replacement password signs in without the rotation flag");
