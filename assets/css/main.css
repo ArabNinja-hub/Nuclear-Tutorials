@@ -345,7 +345,9 @@ body.sheet-locked { overflow: hidden; }
 .hero-home .eyebrow { margin-bottom: 20px; color: #8fd8e8; }
 .hero-home h1 { max-width: 24ch; margin: 0 auto 22px; color: #fff; font-size: clamp(2.7rem, 5.6vw, 4.7rem); line-height: 1.01; }
 .hero-home h1 em { color: #8fd8e8; font-style: normal; }
-/* The hidden longest phrase reserves a stable line-box; the visible text overlays it. */
+/* The hidden longest phrase reserves a stable line-box; the visible text overlays it.
+   hero-rotator.js pins the running text to the completed phrase's centred position,
+   so the typewriter types in place instead of sliding sideways on every keystroke. */
 .hero-home h1 em .hero-rotator-slot { position: relative; display: inline-block; white-space: nowrap; }
 .hero-home h1 em .hero-rotator-sizer { visibility: hidden; }
 .hero-home h1 em [data-hero-rotator] { position: absolute; inset: 0; text-align: center; transition: opacity .18s ease; }
