@@ -392,12 +392,20 @@ check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.t
 
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1,
   "home has no invented social proof or student metrics");
-check(home.indexOf("Structured video lessons") !== -1 && home.indexOf("Courses and resources") !== -1 &&
-  home.indexOf("Personalized progress") !== -1 && home.indexOf("term-based organization") !== -1 &&
+check(home.indexOf("learning-preview") === -1 && home.indexOf("hero-visual") === -1 && home.indexOf("hero-orbit") === -1 &&
+  home.indexOf("hero-path") === -1 && home.indexOf("hero-helper") === -1 && home.indexOf("hero-support") === -1 &&
+  /* Dotted, so the course-page .course-hero-* rules never count as homepage leftovers. */
+  css.indexOf(".learning-preview") === -1 && css.indexOf(".hero-visual") === -1 && css.indexOf(".hero-orbit") === -1 &&
+  css.indexOf(".hero-path") === -1 && css.indexOf(".hero-helper") === -1 && css.indexOf(".hero-support") === -1,
+  "the homepage hero is copy-only: no mock interface or preview card");
+check(home.indexOf('class="hero-motif"') !== -1 && css.indexOf(".hero-motif") !== -1,
+  "the homepage hero keeps the brand motif as pure decoration");
+check(!/[\u25B6\u25A4\u25CE\u2022\u2197]/.test(home) && home.indexOf('viewBox="0 0 24 24"') !== -1,
+  "homepage icons are inline SVG rather than typographic glyphs");
+check(home.indexOf("Structured lessons") !== -1 && home.indexOf("Organized courses") !== -1 &&
+  home.indexOf("Progress that stays with you") !== -1 && home.indexOf("term-based organization") !== -1 &&
   home.indexOf("Access packages") !== -1,
   "home markets structured courses, flexible term-based learning, progress and access packages");
-check(home.indexOf("hero-visual") === -1 && home.indexOf("learning-preview") === -1 && home.indexOf("hero-path") === -1,
-  "the home hero stays a clean, uncluttered opening instead of carrying an app mock-up");
 check(home.indexOf('href="signup.html">Get Started</a>') !== -1 &&
   home.indexOf('href="login.html">Log In</a>') !== -1,
   "home presents clear Get Started and Log In calls to action");
@@ -415,6 +423,8 @@ check(read("lesson.html").indexOf("Watch your Nuclear Tutorials lesson") === -1 
   "lesson pages play the lesson instead of promising unavailable material");
 check(read("checkout.html").indexOf("No payment is processed") !== -1 && app.indexOf("Generate access code") !== -1,
   "checkout issues an access code and states that it processes no payment");
+check(app.indexOf("loadFor(grid, function () {") !== -1 && app.indexOf("loadFor(root || grid") === -1,
+  "the access packages page renders into its live grid instead of a detached node");
 
 var adminRoutes = ["login: pageLogin", "home: pageHome", "courses: pageCourses", "lessons: pageLessons",
   "codes: pageCodes", "announcements: pageAnnouncements", "packages: pagePackages", "settings: pageSettings"];

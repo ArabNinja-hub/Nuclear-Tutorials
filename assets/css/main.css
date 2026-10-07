@@ -331,10 +331,14 @@ body.sheet-locked { overflow: hidden; }
   padding: clamp(74px, 8.6vw, 124px) 0 clamp(66px, 7.6vw, 106px);
   background:
     radial-gradient(ellipse 78% 74% at 50% -22%, rgba(24, 115, 148, .34), rgba(24, 115, 148, .16) 44%, rgba(24, 115, 148, 0) 76%),
-    radial-gradient(ellipse 58% 62% at 92% 116%, rgba(47, 163, 196, .16), rgba(47, 163, 196, 0) 74%),
     linear-gradient(158deg, #061723 0%, #082234 56%, #0b2a3d 100%);
   color: #e7f1f6;
   text-align: center;
+}
+.hero-home::after {
+  content: ""; position: absolute; inset: auto -12% -56% 52%; height: 520px;
+  background: radial-gradient(closest-side, rgba(47, 163, 196, .18), transparent 72%);
+  pointer-events: none;
 }
 .hero-home-layout { position: relative; z-index: 1; }
 .hero-copy-column { max-width: 800px; margin: 0 auto; }
@@ -353,6 +357,19 @@ body.sheet-locked { overflow: hidden; }
 }
 .hero-points li { display: inline-flex; align-items: center; gap: 9px; }
 .hero-points li::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: #4ec0dc; }
+
+/* A quiet brand motif: the mark's orbital rings, kept in the corners of the
+   hero so the centred copy stays the only thing to read. Decorative only —
+   no invented interface, nothing to decode. */
+.hero-motif {
+  position: absolute; right: -15%; bottom: -52%;
+  width: min(640px, 46vw); aspect-ratio: 1;
+  pointer-events: none;
+}
+.hero-motif-ring { position: absolute; inset: 12%; border: 1px solid rgba(130, 214, 233, .14); border-radius: 50%; }
+.hero-motif-ring-one { transform: rotate(-22deg) scale(1, .58); }
+.hero-motif-ring-two { border-color: rgba(130, 214, 233, .09); transform: rotate(34deg) scale(.78, .5); }
+.hero-motif-core { position: absolute; inset: 31%; border-radius: 50%; background: radial-gradient(closest-side, rgba(47, 163, 196, .22), transparent 74%); }
 
 /* ---------- Stats ---------- */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; }
@@ -1242,6 +1259,8 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 
   /* Purposeful, centered small-screen hero. */
   .hero-home { padding: 48px 0 44px; }
+  .hero-home::after { display: none; }
+  .hero-motif { display: none; }
   .hero-copy-column { max-width: 42rem; }
   .hero-home .eyebrow { margin-bottom: 15px; font-size: 10.5px; letter-spacing: .14em; }
   .hero-home h1 { max-width: 16ch; margin-bottom: 15px; font-size: clamp(2.35rem, 8.4vw, 3.05rem); line-height: 1.05; }
@@ -1558,6 +1577,7 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 .home-feature-list { border-top: 1px solid var(--line); }
 .home-feature { display: grid; grid-template-columns: 46px minmax(0,1fr); gap: 15px; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .home-feature-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; background: var(--brand-50); color: var(--brand-700); font-size: 16px; }
+.home-feature-icon .icon { width: 19px; height: 19px; }
 .home-feature h3 { margin: 1px 0 6px; font-size: 16px; }
 .home-feature p { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 .home-access { padding: clamp(44px,6vw,76px) 0; }
