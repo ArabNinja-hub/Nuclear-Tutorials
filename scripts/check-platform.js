@@ -355,6 +355,26 @@ check(/site-header/.test(ui) && ui.indexOf("dashboard.html") !== -1, "authentica
 check(ui.indexOf('href=\"/admin/login.html\"') !== -1 && ui.indexOf("footer-admin-link") !== -1 &&
   (ui.match(/href=\"\/admin\/login\.html\"/g) || []).length === 1,
   "the Admin Console is a single, footer-only link to /admin/login.html");
+check(ui.indexOf('"/privacy-policy"') !== -1 && ui.indexOf('"/terms-and-conditions"') !== -1 &&
+  (ui.match(/legalLink\(/g) || []).length >= 4,
+  "the shared footer builds Privacy Policy and Terms & Conditions links to the canonical /privacy-policy and /terms-and-conditions routes");
+/* Every rule that styles the footer legal links must stay readable on the navy
+   footer: the light-theme muted/ink pair left them at ~2.9:1 against the footer
+   and invisible (1:1) on hover, and nothing may hide them. */
+var legalRules = [];
+var legalRule = /\.footer-legal-links(?:\s+a[^\s{,]*)?\s*\{[^}]*\}/g;
+var legalMatch;
+while ((legalMatch = legalRule.exec(css))) legalRules.push(legalMatch[0]);
+check(legalRules.length >= 2 && legalRules.every(function (rule) {
+  return rule.indexOf("var(--muted)") === -1 && rule.indexOf("var(--ink)") === -1 &&
+    rule.indexOf("display: none") === -1 && rule.indexOf("visibility: hidden") === -1 &&
+    rule.indexOf("opacity: 0") === -1;
+}), "no footer legal-link rule reuses the light-theme muted/ink colours or hides the links");
+check(legalRules.some(function (rule) { return /color:\s*#c3d0d8/.test(rule); }),
+  "the footer legal links carry an explicit footer-surface colour");
+var legalHover = /\.footer-legal-links a:hover,[\s\S]*?color:\s*([^;]+);/.exec(css);
+check(!!legalHover && legalHover[1].indexOf("var(--ink)") === -1 && legalHover[1].indexOf("#061723") === -1,
+  "the footer legal links do not hover to the same colour as the navy footer background");
 check(["Home", "How it works", "Access / Packages", "About", "Log in", "Get Started"].every(function (label) {
   return ui.indexOf(label) !== -1;
 }), "public navigation provides the requested simple destinations and account actions");
