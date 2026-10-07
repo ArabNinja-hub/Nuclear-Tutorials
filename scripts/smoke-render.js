@@ -450,6 +450,16 @@ installStorage();
 
 ["assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/app.js"].forEach(evaluate);
 
+group("Media URL handling");
+ok(global.NT.embedUrl({ sourceUrl: "https://youtu.be/AbCdEf12345" }) ===
+  "https://www.youtube.com/embed/AbCdEf12345", "a short YouTube URL opens in the embedded player");
+ok(global.NT.embedUrl({ sourceUrl: "https://player.vimeo.com/video/123456" }) ===
+  "https://player.vimeo.com/video/123456", "a Vimeo player URL is recognized and preserved");
+ok(global.NT.embedUrl({ sourceUrl: "https://notyoutube.com/watch?v=AbCdEf12345" }) === "",
+  "a lookalike YouTube hostname is not embedded as YouTube");
+ok(global.NT.embedUrl({ sourceUrl: "https://cdn.example.test/lesson.mp4?token=sample" }) ===
+  "https://cdn.example.test/lesson.mp4?token=sample", "direct video URLs with query strings remain playable");
+
 function signIn(learnerType) {
   if (learnerType === undefined) learnerType = "university";
   var access = {

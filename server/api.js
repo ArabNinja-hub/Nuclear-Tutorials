@@ -78,6 +78,10 @@ function isUrl(value) {
   }
 }
 
+function hostMatchesDomain(host, domain) {
+  return host === domain || host.endsWith("." + domain);
+}
+
 /* Video sources are stored as links. YouTube links also give us a
    thumbnail without the administrator having to upload one. */
 function mediaInfo(sourceUrl, declaredProvider) {
@@ -87,14 +91,17 @@ function mediaInfo(sourceUrl, declaredProvider) {
   try {
     var parsed = new URL(url);
     var host = parsed.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") youtubeId = parsed.pathname.split("/").filter(Boolean)[0] || "";
-    if (host.endsWith("youtube.com")) {
+    if (host === "youtu.be") {
+      youtubeId = parsed.pathname.split("/").filter(Boolean)[0] || "";
+      if (youtubeId) provider = "youtube";
+    }
+    if (hostMatchesDomain(host, "youtube.com") || hostMatchesDomain(host, "youtube-nocookie.com")) {
       if (parsed.searchParams.get("v")) youtubeId = parsed.searchParams.get("v");
       else if (/\/(embed|shorts|live)\//.test(parsed.pathname)) youtubeId = parsed.pathname.split("/").filter(Boolean)[1] || "";
       if (youtubeId) provider = "youtube";
     }
-    if (host.endsWith("vimeo.com")) provider = "vimeo";
-    if (!provider) provider = /\.(mp4|webm|m3u8|ogg)(\?|$)/i.test(url) ? "direct" : (host ? "other" : "other");
+    if (hostMatchesDomain(host, "vimeo.com")) provider = "vimeo";
+    if (!provider) provider = /\.(mp4|webm|ogg)$/i.test(parsed.pathname) ? "direct" : "other";
   } catch (error) {
     if (!provider) provider = "other";
   }
@@ -305,19 +312,36 @@ function validCode(code) {
   return row || null;
 }
 
-function progressFor(code, learnerLevel) {
-  var sql = `SELECT p.* FROM progress p
+/* Access codes are bearer credentials. Keep enough random entropy that an
+   unredeemed code cannot be guessed from the public redemption endpoint. */
+function newAccessCode(pkg) {
+  var code;
+  do {
+    code = "NT-" + pkg.toUpperCase() + "-" + crypto.randomBytes(12).toString("hex").toUpperCase();
+  } while (validCode(code));
+  return code;
+}
+
+function progressFor(code, learnerLevel, accessLevel) {
+  var sql = `SELECT p.*, v.level AS video_level FROM progress p
              JOIN videos v ON v.id = p.video_id
              JOIN courses c ON c.id = v.course_id
              JOIN universities u ON u.id = c.university_id
-             WHERE p.code = ?`;
+             WHERE p.code = ? AND v.published = 1`;
   var params = [String(code || "")];
   if (learnerLevel) {
     sql += " AND u.level = ?";
     params.push(learnerLevel);
   }
   sql += " ORDER BY p.updated_at DESC";
-  return db.db().prepare(sql).all(...params).map(function (row) {
+  var rows = db.db().prepare(sql).all(...params);
+  if (accessLevel != null) {
+    rows = rows.filter(function (row) {
+      var rank = LEVEL_RANK[row.video_level] || LEVEL_RANK.standard;
+      return rank <= accessLevel;
+    });
+  }
+  return rows.map(function (row) {
     return { videoId: row.video_id, completed: row.completed === 1, seconds: round(row.seconds), updatedAt: row.updated_at };
   });
 }
@@ -372,7 +396,15 @@ function parseCookies(header) {
   String(header || "").split(";").forEach(function (part) {
     var index = part.indexOf("=");
     if (index === -1) return;
-    out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+    var name = part.slice(0, index).trim();
+    var value = part.slice(index + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch (error) {
+      /* A malformed unrelated cookie is untrusted input, not a server error. */
+      return;
+    }
+    out[name] = value;
   });
   return out;
 }
@@ -933,11 +965,7 @@ route("POST", "/api/codes/issue", async function (req, res, params, ctx) {
   if (!body) return fail(res, 400, "Could not read the request.");
   var pkg = text(body.package, 20);
   if (LEVELS.indexOf(pkg) === -1) return fail(res, 400, "Choose a package (basic, standard or premium).");
-  var code = "";
-  for (var attempt = 0; attempt < 12; attempt++) {
-    code = "NT-" + pkg.toUpperCase() + "-" + crypto.randomInt(1000, 9999);
-    if (!validCode(code)) break;
-  }
+  var code = newAccessCode(pkg);
   db.db().prepare("INSERT INTO codes (code, package, status, issued_at) VALUES (?, ?, 'unused', ?)")
     .run(code, pkg, db.now());
   ok(res, { code: code, package: pkg }, 201);
@@ -987,7 +1015,7 @@ route("GET", "/api/progress", function (req, res, params, ctx) {
   if (account && !account.learner_type) return fail(res, 409, "Choose what you are studying to continue.", { learnerTypeRequired: true });
   var access = requestAccess(req, { code: ctx.query.get("code") });
   if (!access || !access.active) return fail(res, 401, "An active access code is required to load progress.");
-  ok(res, { progress: progressFor(access.code, catalogueLevel(account)), access: publicAccess(access) });
+  ok(res, { progress: progressFor(access.code, catalogueLevel(account), access.level), access: publicAccess(access) });
 });
 
 route("POST", "/api/progress", async function (req, res) {
@@ -999,13 +1027,14 @@ route("POST", "/api/progress", async function (req, res) {
   if (!access || !access.active) return fail(res, 401, "An active access code is required to save progress.");
   var code = access.code;
   var found = videoById(text(body.videoId, 80));
-  if (!found || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
-  var seconds = body.seconds == null ? null : int(body.seconds, 0);
+  if (!found || !found.published || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
+  if (!canWatch(found, access)) return fail(res, 403, "This lesson is not included in your access package.", { locked: true });
+  var seconds = body.seconds == null ? null : Math.max(0, Math.min(int(body.seconds, 0), 2147483647));
   db.db().prepare(`
     INSERT INTO progress (code, video_id, completed, seconds, updated_at) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(code, video_id) DO UPDATE SET completed = excluded.completed, seconds = excluded.seconds, updated_at = excluded.updated_at`)
     .run(code, found.id, body.completed === false ? 0 : 1, seconds, db.now());
-  ok(res, { progress: progressFor(code, catalogueLevel(account)) });
+  ok(res, { progress: progressFor(code, catalogueLevel(account), access.level) });
 });
 
 route("DELETE", "/api/progress", async function (req, res) {
@@ -1018,7 +1047,8 @@ route("DELETE", "/api/progress", async function (req, res) {
   if (body && body.videoId) {
     var videoId = text(body.videoId, 80);
     var found = videoById(videoId);
-    if (!found || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
+    if (!found || !found.published || !visibleToLearner(found, account)) return fail(res, 404, "That video lesson could not be found.");
+    if (!canWatch(found, access)) return fail(res, 403, "This lesson is not included in your access package.", { locked: true });
     db.db().prepare("DELETE FROM progress WHERE code = ? AND video_id = ?").run(code, videoId);
   } else if (account) {
     db.db().prepare(`DELETE FROM progress
@@ -1031,7 +1061,7 @@ route("DELETE", "/api/progress", async function (req, res) {
   } else {
     db.db().prepare("DELETE FROM progress WHERE code = ?").run(code);
   }
-  ok(res, { progress: progressFor(code, catalogueLevel(account)) });
+  ok(res, { progress: progressFor(code, catalogueLevel(account), access.level) });
 });
 
 /* ------------------------------------------------------------
@@ -1336,11 +1366,7 @@ route("POST", "/api/admin/codes", async function (req, res) {
   var count = Math.min(Math.max(int(body.count, 1), 1), 25);
   var created = [];
   for (var index = 0; index < count; index++) {
-    var code = "";
-    for (var attempt = 0; attempt < 12; attempt++) {
-      code = "NT-" + pkg.toUpperCase() + "-" + crypto.randomInt(1000, 9999);
-      if (!validCode(code)) break;
-    }
+    var code = newAccessCode(pkg);
     db.db().prepare("INSERT INTO codes (code, package, status, issued_at) VALUES (?, ?, 'unused', ?)").run(code, pkg, db.now());
     created.push(code);
   }
@@ -1526,7 +1552,16 @@ function handle(req, res, pathname, query) {
       var match = entry.regex.exec(pathname);
       if (!match) continue;
       var params = {};
-      entry.keys.forEach(function (key, position) { params[key] = decodeURIComponent(match[position + 1]); });
+      try {
+        entry.keys.forEach(function (key, position) {
+          var value = decodeURIComponent(match[position + 1]);
+          if (/[\/\\\u0000-\u001f\u007f]/.test(value)) throw new URIError("Invalid route parameter");
+          params[key] = value;
+        });
+      } catch (error) {
+        fail(res, 400, "The request path contains invalid encoding.");
+        return resolve(true);
+      }
       if (entry.admin && !adminSession(req)) {
         fail(res, 401, "Administrator sign-in required.");
         return resolve(true);

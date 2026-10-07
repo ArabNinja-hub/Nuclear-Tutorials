@@ -272,6 +272,8 @@ freePort().then(function (chosen) {
         return request(port, "POST", "/api/admin/codes", { package: "basic", count: 1 }, session);
       }).then(function (created) {
         var code = created.json.codes[0];
+        check(/^NT-BASIC-[0-9A-F]{24}$/.test(code || ""),
+          "administrator-issued codes use the same 96-bit random format");
         return request(port, "POST", "/api/access/redeem", { code: code, educationLevel: "university" }).then(function (redeemed) {
           check(redeemed.status === 200, "a code can be redeemed against the new catalogue");
           return code;
@@ -457,17 +459,35 @@ freePort().then(function (chosen) {
     return request(prodPort, "GET", "/api/videos?status=all");
   }).then(function (response) {
     check(response.json.videos.length === 0, "there are no video sources to leak in an empty deployment");
-    /* Development tooling and deployment files are not web-reachable either. */
-    var hidden = ["/scripts/check-flows.js", "/scripts/test-db.js", "/scripts/smoke-render.js",
-      "/server/seed/content.json", "/server/db.js", "/server/platform.js", "/README.md", "/render.yaml",
-      "/railway.json", "/.env.example", "/package.json"];
-    return hidden.reduce(function (chain, pathname) {
-      return chain.then(function () {
-        return request(prodPort, "GET", pathname).then(function (response) {
-          check(response.status === 404, "a production deployment does not serve " + pathname);
+    /* Malformed untrusted input must be rejected per request, never turn into
+       an unhandled rejection that terminates the process. */
+    return request(prodPort, "GET", "/api/admin/overview", null, { cookie: "nt_admin=%" }).then(function (malformedCookie) {
+      check(malformedCookie.status === 401, "a malformed administrator cookie is rejected without crashing the server");
+      return request(prodPort, "GET", "/api/videos/%ZZ");
+    }).then(function (malformedParameter) {
+      check(malformedParameter.status === 400, "an invalid percent-encoded API path parameter is rejected (400)");
+      return request(prodPort, "GET", "/api/videos/%2Fhidden");
+    }).then(function (encodedSlash) {
+      check(encodedSlash.status === 400, "an encoded slash cannot escape an API route parameter (400)");
+      return request(prodPort, "GET", "/%00");
+    }).then(function (nulPath) {
+      check(nulPath.status === 400, "an encoded NUL in a static path is rejected (400)");
+      return request(prodPort, "GET", "/health");
+    }).then(function (health) {
+      check(health.status === 200, "the server remains healthy after malformed requests");
+      /* Decoding happens before the denylist, preventing encoded source leaks. */
+      var hidden = ["/scripts/check-flows.js", "/scripts/test-db.js", "/scripts/smoke-render.js",
+        "/server/seed/content.json", "/server/db.js", "/server/platform.js", "/README.md", "/render.yaml",
+        "/railway.json", "/.env.example", "/package.json", "/%73erver/db.js", "/server/%64b.js",
+        "/%73cripts/check-flows.js", "/%52EADME.md", "/.env%2eexample", "/assets/%2e%2e/server/db.js"];
+      return hidden.reduce(function (chain, pathname) {
+        return chain.then(function () {
+          return request(prodPort, "GET", pathname).then(function (response) {
+            check(response.status === 404, "a production deployment does not serve " + pathname);
+          });
         });
-      });
-    }, Promise.resolve());
+      }, Promise.resolve());
+    });
   }).then(function () {
     /* Byte level: the production database holds none of the development data,
        not even in the write-ahead log. */

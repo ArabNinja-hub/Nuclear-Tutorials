@@ -17,6 +17,7 @@ var path = require("path");
 var http = require("http");
 var https = require("https");
 var childProcess = require("child_process");
+var apiModule = require("../server/api");
 var ROOT = path.resolve(__dirname, "..");
 var passed = 0;
 var failed = 0;
@@ -264,6 +265,15 @@ check(healthAt !== -1 && serverIndex.indexOf('JSON.stringify({ ok: true })') !==
   healthAt < serverIndex.indexOf("api.handle(") &&
   healthAt < serverIndex.lastIndexOf("serveStatic(req, res, pathname)"),
   'GET /health answers {"ok":true} ahead of the API router and the static files');
+var staticStart = serverIndex.indexOf("function serveStatic");
+var staticEnd = serverIndex.indexOf("function escapeHtml", staticStart);
+var staticSource = serverIndex.slice(staticStart, staticEnd);
+check(staticSource.indexOf("decodeURIComponent(pathname)") < staticSource.indexOf("isBlocked(decoded)") &&
+  staticSource.indexOf("path.posix.normalize(decoded)") !== -1 &&
+  serverIndex.indexOf("path.relative(root, filePath)") !== -1 && serverIndex.indexOf("fs.realpath(filePath") !== -1,
+  "static paths are decoded before blocking and kept inside the real web root");
+check(serverIndex.indexOf('segment.toLowerCase().indexOf(".env") === 0') !== -1,
+  "environment files are blocked in every static-serving mode");
 
 check((/process\.env\.PORT\s*\|\|\s*8080/.test(serverIndex) ||
   /parseInt\(process\.env\.PORT,\s*10\)\s*\|\|\s*8080/.test(serverIndex)) && /"0\.0\.0\.0"/.test(serverIndex),
@@ -316,6 +326,14 @@ var store = read("assets/js/store.js");
 var data = read("assets/js/data.js");
 var adminJs = read("assets/js/admin.js");
 var home = read("index.html");
+var shortYoutube = apiModule.mediaInfo("https://youtu.be/AbCdEf12345");
+var playerVimeo = apiModule.mediaInfo("https://player.vimeo.com/video/123456");
+var lookalikeProvider = apiModule.mediaInfo("https://notyoutube.com/watch?v=AbCdEf12345");
+check(shortYoutube.provider === "youtube" && shortYoutube.youtubeId === "AbCdEf12345" && !!shortYoutube.thumbnail,
+  "short YouTube links are correctly identified and receive a thumbnail");
+check(playerVimeo.provider === "vimeo", "Vimeo player links are identified as Vimeo");
+check(lookalikeProvider.provider === "other" && !lookalikeProvider.youtubeId,
+  "lookalike hostnames are not misclassified as YouTube");
 
 check(!/localStorage\s*\.\s*(get|set|remove)Item/.test(api), "the catalogue client never reads or writes localStorage");
 check(/kept in memory|in memory/i.test(api), "catalogue content is cached in memory for the page view");
@@ -373,9 +391,9 @@ check(serverApi.indexOf("learnerLevel: scope.learnerLevel") !== -1 &&
   serverApi.indexOf('WHERE level = ?') !== -1 &&
   serverApi.indexOf("visibleToLearner(found, scope.account)") !== -1,
   "catalogue, search and direct lesson reads are scoped to the authenticated learner type");
-check(serverApi.indexOf("progressFor(access.code, catalogueLevel(account))") !== -1 &&
-  serverApi.indexOf("visibleToLearner(found, account)") !== -1,
-  "progress reads and writes stay within the learner's catalogue");
+check(serverApi.indexOf("progressFor(access.code, catalogueLevel(account), access.level)") !== -1 &&
+  serverApi.indexOf("visibleToLearner(found, account)") !== -1 && serverApi.indexOf("canWatch(found, access)") !== -1,
+  "progress reads and writes stay within the learner's catalogue and package tier");
 
 var uploadSurfaces = [];
 PUBLIC_PAGES.concat(ADMIN_PAGES).concat(["assets/js/app.js", "assets/js/admin.js", "assets/js/ui.js", "server/api.js"])
@@ -397,6 +415,8 @@ check(data.indexOf("LEVEL_RANK[state.access] >= LEVEL_RANK[NT.levelOf(video)]") 
 check(serverApi.indexOf("function requestAccess") !== -1 && serverApi.indexOf("protectVideos") !== -1 &&
   serverApi.indexOf("function canWatch") !== -1,
   "the server resolves the access code and redacts protected lesson sources");
+check(/crypto\.randomBytes\(12\)/.test(serverApi) && serverApi.indexOf("function newAccessCode") !== -1,
+  "access codes use a high-entropy random value instead of a guessable short numeric suffix");
 check(serverApi.indexOf("sourceUrl: allowed ? video.sourceUrl : null") !== -1,
   "protected video URLs are withheld from unauthorised responses");
 check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.test(serverApi),
@@ -538,6 +558,12 @@ function runHttp(base) {
     return fetchHttp(root + "/server/db.js");
   }).then(function (response) {
     check(response.status === 404, "server source files are not published");
+    return fetchHttp(root + "/%73erver/db.js");
+  }).then(function (response) {
+    check(response.status === 404, "percent-encoded source paths are blocked in development too");
+    return fetchHttp(root + "/.env.example");
+  }).then(function (response) {
+    check(response.status === 404, "environment files are never published in development");
     return fetchHttp(root + "/admin/index.html");
   }).then(function (response) {
     check(response.status === 200, "admin pages are served");

@@ -74,6 +74,8 @@ function videoById(catalogue, id) {
 function issueAndRedeem(pack) {
   return request("POST", "/api/codes/issue", { package: pack }).then(function (response) {
     var code = response.json && response.json.code;
+    check(response.status === 201 && /^NT-(BASIC|STANDARD|PREMIUM)-[0-9A-F]{24}$/.test(code || ""),
+      pack + " access code contains 96 bits of unpredictable random data");
     return request("POST", "/api/access/redeem", { code: code, educationLevel: "university" }).then(function (redeemed) {
       return redeemed.status === 200 ? code : null;
     });
@@ -215,6 +217,14 @@ request("GET", "/api/catalogue").then(function (response) {
       return request("GET", "/api/videos/" + encodeURIComponent(state.levels.premium.id), null, { code: state.basic });
     }).then(function (response) {
       check(response.status === 403, "a redeemed basic code cannot escalate to premium by re-requesting");
+      return request("POST", "/api/progress", { videoId: state.levels.premium.id, completed: true }, { code: state.basic });
+    }).then(function (response) {
+      check(response.status === 403, "a basic code cannot forge progress for a premium lesson");
+      return request("GET", "/api/progress", null, { code: state.basic });
+    }).then(function (response) {
+      check(response.status === 200 && (response.json.progress || []).every(function (item) {
+        return item.videoId !== state.levels.premium.id;
+      }), "progress responses never include lessons above the active package");
       return request("POST", "/api/access/redeem", { code: state.basic, educationLevel: "university" });
     }).then(function (response) {
       check(response.status === 409, "a redeemed code cannot be redeemed again to change its package");

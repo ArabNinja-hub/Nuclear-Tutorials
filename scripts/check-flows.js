@@ -393,6 +393,9 @@ request("GET", "/api/health").then(function (response) {
 }).then(function (response) {
   var ids = response.json.catalogue.videos.map(function (video) { return video.id; });
   check(ids.indexOf(state.createdVideo.id) === -1, "unpublished lessons are hidden from students");
+  return request("POST", "/api/progress", { videoId: state.createdVideo.id, completed: true }, { code: state.code });
+}).then(function (response) {
+  check(response.status === 404, "progress cannot be written for an unpublished draft");
   return request("PATCH", "/api/admin/videos/" + encodeURIComponent(state.createdVideo.id), { published: 1 }, { cookie: state.cookie });
 }).then(function (response) {
   check(response.status === 200, "the lesson can be published");
@@ -404,7 +407,22 @@ request("GET", "/api/health").then(function (response) {
   check(found && found.courseId === state.adminCourse.id && Number(found.semester) === 1,
     "students see which university, semester and course the new lesson belongs to");
   check(state.code && found, "the lesson is visible without any browser-local storage");
-
+  return request("POST", "/api/progress", { videoId: state.createdVideo.id, completed: true }, { code: state.code });
+}).then(function (response) {
+  check(response.status === 200 && (response.json.progress || []).some(function (item) {
+    return item.videoId === state.createdVideo.id;
+  }), "progress can be recorded for a published lesson");
+  return request("PATCH", "/api/admin/videos/" + encodeURIComponent(state.createdVideo.id), { published: 0 }, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200, "an administrator can unpublish a lesson");
+  return request("GET", "/api/progress", null, { code: state.code });
+}).then(function (response) {
+  check(response.status === 200 && (response.json.progress || []).every(function (item) {
+    return item.videoId !== state.createdVideo.id;
+  }), "progress reads hide lessons once they are unpublished");
+  return request("PATCH", "/api/admin/videos/" + encodeURIComponent(state.createdVideo.id), { published: 1 }, { cookie: state.cookie });
+}).then(function (response) {
+  check(response.status === 200, "the lesson can be republished");
   return request("POST", "/api/admin/videos/" + encodeURIComponent(state.createdVideo.id) + "/move", { direction: "top" }, { cookie: state.cookie });
 }).then(function (response) {
   var videos = response.json.videos || [];
