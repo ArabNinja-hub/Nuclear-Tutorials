@@ -8,6 +8,61 @@
 (function () {
   window.NT = window.NT || {};
 
+  /* ---------- theme (light / dark / system) ---------- */
+  (function () {
+    var THEME_KEY = 'nt_theme_preference';
+    var VALID = ['light', 'dark', 'system'];
+    function getPreference() {
+      try {
+        var v = localStorage.getItem(THEME_KEY);
+        if (VALID.indexOf(v) !== -1) return v;
+      } catch (e) {}
+      return 'system';
+    }
+    function getEffective(pref) {
+      var p = pref || getPreference();
+      if (p === 'light' || p === 'dark') return p;
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+      return 'light';
+    }
+    function apply(pref) {
+      var effective = getEffective(pref);
+      var root = document.documentElement;
+      if (!root) return;
+      root.setAttribute('data-theme', effective);
+      root.setAttribute('data-theme-preference', pref || getPreference());
+      root.style.colorScheme = effective;
+    }
+    function setPreference(pref) {
+      if (VALID.indexOf(pref) === -1) return;
+      try { localStorage.setItem(THEME_KEY, pref); } catch (e) {}
+      apply(pref);
+      try {
+        window.dispatchEvent(new CustomEvent('nt:themechange', { detail: { preference: pref, effective: getEffective(pref) } }));
+      } catch (e) {}
+    }
+    NT.theme = {
+      getPreference: getPreference,
+      getEffective: getEffective,
+      apply: apply,
+      set: setPreference,
+      init: function () {
+        apply(getPreference());
+        if (window.matchMedia) {
+          try {
+            var mq = window.matchMedia('(prefers-color-scheme: dark)');
+            var handler = function () {
+              if (getPreference() === 'system') apply('system');
+            };
+            if (mq.addEventListener) mq.addEventListener('change', handler);
+            else if (mq.addListener) mq.addListener(handler);
+          } catch (e) {}
+        }
+      }
+    };
+    try { NT.theme.init(); } catch (e) {}
+  })();
+
   /* ---------- paths ---------- */
   NT.base = function () {
     return location.pathname.indexOf("/admin/") !== -1 ? "../" : "";
@@ -82,11 +137,9 @@
   var PUBLIC_MOBILE_NAV = [
     { page: "home", label: "Home", href: "index.html", icon: "house" },
     { page: "how", label: "How it works", href: "index.html#how-it-works", icon: "target" },
-    { page: "pricing", label: "Packages", href: "pricing.html", icon: "layers" },
-    { page: "about", label: "About", href: "about.html", icon: "info" },
-    { page: "login", label: "Log in", href: "login.html", icon: "log-in" },
-    { page: "signup", label: "Get Started", href: "signup.html", icon: "user-round-plus" }
+    { page: "pricing", label: "Packages", href: "pricing.html", icon: "layers" }
   ];
+  var PUBLIC_MORE_PAGES = ["about", "login", "signup", "privacy-policy", "terms-and-conditions"];
   var LEARNER_MOBILE_NAV = [
     { page: "dashboard", label: "Home", href: "dashboard.html", icon: "layout-dashboard" },
     { page: "courses", label: "Courses", href: "courses.html", icon: "book-open" },
@@ -140,6 +193,32 @@
       : '<a class="btn btn-ghost header-login" href="' + NT.base() + 'login.html">Log in</a>' +
         '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'signup.html">Get Started</a>';
 
+    var settings = NT.store ? NT.store.settings() : {};
+    var supportEmail = String(settings.supportEmail || "").trim();
+    var hasContact = !!supportEmail;
+    var whatsappNumber = "260764599915";
+    var whatsappLink = "https://wa.me/" + whatsappNumber;
+    var themePref = NT.theme ? NT.theme.getPreference() : "system";
+
+    function themeOptionsHtml(extraClass) {
+      var pref = NT.theme ? NT.theme.getPreference() : themePref;
+      var opts = [
+        { id: "light", icon: "sun", label: "Light" },
+        { id: "dark", icon: "moon", label: "Dark" },
+        { id: "system", icon: "monitor", label: "System" }
+      ];
+      return '<div class="more-theme-options' + (extraClass ? ' ' + extraClass : '') + '" role="radiogroup" aria-label="Appearance">' +
+        opts.map(function (o) {
+          var checked = pref === o.id;
+          return '<button type="button" class="more-theme-option" data-theme-option="' + o.id + '" role="radio" aria-checked="' + (checked ? "true" : "false") + '">' +
+            NT.icon(o.icon) + "<span>" + o.label + "</span></button>";
+        }).join("") + "</div>";
+    }
+
+    function sheetThemeGroup() {
+      return '<div class="sheet-group"><span class="sheet-label">Appearance</span>' + themeOptionsHtml("sheet-theme-options") + "</div>";
+    }
+
     var sheetLinks = signedIn
       ? '<div class="sheet-group sheet-primary-links"><span class="sheet-label">Your learning</span>' +
         sheetLink("dashboard.html", "layout-dashboard", "Dashboard", navIsActive("dashboard", page), "dashboard") +
@@ -151,9 +230,12 @@
         sheetLink("announcements.html", "bell", "Announcements", page === "announcements", "announcements") +
         sheetLink("access.html", "key", "Redeem an access code", page === "access", "access") +
         sheetLink("pricing.html", "layers", "Access packages", page === "pricing", "pricing") +
-        '</div><div class="sheet-group"><span class="sheet-label">About the platform</span>' +
+        '</div>' + sheetThemeGroup() +
+        '<div class="sheet-group"><span class="sheet-label">About the platform</span>' +
         sheetLink("about.html", "info", "About", page === "about", "about") +
         sheetLink("index.html#how-it-works", "target", "How it works", navIsActive("how", page), "how") +
+        sheetLink("/privacy-policy", "shield-check", "Privacy Policy", false, "privacy-policy") +
+        sheetLink("/terms-and-conditions", "file-text", "Terms & Conditions", false, "terms-and-conditions") +
         '</div><button class="sheet-logout" id="sheetLogout" type="button">' + NT.icon("log-out") + "<span>Log out</span></button>"
       : '<div class="sheet-group"><span class="sheet-label">Explore</span>' +
         sheetLink("index.html", "house", "Home", navIsActive("home", page), "home") +
@@ -163,7 +245,36 @@
         '</div><div class="sheet-group"><span class="sheet-label">Your account</span>' +
         sheetLink("login.html", "log-in", "Log in", page === "login", "login") +
         sheetLink("signup.html", "user-round-plus", "Get Started", page === "signup", "signup") +
+        '</div>' + sheetThemeGroup() +
+        '<div class="sheet-group"><span class="sheet-label">Support & legal</span>' +
+        (hasContact
+          ? sheetLink("mailto:" + encodeURIComponent(supportEmail), "mail", supportEmail, false, "contact")
+          : sheetLink("mailto:mandasteven23@gmail.com", "mail", "Contact", false, "contact")) +
+        sheetLink(whatsappLink, "message-circle", "WhatsApp", false, "whatsapp") +
+        sheetLink("/privacy-policy", "shield-check", "Privacy Policy", false, "privacy-policy") +
+        sheetLink("/terms-and-conditions", "file-text", "Terms & Conditions", false, "terms-and-conditions") +
         "</div>";
+
+    function moreItem(href, icon, title, desc, active, pageKey) {
+      var isActive = !!active;
+      var isExternal = href.indexOf("http") === 0 || href.indexOf("mailto:") === 0 || href.indexOf("tel:") === 0;
+      var base = isExternal ? "" : NT.base();
+      var target = isExternal ? ' target="_blank" rel="noopener"' : "";
+      var hk = pageKey ? ' data-nav-key="' + pageKey + '"' : "";
+      return '<a class="more-menu-item' + (isActive ? " active" : "") + '" href="' + base + href + '"' + hk +
+        (isActive ? ' aria-current="page"' : "") + target + ">" +
+        '<span class="more-menu-item-icon">' + NT.icon(icon) + "</span>" +
+        '<span class="more-menu-item-copy"><span class="more-menu-item-title">' + NT.esc(title) + "</span>" +
+        (desc ? '<span class="more-menu-item-desc">' + NT.esc(desc) + "</span>" : "") +
+        "</span></a>";
+    }
+    function moreItemExternal(href, icon, title, desc) {
+      return '<a class="more-menu-item" href="' + href + '" target="_blank" rel="noopener">' +
+        '<span class="more-menu-item-icon">' + NT.icon(icon) + "</span>" +
+        '<span class="more-menu-item-copy"><span class="more-menu-item-title">' + NT.esc(title) + "</span>" +
+        (desc ? '<span class="more-menu-item-desc">' + NT.esc(desc) + "</span>" : "") +
+        "</span></a>";
+    }
 
     var mobileNav = signedIn
       ? '<nav class="mobile-nav mobile-nav-student" aria-label="Primary mobile navigation">' +
@@ -173,7 +284,46 @@
         NT.icon("ellipsis") + "<span>More</span></button></nav>"
       : '<nav class="mobile-nav mobile-nav-public" aria-label="Primary mobile navigation">' +
         PUBLIC_MOBILE_NAV.map(function (item) { return mobileLink(item, page); }).join("") +
-        "</nav>";
+        '<button class="mobile-nav-more' + (PUBLIC_MORE_PAGES.indexOf(page) !== -1 ? " is-current" : "") +
+        '" id="publicMore" type="button" aria-label="More options" aria-controls="publicMoreMenu" aria-expanded="false" aria-haspopup="dialog">' +
+        NT.icon("more-horizontal") + "<span>More</span></button></nav>";
+
+    var publicMoreMenuHtml = "";
+    if (!signedIn) {
+      var secondaryGroup = '<div class="more-menu-group"><span class="more-menu-label">Secondary</span>' +
+        moreItem("about.html", "info", "About", "Learn more about Nuclear Tutorials", page === "about", "about") +
+        moreItem("login.html", "log-in", "Log in", "Access your account", page === "login", "login") +
+        moreItem("signup.html", "user-round-plus", "Get Started", "Begin learning", page === "signup", "signup") +
+        "</div>";
+
+      var appearanceGroup = '<div class="more-menu-group"><span class="more-menu-label">Appearance</span>' + themeOptionsHtml("") + "</div>";
+
+      var supportItems = "";
+      if (hasContact) {
+        supportItems += moreItemExternal("mailto:" + encodeURIComponent(supportEmail), "mail", "Contact", "Get in touch");
+      } else {
+        supportItems += moreItemExternal("mailto:mandasteven23@gmail.com", "mail", "Contact", "Get in touch");
+      }
+      supportItems += moreItemExternal(whatsappLink, "message-circle", "WhatsApp", "Chat on WhatsApp");
+      supportItems += moreItem("/privacy-policy", "shield-check", "Privacy Policy", "", false, "privacy-policy");
+      supportItems += moreItem("/terms-and-conditions", "file-text", "Terms & Conditions", "", false, "terms-and-conditions");
+
+      var supportGroup = '<div class="more-menu-group"><span class="more-menu-label">Support & legal</span>' + supportItems + "</div>";
+
+      publicMoreMenuHtml =
+        '<div class="public-more-scrim" id="publicMoreScrim" aria-hidden="true"></div>' +
+        '<div class="public-more-menu" id="publicMoreMenu" aria-hidden="true" inert role="dialog" aria-modal="false" aria-labelledby="publicMoreTitle">' +
+        '<div class="public-more-menu-inner">' +
+        '<div class="public-more-menu-handle" aria-hidden="true"></div>' +
+        '<div class="public-more-menu-head"><div><span class="public-more-menu-kicker">MORE</span>' +
+        '<h2 class="public-more-menu-title" id="publicMoreTitle">More options</h2></div>' +
+        '<button class="modal-x" id="publicMoreClose" type="button" aria-label="Close more menu">' + NT.icon("x") + "</button></div>" +
+        '<nav class="public-more-menu-nav" aria-label="More options">' +
+        secondaryGroup + '<div class="more-menu-divider" aria-hidden="true"></div>' +
+        appearanceGroup + '<div class="more-menu-divider" aria-hidden="true"></div>' +
+        supportGroup +
+        "</nav></div></div>";
+    }
 
     var html =
       '<a class="skip-link" href="#main">Skip to main content</a>' +
@@ -192,7 +342,8 @@
       '<nav class="sheet-nav" aria-label="More navigation">' + sheetLinks + "</nav>" +
       '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("sparkles") +
       '<span>' + (signedIn ? "Your learning, organized. Learn at your pace and keep moving forward." : "Explore the platform, compare access and choose how to get started.") +
-      "</span></p></div></div></div>";
+      "</span></p></div></div></div>" +
+      publicMoreMenuHtml;
 
     var header = document.createElement("header");
     header.className = "site-header";
@@ -202,6 +353,10 @@
 
     var sheet = header.querySelector("#mobileSheet");
     if (sheet) document.body.appendChild(sheet);
+    var publicMoreMenu = header.querySelector("#publicMoreMenu");
+    var publicMoreScrim = header.querySelector("#publicMoreScrim");
+    if (publicMoreMenu) document.body.appendChild(publicMoreMenu);
+    if (publicMoreScrim) document.body.appendChild(publicMoreScrim);
 
     var main = document.querySelector("main");
     if (!main) main = document.querySelector(".page-head, .section-body, section");
@@ -225,7 +380,10 @@
 
     var toggle = header.querySelector("#navToggle");
     var more = mobileElement.querySelector ? mobileElement.querySelector("#mobileMore") : null;
+    var publicMore = mobileElement.querySelector ? mobileElement.querySelector("#publicMore") : null;
+    var publicMoreClose = publicMoreMenu ? publicMoreMenu.querySelector("#publicMoreClose") : null;
     var lastTrigger = null;
+    var lastPublicTrigger = null;
     var lockedScrollY = 0;
     var bodyStyleBeforeLock = null;
     var htmlOverflowBeforeLock = "";
@@ -281,7 +439,7 @@
       if (inert) {
         inertBeforeLock = [];
         siblings.forEach(function (element) {
-          if (element === sheet || element.tagName === "SCRIPT") return;
+          if (element === sheet || element === publicMoreMenu || element === publicMoreScrim || element.tagName === "SCRIPT") return;
           inertBeforeLock.push({ element: element, wasInert: !!element.inert });
           element.inert = true;
         });
@@ -301,9 +459,63 @@
       });
     }
 
+    function publicMoreFocusable() {
+      if (!publicMoreMenu || !publicMoreMenu.querySelectorAll) return [];
+      return Array.prototype.slice.call(publicMoreMenu.querySelectorAll(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(function (element) {
+        if (element.disabled || (element.getAttribute && element.getAttribute("aria-hidden") === "true")) return false;
+        return typeof element.getClientRects !== "function" || element.getClientRects().length > 0;
+      });
+    }
+
+    function syncThemeUI() {
+      var pref = NT.theme ? NT.theme.getPreference() : "system";
+      document.querySelectorAll("[data-theme-option]").forEach(function (btn) {
+        var isChecked = btn.getAttribute("data-theme-option") === pref;
+        btn.setAttribute("aria-checked", isChecked ? "true" : "false");
+      });
+    }
+
+    function setPublicMoreOpen(open, trigger) {
+      if (!publicMoreMenu || !publicMoreScrim) return;
+      if (publicMoreMenu.classList.contains("open") === open) return;
+      if (open) {
+        if (sheet && sheet.classList.contains("open")) {
+          setOpen(false);
+        }
+        lastPublicTrigger = trigger || publicMore;
+        publicMoreMenu.classList.add("open");
+        publicMoreScrim.classList.add("open");
+        publicMoreMenu.setAttribute("aria-hidden", "false");
+        publicMoreScrim.setAttribute("aria-hidden", "false");
+        publicMoreMenu.inert = false;
+        if (publicMore) publicMore.setAttribute("aria-expanded", "true");
+        syncThemeUI();
+        var focusables = publicMoreFocusable();
+        var first = focusables[0] || publicMoreClose;
+        if (first && first.focus) {
+          try { first.focus(); } catch (e) {}
+        }
+      } else {
+        publicMoreMenu.classList.remove("open");
+        publicMoreScrim.classList.remove("open");
+        publicMoreMenu.setAttribute("aria-hidden", "true");
+        publicMoreScrim.setAttribute("aria-hidden", "true");
+        publicMoreMenu.inert = true;
+        if (publicMore) publicMore.setAttribute("aria-expanded", "false");
+        if (lastPublicTrigger && lastPublicTrigger.focus) {
+          try { lastPublicTrigger.focus(); } catch (e) {}
+        }
+      }
+    }
+
     function setOpen(open, trigger) {
       if (!sheet || sheet.classList.contains("open") === open) return;
       if (open) {
+        if (publicMoreMenu && publicMoreMenu.classList.contains("open")) {
+          setPublicMoreOpen(false);
+        }
         lastTrigger = trigger || toggle || more;
         lockPageScroll();
         setBackgroundInert(true);
@@ -312,6 +524,7 @@
         sheet.inert = false;
         if (toggle) toggle.setAttribute("aria-expanded", "true");
         if (more) more.setAttribute("aria-expanded", "true");
+        syncThemeUI();
         var focusables = focusableElements();
         var initialFocus = focusables[0] || null;
         for (var index = 0; index < focusables.length; index++) {
@@ -332,6 +545,9 @@
 
     if (toggle) toggle.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), toggle); });
     if (more) more.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), more); });
+    if (publicMore) publicMore.addEventListener("click", function () { setPublicMoreOpen(!publicMoreMenu.classList.contains("open"), publicMore); });
+    if (publicMoreClose) publicMoreClose.addEventListener("click", function () { setPublicMoreOpen(false); });
+    if (publicMoreScrim) publicMoreScrim.addEventListener("click", function () { setPublicMoreOpen(false); });
     if (sheet) {
       sheet.querySelectorAll("[data-close-sheet]").forEach(function (element) {
         element.addEventListener("click", function () { setOpen(false); });
@@ -347,33 +563,90 @@
         });
       });
     }
+    if (publicMoreMenu) {
+      publicMoreMenu.querySelectorAll(".public-more-menu-nav a").forEach(function (link) {
+        link.addEventListener("click", function () { setPublicMoreOpen(false); });
+      });
+    }
+
+    function handleThemeOptionClick(event) {
+      var btn = event.target.closest ? event.target.closest("[data-theme-option]") : null;
+      if (!btn) return;
+      var opt = btn.getAttribute("data-theme-option");
+      if (!opt) return;
+      if (NT.theme) NT.theme.set(opt);
+      syncThemeUI();
+    }
+
+    document.addEventListener("click", function (event) {
+      if (event.target.closest && event.target.closest("[data-theme-option]")) {
+        handleThemeOptionClick(event);
+      }
+    });
+
+    window.addEventListener("nt:themechange", function () { syncThemeUI(); });
 
     document.addEventListener("keydown", function (event) {
-      if (!sheet || !sheet.classList.contains("open")) return;
       if (event.key === "Escape") {
+        if (publicMoreMenu && publicMoreMenu.classList.contains("open")) {
+          event.preventDefault();
+          setPublicMoreOpen(false);
+          return;
+        }
+        if (!sheet || !sheet.classList.contains("open")) return;
         event.preventDefault();
         setOpen(false);
         return;
       }
       if (event.key !== "Tab") return;
-      var focusables = focusableElements();
-      if (!focusables.length) { event.preventDefault(); return; }
-      var first = focusables[0];
-      var last = focusables[focusables.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) {
-        event.preventDefault();
-        first.focus();
+      if (sheet && sheet.classList.contains("open")) {
+        var focusables = focusableElements();
+        if (!focusables.length) { event.preventDefault(); return; }
+        var first = focusables[0];
+        var last = focusables[focusables.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (publicMoreMenu && publicMoreMenu.classList.contains("open")) {
+        var pf = publicMoreFocusable();
+        if (!pf.length) { event.preventDefault(); return; }
+        var pfirst = pf[0];
+        var plast = pf[pf.length - 1];
+        if (event.shiftKey && (document.activeElement === pfirst || !publicMoreMenu.contains(document.activeElement))) {
+          event.preventDefault();
+          plast.focus();
+        } else if (!event.shiftKey && (document.activeElement === plast || !publicMoreMenu.contains(document.activeElement))) {
+          event.preventDefault();
+          pfirst.focus();
+        }
       }
     });
+
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 760) {
+        if (publicMoreMenu && publicMoreMenu.classList.contains("open")) setPublicMoreOpen(false);
+      }
+    });
+
+    if (mobileElement) {
+      mobileElement.querySelectorAll("a").forEach(function (link) {
+        link.addEventListener("click", function () {
+          if (publicMoreMenu && publicMoreMenu.classList.contains("open")) setPublicMoreOpen(false);
+        });
+      });
+    }
 
     if (!signedIn && page === "home" && window.addEventListener) {
       window.addEventListener("hashchange", function () {
         var isHow = location.hash === "#how-it-works";
         var targets = [];
-        [header, mobileElement, sheet].forEach(function (root) {
+        [header, mobileElement, sheet, publicMoreMenu].forEach(function (root) {
           if (!root || !root.querySelectorAll) return;
           targets = targets.concat(Array.prototype.slice.call(root.querySelectorAll('[data-nav-key="home"], [data-nav-key="how"]')));
         });
@@ -385,8 +658,11 @@
         });
       });
     }
+
+    syncThemeUI();
   };
 
+  NT.setHeaderContext = function () { /* kept as a harmless compatibility hook for existing page renderers */ };
   NT.setHeaderContext = function () { /* kept as a harmless compatibility hook for existing page renderers */ };
 
   /* ---------- footer ---------- */
