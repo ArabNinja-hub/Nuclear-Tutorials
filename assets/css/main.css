@@ -3008,11 +3008,14 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 /* ============================================================
    DARK MODE — overrides for glass surfaces and base palette
    ============================================================ */
+[data-theme="light"] { color-scheme: light; }
+
 [data-theme="dark"] {
+  color-scheme: dark;
   --ink: #e6eef3;
   --ink-2: #a9c2d1;
   --muted: #8fa3b1;
-  --muted-2: #6a8092;
+  --muted-2: #7d94a6;
   --bg: #061723;
   --bg-soft: #0b2233;
   --surface: #0f2a3a;
@@ -3030,13 +3033,21 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
   --navy: #061723;
   --navy-2: #0b2233;
   --navy-3: #123146;
+  --sem-1: #4db6d8;
   --sem-1-bg: #0d2a36;
+  --sem-2: #9aa9ec;
   --sem-2-bg: #1a274a;
+  --tier-basic: #9db2c4;
   --tier-basic-bg: #1a2a36;
+  --tier-standard: #4db6d8;
   --tier-standard-bg: #0d2a36;
+  --tier-premium: #e08fc4;
   --tier-premium-bg: #2a1a2f;
+  --success: #6fd9a4;
   --success-bg: #0d2a1a;
+  --warn: #e8c07e;
   --warn-bg: #2a2210;
+  --danger: #ff9e95;
   --danger-bg: #2a1a1a;
   --sh-1: 0 1px 2px rgba(0,0,0,.2), 0 4px 12px rgba(0,0,0,.2);
   --sh-2: 0 4px 12px rgba(0,0,0,.25), 0 14px 28px rgba(0,0,0,.25);
@@ -3156,6 +3167,101 @@ table.nt-table { width: 100%; border-collapse: collapse; font-size: 14px; min-wi
 
 [data-theme="dark"] .site-footer {
   background: #040f17;
+}
+
+/* ---------- Text-bearing surfaces that hardcode light colours ----------
+   These components pin white/pastel backgrounds or light-theme accents,
+   which leaves body copy unreadable once the ink tokens flip. Each rule
+   below moves the text back onto a dark surface with a fitting colour. */
+
+/* Desktop header navigation: the glass pills go white in light mode. */
+[data-theme="dark"] .nav-links a:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+[data-theme="dark"] .nav-links a.active {
+  color: #8fd8e8;
+  border-color: rgba(143,216,232,.2);
+  background: linear-gradient(142deg, rgba(255,255,255,.1), rgba(143,216,232,.12));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.05), 0 2px 7px rgba(0,0,0,.25);
+}
+[data-theme="dark"] .nav-links a.active:hover { color: #b8e6ef; }
+[data-theme="dark"] .nav-toggle {
+  background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); color: var(--ink-2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 2px 6px rgba(0,0,0,.2);
+}
+[data-theme="dark"] .nav-toggle:hover {
+  background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 4px 10px rgba(0,0,0,.25);
+}
+
+/* Home page: the promise/organised bands are solid white sections. */
+[data-theme="dark"] .home-promise,
+[data-theme="dark"] .home-organized {
+  background: var(--surface);
+}
+[data-theme="dark"] .home-step {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+[data-theme="dark"] .home-step > span { border-color: var(--brand-200); color: var(--brand-700); }
+
+/* Auth + learner onboarding pages pin pale gradient backdrops. */
+[data-theme="dark"] .auth-page {
+  background: linear-gradient(120deg, #061723, #0b2233 54%, #0a2536);
+}
+[data-theme="dark"] .learner-onboarding {
+  background: linear-gradient(135deg, #061723, #0b2233 58%, #0a2536);
+}
+[data-theme="dark"] .auth-intro-note span { background: var(--brand-100); }
+[data-theme="dark"] .auth-form .input { background: var(--surface-2); }
+[data-theme="dark"] .learner-type-option-card { background: var(--surface-2); border-color: var(--line-strong); }
+[data-theme="dark"] .learner-type-option-card:hover { border-color: var(--brand-400); }
+[data-theme="dark"] .learner-type-icon { background: var(--bg-soft); }
+[data-theme="dark"] .learner-type-check { background: var(--surface); border-color: var(--line-strong); }
+[data-theme="dark"] .learner-type-option input:checked + .learner-type-option-card .learner-type-check {
+  box-shadow: inset 0 0 0 4px var(--brand-50);
+}
+
+/* Forms: light-only details on inputs and choice cards. */
+[data-theme="dark"] .input:hover:not(:disabled) { border-color: var(--line-strong); }
+[data-theme="dark"] select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a9c2d1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .input::placeholder { color: var(--muted-2); }
+[data-theme="dark"] .level-choice-radio { background: var(--surface-2); border-color: var(--line-strong); }
+
+/* Search: suggestion pills are solid white. */
+[data-theme="dark"] .search-suggestion { background: var(--surface); border-color: var(--line); }
+[data-theme="dark"] .search-suggestion:hover { background: var(--brand-50); border-color: var(--brand-200); }
+
+/* Discovery: filter-chip close button flashes white on hover. */
+[data-theme="dark"] .filter-chip button:hover { background: rgba(255,255,255,.14); }
+
+/* Video cards: the play badge is white with an accent that flips light. */
+[data-theme="dark"] .play-badge {
+  background: rgba(15,42,58,.94); color: #8fd8e8;
+  box-shadow: 0 6px 16px rgba(0,0,0,.4);
+}
+[data-theme="dark"] .video-card.is-watched .play-badge { background: #1f9d63; color: #fff; }
+
+/* Pricing: the premium card keeps a recognisable tinted border. */
+[data-theme="dark"] .price-premium { border-color: rgba(224,143,196,.3); }
+
+/* About page: the CTA panel fades out to pure white. */
+[data-theme="dark"] .about-cta {
+  background: linear-gradient(135deg, var(--brand-50), var(--surface-2) 65%);
+  border-color: var(--line);
+}
+
+/* Loading skeletons shimmer with a light stripe. */
+@media (min-width: 641px) {
+  [data-theme="dark"] .sk-thumb,
+  [data-theme="dark"] .sk-line {
+    background: linear-gradient(90deg, var(--bg-soft) 25%, var(--surface-2) 37%, var(--bg-soft) 63%);
+    background-size: 400% 100%;
+  }
 }
 
 /* Ensure touch targets and safe-area for all mobile sizes */
