@@ -79,6 +79,21 @@
     { page: "search", label: "Search", href: "search.html" },
     { page: "library", label: "Learning library", href: "library.html" }
   ];
+  var PUBLIC_MOBILE_NAV = [
+    { page: "home", label: "Home", href: "index.html", icon: "house" },
+    { page: "how", label: "How it works", href: "index.html#how-it-works", icon: "target" },
+    { page: "pricing", label: "Packages", href: "pricing.html", icon: "layers" },
+    { page: "about", label: "About", href: "about.html", icon: "info" },
+    { page: "login", label: "Log in", href: "login.html", icon: "log-in" },
+    { page: "signup", label: "Get Started", href: "signup.html", icon: "user-round-plus" }
+  ];
+  var LEARNER_MOBILE_NAV = [
+    { page: "dashboard", label: "Home", href: "dashboard.html", icon: "layout-dashboard" },
+    { page: "courses", label: "Courses", href: "courses.html", icon: "book-open" },
+    { page: "search", label: "Search", href: "search.html", icon: "search" },
+    { page: "library", label: "Library", href: "library.html", icon: "book-marked" }
+  ];
+  var LEARNER_MORE_PAGES = ["profile", "announcements", "access", "checkout", "pricing", "about"];
 
   function brandHtml(showSub) {
     return '<a class="brand" href="' + NT.base() + 'index.html" aria-label="Nuclear Tutorials — home">' +
@@ -87,14 +102,30 @@
       (showSub === false ? "" : '<span class="brand-sub">Structured learning</span>') + "</span></a>";
   }
 
+  function navIsActive(key, page) {
+    if (key === "how") return page === "home" && location.hash === "#how-it-works";
+    if (key === "home") return page === "home" && location.hash !== "#how-it-works";
+    if (key === "courses") return ["courses", "course", "lesson"].indexOf(page) !== -1;
+    if (key === "dashboard") return page === "dashboard";
+    return key === page;
+  }
+
   function navLink(item, page) {
-    var active = item.page === page || (item.page === "dashboard" && page === "dashboard");
-    return '<a href="' + NT.base() + item.href + '" class="' + (active ? "active" : "") + '"' +
+    var active = navIsActive(item.page, page);
+    return '<a href="' + NT.base() + item.href + '" data-nav-key="' + item.page + '" class="' + (active ? "active" : "") + '"' +
       (active ? ' aria-current="page"' : "") + ">" + item.label + "</a>";
   }
 
-  function mobileLink(href, icon, label, active) {
-    return '<a href="' + NT.base() + href + '"' + (active ? ' class="active" aria-current="page"' : "") + ">" +
+  function mobileLink(item, page) {
+    var active = navIsActive(item.page, page);
+    return '<a href="' + NT.base() + item.href + '" data-nav-key="' + item.page + '"' +
+      (active ? ' class="active" aria-current="page"' : "") + ">" +
+      NT.icon(item.icon) + "<span>" + item.label + "</span></a>";
+  }
+
+  function sheetLink(href, icon, label, active, pageKey) {
+    return '<a href="' + NT.base() + href + '" data-nav-key="' + pageKey + '"' +
+      (active ? ' class="active" aria-current="page"' : "") + ">" +
       NT.icon(icon) + "<span>" + label + "</span></a>";
   }
 
@@ -110,39 +141,38 @@
         '<a class="btn btn-primary btn-sm header-access-link" href="' + NT.base() + 'signup.html">Get Started</a>';
 
     var sheetLinks = signedIn
-      ? '<span class="sheet-label">Your learning</span>' +
-        '<a href="' + NT.base() + 'dashboard.html">' + NT.icon("layout-dashboard") + "<span>Dashboard</span></a>" +
-        '<a href="' + NT.base() + 'courses.html">' + NT.icon("book-open") + "<span>Courses</span></a>" +
-        '<a href="' + NT.base() + 'search.html">' + NT.icon("search") + "<span>Search</span></a>" +
-        '<a href="' + NT.base() + 'library.html">' + NT.icon("book-marked") + "<span>Learning library</span></a>" +
-        '<a href="' + NT.base() + 'profile.html">' + NT.icon("circle-user") + "<span>Learning profile</span></a>" +
-        '<span class="sheet-label">Platform</span>' +
-        '<a href="' + NT.base() + 'pricing.html">' + NT.icon("layers") + "<span>Access packages</span></a>" +
-        '<a href="' + NT.base() + 'about.html">' + NT.icon("info") + "<span>About</span></a>" +
-        '<a href="' + NT.base() + 'index.html#how-it-works">' + NT.icon("target") + "<span>How it works</span></a>" +
-        '<button class="sheet-logout" id="sheetLogout" type="button">' + NT.icon("log-out") + "<span>Log out</span></button>"
-      : '<span class="sheet-label">Platform</span>' +
-        '<a href="' + NT.base() + 'index.html#how-it-works">' + NT.icon("target") + "<span>How it works</span></a>" +
-        '<a href="' + NT.base() + 'pricing.html">' + NT.icon("layers") + "<span>Access / Packages</span></a>" +
-        '<a href="' + NT.base() + 'about.html">' + NT.icon("info") + "<span>About</span></a>" +
-        '<span class="sheet-label">Your account</span>' +
-        '<a href="' + NT.base() + 'login.html">' + NT.icon("log-in") + "<span>Log in</span></a>" +
-        '<a href="' + NT.base() + 'signup.html">' + NT.icon("user-round-plus") + "<span>Get Started</span></a>";
+      ? '<div class="sheet-group sheet-primary-links"><span class="sheet-label">Your learning</span>' +
+        sheetLink("dashboard.html", "layout-dashboard", "Dashboard", navIsActive("dashboard", page), "dashboard") +
+        sheetLink("courses.html", "book-open", "Courses", navIsActive("courses", page), "courses") +
+        sheetLink("search.html", "search", "Search", navIsActive("search", page), "search") +
+        sheetLink("library.html", "book-marked", "Learning library", navIsActive("library", page), "library") +
+        '</div><div class="sheet-group"><span class="sheet-label">Account & access</span>' +
+        sheetLink("profile.html", "circle-user", "Learning profile", page === "profile", "profile") +
+        sheetLink("announcements.html", "bell", "Announcements", page === "announcements", "announcements") +
+        sheetLink("access.html", "key", "Redeem an access code", page === "access", "access") +
+        sheetLink("pricing.html", "layers", "Access packages", page === "pricing", "pricing") +
+        '</div><div class="sheet-group"><span class="sheet-label">About the platform</span>' +
+        sheetLink("about.html", "info", "About", page === "about", "about") +
+        sheetLink("index.html#how-it-works", "target", "How it works", navIsActive("how", page), "how") +
+        '</div><button class="sheet-logout" id="sheetLogout" type="button">' + NT.icon("log-out") + "<span>Log out</span></button>"
+      : '<div class="sheet-group"><span class="sheet-label">Explore</span>' +
+        sheetLink("index.html", "house", "Home", navIsActive("home", page), "home") +
+        sheetLink("index.html#how-it-works", "target", "How it works", navIsActive("how", page), "how") +
+        sheetLink("pricing.html", "layers", "Access / Packages", page === "pricing", "pricing") +
+        sheetLink("about.html", "info", "About", page === "about", "about") +
+        '</div><div class="sheet-group"><span class="sheet-label">Your account</span>' +
+        sheetLink("login.html", "log-in", "Log in", page === "login", "login") +
+        sheetLink("signup.html", "user-round-plus", "Get Started", page === "signup", "signup") +
+        "</div>";
 
     var mobileNav = signedIn
-      ? '<nav class="mobile-nav" aria-label="Primary mobile navigation">' +
-        mobileLink("dashboard.html", "layout-dashboard", "Home", page === "dashboard") +
-        mobileLink("courses.html", "book-open", "Courses", ["courses", "course", "lesson"].indexOf(page) !== -1) +
-        mobileLink("search.html", "search", "Search", page === "search") +
-        mobileLink("library.html", "book-marked", "Library", page === "library") +
-        '<button class="mobile-nav-more' + (["dashboard", "courses", "course", "lesson", "search", "library"].indexOf(page) === -1 ? " is-current" : "") + '" id="mobileMore" type="button" aria-label="More pages" aria-expanded="false" aria-haspopup="dialog">' +
+      ? '<nav class="mobile-nav mobile-nav-student" aria-label="Primary mobile navigation">' +
+        LEARNER_MOBILE_NAV.map(function (item) { return mobileLink(item, page); }).join("") +
+        '<button class="mobile-nav-more' + (LEARNER_MORE_PAGES.indexOf(page) !== -1 ? " is-current" : "") +
+        '" id="mobileMore" type="button" aria-label="More destinations" aria-controls="mobileSheet" aria-expanded="false" aria-haspopup="dialog">' +
         NT.icon("ellipsis") + "<span>More</span></button></nav>"
       : '<nav class="mobile-nav mobile-nav-public" aria-label="Primary mobile navigation">' +
-        mobileLink("index.html", "house", "Home", page === "home") +
-        mobileLink("index.html#how-it-works", "target", "How it works", false) +
-        mobileLink("pricing.html", "layers", "Packages", page === "pricing") +
-        mobileLink("login.html", "log-in", "Log in", page === "login") +
-        mobileLink("signup.html", "user-round-plus", "Get Started", page === "signup") +
+        PUBLIC_MOBILE_NAV.map(function (item) { return mobileLink(item, page); }).join("") +
         "</nav>";
 
     var html =
@@ -150,33 +180,28 @@
       '<div class="container header-inner">' + brandHtml() +
       '<nav class="nav-links" aria-label="Primary">' + links + "</nav>" +
       '<div class="header-actions">' + actions +
-      (signedIn ? '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>" :
-        '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-haspopup="dialog">' + NT.icon("menu") + "</button>") +
-      "</div></div>" +
+      '<button class="nav-toggle" id="navToggle" type="button" aria-label="Open navigation" aria-controls="mobileSheet" aria-expanded="false" aria-haspopup="dialog">' +
+      NT.icon("menu") + "</button></div></div>" +
       '<div class="mobile-sheet" id="mobileSheet" aria-hidden="true" inert>' +
-      '<div class="scrim" data-close-sheet></div>' +
-      '<div class="sheet" role="dialog" aria-modal="true" aria-label="Site navigation">' +
-      '<div class="sheet-head"><div><span class="sheet-kicker">Nuclear Tutorials</span><h2>' + (signedIn ? "Your learning space" : "Explore the platform") + "</h2></div>" +
-      '<button class="modal-x" data-close-sheet aria-label="Close navigation">' + NT.icon("x") + "</button></div>" +
-      '<nav class="sheet-nav" aria-label="More pages">' + sheetLinks + "</nav>" +
-      '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("sparkles") + "<span>Your learning, organized. Learn at your pace and keep moving forward.</span></p></div>" +
-      "</div></div>";
+      '<div class="scrim" data-close-sheet aria-hidden="true"></div>' +
+      '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mobileSheetTitle">' +
+      '<div class="sheet-handle" aria-hidden="true"></div>' +
+      '<div class="sheet-head"><div><span class="sheet-kicker">' + (signedIn ? "MORE" : "NUCLEAR TUTORIALS") + "</span>" +
+      '<h2 id="mobileSheetTitle">' + (signedIn ? "Your learning space" : "Explore the platform") + "</h2></div>" +
+      '<button class="modal-x" data-close-sheet type="button" aria-label="Close navigation">' + NT.icon("x") + "</button></div>" +
+      '<nav class="sheet-nav" aria-label="More navigation">' + sheetLinks + "</nav>" +
+      '<div class="sheet-foot"><p class="sheet-status">' + NT.icon("sparkles") +
+      '<span>' + (signedIn ? "Your learning, organized. Learn at your pace and keep moving forward." : "Explore the platform, compare access and choose how to get started.") +
+      "</span></p></div></div></div>";
 
     var header = document.createElement("header");
     header.className = "site-header";
     header.innerHTML = html;
     document.body.classList.add("has-mobile-nav");
     document.body.prepend(header);
-    var mobileSheet = header.querySelector("#mobileSheet");
-    if (mobileSheet) document.body.appendChild(mobileSheet);
-    var mobileTemplate = document.createElement("div");
-    mobileTemplate.innerHTML = mobileNav;
-    var mobileElement = mobileTemplate.firstElementChild;
-    if (!mobileElement) {
-      mobileElement = document.createElement("nav");
-      mobileElement.innerHTML = mobileNav;
-    }
-    document.body.appendChild(mobileElement);
+
+    var sheet = header.querySelector("#mobileSheet");
+    if (sheet) document.body.appendChild(sheet);
 
     var main = document.querySelector("main");
     if (!main) main = document.querySelector(".page-head, .section-body, section");
@@ -185,37 +210,181 @@
       if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
     }
 
-    var sheet = document.getElementById("mobileSheet");
-    var toggle = header.querySelector("#navToggle");
-    var more = document.getElementById("mobileMore");
-    var lastTrigger = null;
-    function setOpen(open, trigger) {
-      if (open) lastTrigger = trigger || toggle || more;
-      sheet.classList.toggle("open", open);
-      sheet.setAttribute("aria-hidden", String(!open));
-      sheet.inert = !open;
-      if (toggle) toggle.setAttribute("aria-expanded", String(open));
-      if (more) more.setAttribute("aria-expanded", String(open));
-      document.body.classList.toggle("sheet-locked", open);
-      if (open) {
-        var firstLink = sheet.querySelector(".sheet-nav a");
-        if (firstLink) firstLink.focus();
-      } else if (lastTrigger && lastTrigger.focus) lastTrigger.focus();
+    var mobileTemplate = document.createElement("div");
+    mobileTemplate.innerHTML = mobileNav;
+    var mobileElement = mobileTemplate.firstElementChild;
+    if (!mobileElement) {
+      mobileElement = document.createElement("nav");
+      mobileElement.innerHTML = mobileNav;
     }
+    if (main && main.parentNode === document.body && document.body.insertBefore) {
+      document.body.insertBefore(mobileElement, main);
+    } else {
+      document.body.appendChild(mobileElement);
+    }
+
+    var toggle = header.querySelector("#navToggle");
+    var more = mobileElement.querySelector ? mobileElement.querySelector("#mobileMore") : null;
+    var lastTrigger = null;
+    var lockedScrollY = 0;
+    var bodyStyleBeforeLock = null;
+    var htmlOverflowBeforeLock = "";
+    var inertBeforeLock = [];
+
+    function lockPageScroll() {
+      if (bodyStyleBeforeLock) return;
+      var body = document.body;
+      var htmlElement = document.documentElement;
+      var styleProperties = ["position", "top", "left", "right", "width", "overflow", "paddingRight"];
+      bodyStyleBeforeLock = {};
+      styleProperties.forEach(function (property) { bodyStyleBeforeLock[property] = body.style[property] || ""; });
+      htmlOverflowBeforeLock = htmlElement.style.overflow || "";
+      lockedScrollY = typeof window.pageYOffset === "number"
+        ? window.pageYOffset
+        : (htmlElement.scrollTop || body.scrollTop || 0);
+
+      var viewportWidth = window.innerWidth || 0;
+      var documentWidth = htmlElement.clientWidth || viewportWidth;
+      var scrollbarWidth = Math.max(0, viewportWidth - documentWidth);
+      var existingPadding = window.getComputedStyle
+        ? parseFloat(window.getComputedStyle(body).paddingRight) || 0
+        : parseFloat(body.style.paddingRight) || 0;
+
+      body.style.position = "fixed";
+      body.style.top = "-" + lockedScrollY + "px";
+      body.style.left = "0";
+      body.style.right = "0";
+      body.style.width = "100%";
+      body.style.overflow = "hidden";
+      if (scrollbarWidth) body.style.paddingRight = (existingPadding + scrollbarWidth) + "px";
+      htmlElement.style.overflow = "hidden";
+      document.body.classList.add("sheet-locked");
+      htmlElement.classList.add("sheet-locked");
+    }
+
+    function unlockPageScroll() {
+      if (!bodyStyleBeforeLock) return;
+      var body = document.body;
+      var htmlElement = document.documentElement;
+      Object.keys(bodyStyleBeforeLock).forEach(function (property) {
+        body.style[property] = bodyStyleBeforeLock[property];
+      });
+      htmlElement.style.overflow = htmlOverflowBeforeLock;
+      document.body.classList.remove("sheet-locked");
+      htmlElement.classList.remove("sheet-locked");
+      bodyStyleBeforeLock = null;
+      if (window.scrollTo) window.scrollTo(0, lockedScrollY);
+    }
+
+    function setBackgroundInert(inert) {
+      var siblings = Array.prototype.slice.call(document.body.children || []);
+      if (inert) {
+        inertBeforeLock = [];
+        siblings.forEach(function (element) {
+          if (element === sheet || element.tagName === "SCRIPT") return;
+          inertBeforeLock.push({ element: element, wasInert: !!element.inert });
+          element.inert = true;
+        });
+      } else {
+        inertBeforeLock.forEach(function (entry) { entry.element.inert = entry.wasInert; });
+        inertBeforeLock = [];
+      }
+    }
+
+    function focusableElements() {
+      if (!sheet || !sheet.querySelectorAll) return [];
+      return Array.prototype.slice.call(sheet.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter(function (element) {
+        if (element.disabled || (element.getAttribute && element.getAttribute("aria-hidden") === "true")) return false;
+        return typeof element.getClientRects !== "function" || element.getClientRects().length > 0;
+      });
+    }
+
+    function setOpen(open, trigger) {
+      if (!sheet || sheet.classList.contains("open") === open) return;
+      if (open) {
+        lastTrigger = trigger || toggle || more;
+        lockPageScroll();
+        setBackgroundInert(true);
+        sheet.classList.add("open");
+        sheet.setAttribute("aria-hidden", "false");
+        sheet.inert = false;
+        if (toggle) toggle.setAttribute("aria-expanded", "true");
+        if (more) more.setAttribute("aria-expanded", "true");
+        var focusables = focusableElements();
+        var initialFocus = focusables[0] || null;
+        for (var index = 0; index < focusables.length; index++) {
+          if (focusables[index].tagName === "A") { initialFocus = focusables[index]; break; }
+        }
+        if (initialFocus && initialFocus.focus) initialFocus.focus();
+      } else {
+        sheet.classList.remove("open");
+        sheet.setAttribute("aria-hidden", "true");
+        sheet.inert = true;
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        if (more) more.setAttribute("aria-expanded", "false");
+        setBackgroundInert(false);
+        unlockPageScroll();
+        if (lastTrigger && lastTrigger.focus) lastTrigger.focus();
+      }
+    }
+
     if (toggle) toggle.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), toggle); });
     if (more) more.addEventListener("click", function () { setOpen(!sheet.classList.contains("open"), more); });
-    sheet.querySelectorAll("[data-close-sheet]").forEach(function (el) {
-      el.addEventListener("click", function () { setOpen(false); });
-    });
-    var sheetLogout = sheet.querySelector("#sheetLogout");
-    if (sheetLogout) sheetLogout.addEventListener("click", function () {
-      NT.auth.logout().then(function () { location.href = NT.base() + "index.html"; }, function (error) {
-        NT.toast(error.message || "You could not be logged out right now.", "error");
+    if (sheet) {
+      sheet.querySelectorAll("[data-close-sheet]").forEach(function (element) {
+        element.addEventListener("click", function () { setOpen(false); });
       });
-    });
+      sheet.querySelectorAll(".sheet-nav a").forEach(function (link) {
+        link.addEventListener("click", function () { setOpen(false); });
+      });
+      var sheetLogout = sheet.querySelector("#sheetLogout");
+      if (sheetLogout) sheetLogout.addEventListener("click", function () {
+        setOpen(false);
+        NT.auth.logout().then(function () { location.href = NT.base() + "index.html"; }, function (error) {
+          NT.toast(error.message || "You could not be logged out right now.", "error");
+        });
+      });
+    }
+
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && sheet.classList.contains("open")) setOpen(false);
+      if (!sheet || !sheet.classList.contains("open")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      var focusables = focusableElements();
+      if (!focusables.length) { event.preventDefault(); return; }
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     });
+
+    if (!signedIn && page === "home" && window.addEventListener) {
+      window.addEventListener("hashchange", function () {
+        var isHow = location.hash === "#how-it-works";
+        var targets = [];
+        [header, mobileElement, sheet].forEach(function (root) {
+          if (!root || !root.querySelectorAll) return;
+          targets = targets.concat(Array.prototype.slice.call(root.querySelectorAll('[data-nav-key="home"], [data-nav-key="how"]')));
+        });
+        targets.forEach(function (element) {
+          var active = element.getAttribute("data-nav-key") === (isHow ? "how" : "home");
+          element.classList.toggle("active", active);
+          if (active) element.setAttribute("aria-current", "page");
+          else element.removeAttribute("aria-current");
+        });
+      });
+    }
   };
 
   NT.setHeaderContext = function () { /* kept as a harmless compatibility hook for existing page renderers */ };
