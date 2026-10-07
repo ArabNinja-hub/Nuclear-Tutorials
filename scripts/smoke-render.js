@@ -602,6 +602,21 @@ function renderScenario(entry, mode, expectedNeedles, expectedRedirect) {
           footerHtml.indexOf('<a href="/terms-and-conditions">Terms &amp; Conditions</a>') !== -1,
           label + " renders the footer Privacy Policy and Terms & Conditions links to the canonical routes");
       }
+      /* The shared header carries the light/dark switch ahead of whatever
+         account action the page offers. */
+      var headerEl = (global.document.body.children || []).filter(function (child) {
+        return child && child.className === "site-header";
+      })[0];
+      if (headerEl) {
+        var headerHtml = headerEl.innerHTML || "";
+        var toggleAt = headerHtml.indexOf('id="headerThemeToggle"');
+        var accountAt = headerHtml.indexOf('class="btn btn-ghost header-login"');
+        var profileAt = headerHtml.indexOf('class="btn btn-secondary btn-sm header-account"');
+        ok(toggleAt !== -1 && /class="header-theme-toggle"[^>]*aria-label="Switch to the (light|dark) theme"/.test(headerHtml),
+          label + " renders the header light/dark theme toggle");
+        ok(toggleAt !== -1 && (accountAt === -1 || toggleAt < accountAt) && (profileAt === -1 || toggleAt < profileAt),
+          label + " places the theme toggle before the header account action");
+      }
       (expectedNeedles || []).forEach(function (needle) {
         ok(html.indexOf(needle) !== -1, label + " shows " + JSON.stringify(needle));
       });

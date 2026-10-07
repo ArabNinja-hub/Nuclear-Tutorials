@@ -388,6 +388,33 @@ check(!!legalHover && legalHover[1].indexOf("var(--ink)") === -1 && legalHover[1
 check(["Home", "How it works", "Access / Packages", "About", "Log in", "Get Started"].every(function (label) {
   return ui.indexOf(label) !== -1;
 }), "public navigation provides the requested simple destinations and account actions");
+
+/* Header theme switch: the desktop bar carries an icon button that flips the
+   site between light and dark. It must sit before the Log in / Learning
+   profile action, stay wired to NT.theme, and be hidden on phones only, where
+   the sheet already offers the same choice. */
+check(/function themeToggleHtml\(\)[\s\S]*data-theme-toggle[\s\S]*NT\.theme\.getEffective/.test(ui) &&
+  ui.indexOf("themeToggleHtml() + actions") !== -1,
+  "the header renders a theme toggle button ahead of the account action");
+check(/function handleThemeToggleClick\(\)[\s\S]*NT\.theme\.set\(NT\.theme\.getEffective\(\) === "dark" \? "light" : "dark"\)/.test(ui) &&
+  ui.indexOf('closest("[data-theme-toggle]")') !== -1,
+  "the header theme toggle flips between the light and dark themes");
+check(ui.indexOf("syncThemeToggle();") !== -1 &&
+  /function syncThemeToggle\(\)[\s\S]*aria-label/.test(ui),
+  "the theme toggle icon and accessible label follow whatever theme is in force");
+var toggleHide = [];
+var mediaDepth = 0;
+css.split("\n").forEach(function (line) {
+  if (/^@media/.test(line)) mediaDepth += 1;
+  else if (/^\}/.test(line) && mediaDepth > 0) mediaDepth -= 1;
+  if (line.indexOf(".header-theme-toggle") !== -1 && line.indexOf("display: none") !== -1) {
+    toggleHide.push(mediaDepth > 0 ? "media" : "root");
+  }
+});
+check(/\.header-theme-toggle \{[^}]*display: inline-grid/.test(css),
+  "the header theme toggle is visible in the desktop header by default");
+check(toggleHide.length >= 2 && toggleHide.indexOf("root") === -1,
+  "the header theme toggle is hidden on phones only, never in the desktop header");
 check(app.indexOf("NT.content") !== -1 && api.indexOf("/api/catalogue") !== -1,
   "learner pages read the catalogue from the API");
 
