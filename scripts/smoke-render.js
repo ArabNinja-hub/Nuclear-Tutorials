@@ -591,6 +591,17 @@ function renderScenario(entry, mode, expectedNeedles, expectedRedirect) {
       ok(html.length > 400, label + " renders a page shell");
       ok(html.indexOf("undefined") === -1, label + " contains no undefined values");
       ok(html.indexOf("NaN") === -1, label + " contains no invalid numbers");
+      /* Every page that renders the shared footer must put the two legal links
+         into the DOM, pointing at the canonical routes. */
+      var footerEl = (global.document.body.children || []).filter(function (child) {
+        return child && child.className === "site-footer";
+      })[0];
+      if (footerEl) {
+        var footerHtml = footerEl.innerHTML || "";
+        ok(footerHtml.indexOf('<a href="/privacy-policy">Privacy Policy</a>') !== -1 &&
+          footerHtml.indexOf('<a href="/terms-and-conditions">Terms &amp; Conditions</a>') !== -1,
+          label + " renders the footer Privacy Policy and Terms & Conditions links to the canonical routes");
+      }
       (expectedNeedles || []).forEach(function (needle) {
         ok(html.indexOf(needle) !== -1, label + " shows " + JSON.stringify(needle));
       });

@@ -45,7 +45,8 @@ var SCRIPT_FILES = [
   "assets/js/ui.js", "assets/js/app.js", "assets/js/hero-rotator.js", "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js", "server/platform.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
-  "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js"
+  "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js",
+  "scripts/version-assets.js"
 ];
 var ASSETS = [
   "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
@@ -126,6 +127,15 @@ SCRIPT_FILES.forEach(function (file) {
   var result = childProcess.spawnSync(process.execPath, ["--check", path.join(ROOT, file)], { encoding: "utf8" });
   check(result.status === 0, file + " parses" + (result.status === 0 ? "" : ": " + (result.stderr || result.stdout).trim()));
 });
+
+/* CSS and JavaScript are served with `max-age=3600`, so every page must ask for
+   them with a current content hash (`assets/css/main.css?v=1f3c9a02`); otherwise
+   a returning visitor keeps the old stylesheet for up to an hour after a fix.
+   scripts/version-assets.js is the single source of truth and fixes the markers. */
+var versionCheck = childProcess.spawnSync(process.execPath, [path.join(ROOT, "scripts/version-assets.js"), "--check"],
+  { encoding: "utf8" });
+check(versionCheck.status === 0, "every page requests its CSS and JavaScript with a current content-hash version" +
+  (versionCheck.status === 0 ? "" : ": " + ((versionCheck.stderr || "") + (versionCheck.stdout || "")).trim().split("\n").slice(0, 3).join(" ")));
 
 /* ---------------- icon library ---------------- */
 
@@ -355,6 +365,26 @@ check(/site-header/.test(ui) && ui.indexOf("dashboard.html") !== -1, "authentica
 check(ui.indexOf('href=\"/admin/login.html\"') !== -1 && ui.indexOf("footer-admin-link") !== -1 &&
   (ui.match(/href=\"\/admin\/login\.html\"/g) || []).length === 1,
   "the Admin Console is a single, footer-only link to /admin/login.html");
+check(ui.indexOf('"/privacy-policy"') !== -1 && ui.indexOf('"/terms-and-conditions"') !== -1 &&
+  (ui.match(/legalLink\(/g) || []).length >= 4,
+  "the shared footer builds Privacy Policy and Terms & Conditions links to the canonical /privacy-policy and /terms-and-conditions routes");
+/* Every rule that styles the footer legal links must stay readable on the navy
+   footer: the light-theme muted/ink pair left them at ~2.9:1 against the footer
+   and invisible (1:1) on hover, and nothing may hide them. */
+var legalRules = [];
+var legalRule = /\.footer-legal-links(?:\s+a[^\s{,]*)?\s*\{[^}]*\}/g;
+var legalMatch;
+while ((legalMatch = legalRule.exec(css))) legalRules.push(legalMatch[0]);
+check(legalRules.length >= 2 && legalRules.every(function (rule) {
+  return rule.indexOf("var(--muted)") === -1 && rule.indexOf("var(--ink)") === -1 &&
+    rule.indexOf("display: none") === -1 && rule.indexOf("visibility: hidden") === -1 &&
+    rule.indexOf("opacity: 0") === -1;
+}), "no footer legal-link rule reuses the light-theme muted/ink colours or hides the links");
+check(legalRules.some(function (rule) { return /color:\s*#c3d0d8/.test(rule); }),
+  "the footer legal links carry an explicit footer-surface colour");
+var legalHover = /\.footer-legal-links a:hover,[\s\S]*?color:\s*([^;]+);/.exec(css);
+check(!!legalHover && legalHover[1].indexOf("var(--ink)") === -1 && legalHover[1].indexOf("#061723") === -1,
+  "the footer legal links do not hover to the same colour as the navy footer background");
 check(["Home", "How it works", "Access / Packages", "About", "Log in", "Get Started"].every(function (label) {
   return ui.indexOf(label) !== -1;
 }), "public navigation provides the requested simple destinations and account actions");

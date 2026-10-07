@@ -390,6 +390,19 @@
   NT.setHeaderContext = function () { /* kept as a harmless compatibility hook for existing page renderers */ };
 
   /* ---------- footer ---------- */
+  /* The two legal documents live at the canonical, extensionless routes
+     /privacy-policy and /terms-and-conditions, so the same absolute hrefs work
+     from every page that renders the shared footer, including /admin/ pages. */
+  var LEGAL_LINKS = [
+    { href: "/privacy-policy", label: "Privacy Policy" },
+    { href: "/terms-and-conditions", label: "Terms &amp; Conditions" }
+  ];
+  function legalLink(index, className) {
+    var link = LEGAL_LINKS[index];
+    return '<a' + (className ? ' class="' + className + '"' : "") +
+      ' href="' + link.href + '">' + link.label + "</a>";
+  }
+
   NT.renderFooter = function () {
     var base = NT.base();
     var settings = NT.store.settings();
@@ -418,13 +431,13 @@
       '<a href="' + base + 'about.html">About</a>' +
       '<a href="' + base + 'index.html#how-it-works">How it works</a>' +
       '<a href="' + base + 'pricing.html">Access Packages</a>' +
-      '<a href="' + base + 'privacy-policy.html">Privacy Policy</a>' +
-      '<a href="' + base + 'terms-and-conditions.html">Terms &amp; Conditions</a>' +
+      legalLink(0) +
+      legalLink(1) +
       '<a class="footer-admin-link" href="/admin/login.html">Admin Console</a></div>' +
       learningColumn +
       (contactLink ? '<div class="footer-col"><h4>Contact</h4><a href="mailto:' + encodeURIComponent(supportEmail) + '">' + NT.esc(supportEmail) + "</a></div>" : "") +
       '</div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " Nuclear Tutorials</span>" +
-      '<span class="footer-legal-links"><a href="' + base + 'privacy-policy.html">Privacy Policy</a><span class="dot-sep" aria-hidden="true">·</span><a href="' + base + 'terms-and-conditions.html">Terms &amp; Conditions</a></span>' +
+      '<span class="footer-legal-links">' + legalLink(0) + '<span class="dot-sep" aria-hidden="true">·</span>' + legalLink(1) + "</span>" +
       (contactLink ? "<span>Support: " + contactLink + "</span>" : "") + "</div></div>";
     document.body.appendChild(footer);
   };
