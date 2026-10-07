@@ -345,6 +345,14 @@ body.sheet-locked { overflow: hidden; }
 .hero-home .eyebrow { margin-bottom: 20px; color: #8fd8e8; }
 .hero-home h1 { max-width: 24ch; margin: 0 auto 22px; color: #fff; font-size: clamp(2.7rem, 5.6vw, 4.7rem); line-height: 1.01; }
 .hero-home h1 em { color: #8fd8e8; font-style: normal; }
+.hero-home h1 em [data-hero-rotator] { transition: opacity .18s ease; }
+.hero-home h1 em [data-hero-rotator].is-erasing { opacity: .58; }
+.hero-home h1 em [data-hero-rotator].is-typing::after {
+  content: ""; display: inline-block; width: .035em; height: .78em; margin-left: .08em;
+  background: currentColor; vertical-align: -.03em;
+  animation: hero-rotator-caret .85s step-end infinite;
+}
+@keyframes hero-rotator-caret { 50% { opacity: 0; } }
 .hero-home .hero-copy { max-width: 50ch; margin: 0 auto; color: #cbdde7; font-size: clamp(17px, 1.6vw, 19.5px); line-height: 1.6; text-wrap: pretty; }
 .hero-ctas { display: flex; justify-content: center; gap: 13px; margin-top: 32px; flex-wrap: wrap; }
 .hero-home .btn-primary { --btn-bg: #fff; --btn-fg: #071e2b; --btn-bd: #fff; box-shadow: 0 10px 26px rgba(4, 16, 26, .28); }
