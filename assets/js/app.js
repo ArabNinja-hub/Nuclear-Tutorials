@@ -1297,7 +1297,7 @@
         '<button class="btn btn-primary btn-lg btn-block" type="submit" id="enquirySubmit">' +
         NT.icon("message-circle") + "Pay via WhatsApp</button>" +
         '<p class="checkout-help">Sending the message does not confirm your payment. ' +
-        "Nuclear Tutorials verifies it by hand, then emails your access code.</p>" +
+        'Nuclear Tutorials verifies it by hand, then emails your access code. By submitting a payment request, you agree to the <a href="' + NT.base() + 'terms-and-conditions.html">Terms &amp; Conditions</a> and acknowledge the <a href="' + NT.base() + 'privacy-policy.html">Privacy Policy</a>.</p>' +
         "</form>" +
         '<div id="checkoutResult" class="checkout-result hidden" aria-live="polite"></div>' +
         '<a class="link-arrow checkout-back" href="' + NT.base() + 'pricing.html">Back to access packages ' +
@@ -1467,15 +1467,45 @@
     var form = document.getElementById("signupForm");
     if (!form) return;
     var message = document.getElementById("authMessage");
+    var email = document.getElementById("signupEmail");
     var password = document.getElementById("signupPassword");
     var confirm = document.getElementById("signupConfirmPassword");
     var accessCode = document.getElementById("signupAccessCode");
+    var consent = document.getElementById("signupConsent");
+    if (consent) {
+      consent.checked = false;
+      consent.addEventListener("change", function () {
+        if (consent.checked) {
+          consent.removeAttribute("aria-invalid");
+          if (message && message.textContent.indexOf("Terms & Conditions") !== -1) {
+            message.innerHTML = "";
+          }
+        }
+      });
+    }
     if (accessCode && NT.store.accessCode()) accessCode.value = NT.store.accessCode();
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      var emailValue = (email && email.value ? email.value : "").trim();
+      if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        authMessage(message, "Enter a valid email address.");
+        if (email) email.focus();
+        return;
+      }
+      if (!password.value || password.value.length < 10) {
+        authMessage(message, "Use a password of at least 10 characters.");
+        password.focus();
+        return;
+      }
       if (password.value !== confirm.value) {
         authMessage(message, "Those passwords do not match.");
         confirm.focus();
+        return;
+      }
+      if (!consent || !consent.checked) {
+        if (consent) consent.setAttribute("aria-invalid", "true");
+        authMessage(message, "Please agree to the Terms & Conditions and acknowledge the Privacy Policy to create an account.");
+        if (consent) consent.focus();
         return;
       }
       var submit = form.querySelector('button[type="submit"]');
@@ -1483,9 +1513,10 @@
       if (message) message.innerHTML = "";
       NT.auth.register({
         displayName: (document.getElementById("signupName").value || "").trim(),
-        email: (document.getElementById("signupEmail").value || "").trim(),
+        email: emailValue,
         password: password.value,
-        accessCode: accessCode ? accessCode.value.trim() : ""
+        accessCode: accessCode ? accessCode.value.trim() : "",
+        consent: true
       }).then(function () {
         location.href = NT.base() + "learner-type.html?next=" + encodeURIComponent(safeNextPath());
       }, function (error) {

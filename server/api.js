@@ -750,6 +750,9 @@ route("POST", "/api/auth/register", async function (req, res) {
   if (password.length < 10 || password.length > 256) {
     return fail(res, 400, "Use a password between 10 and 256 characters.", { field: "password" });
   }
+  if (body.consent === false) {
+    return fail(res, 400, "Please agree to the Terms & Conditions and acknowledge the Privacy Policy to create an account.", { field: "consent" });
+  }
   if (db.learnerAccountByEmail(email)) return fail(res, 409, "An account already exists for that email. Log in instead.", { field: "email" });
   var account;
   try {

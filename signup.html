@@ -27,6 +27,12 @@
           <div class="field"><label for="signupAccessCode">Existing access code <span class="muted">(optional)</span></label><input class="input" id="signupAccessCode" name="accessCode" type="text" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Add a redeemed code to keep your access"><span class="field-hint">If you already have an active package, link its code to your account.</span></div>
           <div class="field"><label for="signupPassword">Password</label><input class="input" id="signupPassword" name="password" type="password" minlength="10" maxlength="256" autocomplete="new-password" required aria-describedby="passwordHint"><span class="field-hint" id="passwordHint">Use at least 10 characters.</span></div>
           <div class="field"><label for="signupConfirmPassword">Confirm password</label><input class="input" id="signupConfirmPassword" name="confirmPassword" type="password" minlength="10" maxlength="256" autocomplete="new-password" required></div>
+          <div class="field consent-field">
+            <label class="consent-label" for="signupConsent">
+              <input class="consent-checkbox" id="signupConsent" name="consent" type="checkbox" required>
+              <span>I agree to the <a href="terms-and-conditions.html">Terms &amp; Conditions</a> and acknowledge the <a href="privacy-policy.html">Privacy Policy</a>.</span>
+            </label>
+          </div>
           <div id="authMessage" aria-live="polite"></div>
           <button class="btn btn-primary btn-lg btn-block" type="submit">Create account</button>
         </form>
