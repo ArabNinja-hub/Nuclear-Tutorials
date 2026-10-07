@@ -1453,6 +1453,58 @@
       "<div>" + NT.esc(text) + "</div></div>";
   }
 
+  function authSubmitState(button, loading) {
+    if (!button) return;
+    button.disabled = !!loading;
+    if (loading) {
+      button.setAttribute("data-loading", "");
+      button.setAttribute("aria-busy", "true");
+    } else {
+      button.removeAttribute("data-loading");
+      button.removeAttribute("aria-busy");
+    }
+    var label = button.querySelector("[data-auth-submit-label]");
+    if (label) {
+      var text = label.getAttribute(loading ? "data-loading-label" : "data-idle-label");
+      if (text) label.textContent = text;
+    }
+  }
+
+  function authFieldError(field, text) {
+    if (!field) return false;
+    var feedback = document.getElementById(field.id + "Error");
+    if (!feedback) return false;
+    feedback.textContent = text;
+    field.setAttribute("aria-invalid", "true");
+    var describedBy = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean);
+    if (describedBy.indexOf(feedback.id) === -1) describedBy.push(feedback.id);
+    field.setAttribute("aria-describedby", describedBy.join(" "));
+    return true;
+  }
+
+  function clearAuthFieldError(field) {
+    if (!field) return;
+    field.removeAttribute("aria-invalid");
+    var feedback = document.getElementById(field.id + "Error");
+    if (feedback) feedback.textContent = "";
+    var errorId = field.id + "Error";
+    var describedBy = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter(function (id) {
+      return id && id !== errorId;
+    });
+    if (describedBy.length) field.setAttribute("aria-describedby", describedBy.join(" "));
+    else field.removeAttribute("aria-describedby");
+  }
+
+  function authFieldFailure(error, fields) {
+    var fieldName = error && error.details && error.details.field;
+    return !!(fieldName && fields[fieldName] && authFieldError(fields[fieldName], error.message || "Please check this field."));
+  }
+
+  function watchAuthField(field) {
+    if (!field) return;
+    field.addEventListener("input", function () { clearAuthFieldError(field); });
+  }
+
   function safeNextPath() {
     var next = NT.qs("next") || "dashboard.html";
     var allowed = ["dashboard.html", "courses.html", "course.html", "lesson.html", "library.html", "search.html", "profile.html", "access.html", "checkout.html", "announcements.html"];
@@ -1466,17 +1518,20 @@
   function pageSignup() {
     var form = document.getElementById("signupForm");
     if (!form) return;
-    var message = document.getElementById("authMessage");
+    var message = document.getElementById("signupAuthMessage") || document.getElementById("authMessage");
     var email = document.getElementById("signupEmail");
     var password = document.getElementById("signupPassword");
     var confirm = document.getElementById("signupConfirmPassword");
     var accessCode = document.getElementById("signupAccessCode");
     var consent = document.getElementById("signupConsent");
+    watchAuthField(email);
+    watchAuthField(password);
+    watchAuthField(confirm);
     if (consent) {
       consent.checked = false;
       consent.addEventListener("change", function () {
         if (consent.checked) {
-          consent.removeAttribute("aria-invalid");
+          clearAuthFieldError(consent);
           if (message && message.textContent.indexOf("Terms & Conditions") !== -1) {
             message.innerHTML = "";
           }
@@ -1486,30 +1541,36 @@
     if (accessCode && NT.store.accessCode()) accessCode.value = NT.store.accessCode();
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      clearAuthFieldError(email);
+      clearAuthFieldError(password);
+      clearAuthFieldError(confirm);
+      clearAuthFieldError(consent);
+      if (message) message.innerHTML = "";
       var emailValue = (email && email.value ? email.value : "").trim();
       if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-        authMessage(message, "Enter a valid email address.");
+        if (!authFieldError(email, "Enter a valid email address.")) authMessage(message, "Enter a valid email address.");
         if (email) email.focus();
         return;
       }
       if (!password.value || password.value.length < 10) {
-        authMessage(message, "Use a password of at least 10 characters.");
+        if (!authFieldError(password, "Use a password of at least 10 characters.")) authMessage(message, "Use a password of at least 10 characters.");
         password.focus();
         return;
       }
       if (password.value !== confirm.value) {
-        authMessage(message, "Those passwords do not match.");
+        if (!authFieldError(confirm, "Those passwords do not match.")) authMessage(message, "Those passwords do not match.");
         confirm.focus();
         return;
       }
       if (!consent || !consent.checked) {
-        if (consent) consent.setAttribute("aria-invalid", "true");
-        authMessage(message, "Please agree to the Terms & Conditions and acknowledge the Privacy Policy to create an account.");
+        var consentError = "Please agree to the Terms & Conditions and acknowledge the Privacy Policy to create an account.";
+        if (consent) authFieldError(consent, consentError);
+        else authMessage(message, consentError);
         if (consent) consent.focus();
         return;
       }
       var submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
+      authSubmitState(submit, true);
       if (message) message.innerHTML = "";
       NT.auth.register({
         displayName: (document.getElementById("signupName").value || "").trim(),
@@ -1520,8 +1581,10 @@
       }).then(function () {
         location.href = NT.base() + "learner-type.html?next=" + encodeURIComponent(safeNextPath());
       }, function (error) {
-        if (submit) submit.disabled = false;
-        authMessage(message, error.message || "Your account could not be created. Please try again.");
+        authSubmitState(submit, false);
+        if (!authFieldFailure(error, { email: email, password: password, consent: consent })) {
+          authMessage(message, error.message || "Your account could not be created. Please try again.");
+        }
       });
     });
   }
@@ -1529,15 +1592,21 @@
   function pageLogin() {
     var form = document.getElementById("loginForm");
     if (!form) return;
-    var message = document.getElementById("authMessage");
+    var message = document.getElementById("loginAuthMessage") || document.getElementById("authMessage");
+    var email = document.getElementById("loginEmail");
+    var password = document.getElementById("loginPassword");
+    watchAuthField(email);
+    watchAuthField(password);
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      clearAuthFieldError(email);
+      clearAuthFieldError(password);
       var submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
+      authSubmitState(submit, true);
       if (message) message.innerHTML = "";
       NT.auth.login({
-        email: (document.getElementById("loginEmail").value || "").trim(),
-        password: document.getElementById("loginPassword").value
+        email: (email.value || "").trim(),
+        password: password.value
       }).then(function (payload) {
         if (payload.user && payload.user.learnerType) {
           location.href = NT.base() + safeNextPath();
@@ -1545,10 +1614,28 @@
           location.href = NT.base() + "learner-type.html?next=" + encodeURIComponent(safeNextPath());
         }
       }, function (error) {
-        if (submit) submit.disabled = false;
-        authMessage(message, error.message || "You could not be logged in. Please try again.");
+        authSubmitState(submit, false);
+        var loginError = error.message || "You could not be logged in. Please try again.";
+        if (authFieldFailure(error, { email: email, password: password })) return;
+        if (loginError === "Enter your email and password.") {
+          var missingEmail = !(email.value || "").trim();
+          var missingPassword = !password.value;
+          if (missingEmail) authFieldError(email, "Enter your email address.");
+          if (missingPassword) authFieldError(password, "Enter your password.");
+          if (missingEmail) email.focus();
+          else if (missingPassword) password.focus();
+          if (missingEmail || missingPassword) return;
+        }
+        authMessage(message, loginError);
       });
     });
+  }
+
+  function pageAuth() {
+    /* Both panels stay mounted during the login ↔ sign-up transition, so bind
+       the existing submit handlers once for each form on either route. */
+    pageLogin();
+    pageSignup();
   }
 
   function pageOnboarding() {
@@ -1620,8 +1707,8 @@
     checkout: pageCheckout,
     access: pageAccess,
     announcements: pageAnnouncements,
-    signup: pageSignup,
-    login: pageLogin,
+    signup: pageAuth,
+    login: pageAuth,
     onboarding: pageOnboarding
   };
 
