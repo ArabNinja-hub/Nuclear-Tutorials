@@ -1154,9 +1154,11 @@
   /* ============================ PRICING ============================ */
   function pagePricing() {
     var grid = document.getElementById("pricingGrid");
-    var root = document.getElementById("pricingRoot");
     if (!grid) return;
-    loadFor(root || grid, function () {
+    /* The loading skeletons and the finished packages both render inside the
+       grid itself: the surrounding container and its package notes stay in
+       place, and nothing is written into an element the skeleton replaced. */
+    loadFor(grid, function () {
       var state = NT.store.get();
       var total = NT.counts().total;
       grid.innerHTML = D.LEVELS.map(function (level) {
