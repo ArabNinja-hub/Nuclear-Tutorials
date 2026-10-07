@@ -392,10 +392,12 @@ check(/route\("GET", "\/api\/videos\/:id"/.test(serverApi) && /fail\(res, 403/.t
 
 check(home.indexOf("hero-preview") === -1 && home.indexOf("testimonial") === -1 && home.indexOf("students enrolled") === -1,
   "home has no invented social proof or student metrics");
-check(home.indexOf("Structured lessons") !== -1 && home.indexOf("Organized courses") !== -1 &&
-  home.indexOf("Progress that stays with you") !== -1 && home.indexOf("term-based organization") !== -1 &&
+check(home.indexOf("Structured video lessons") !== -1 && home.indexOf("Courses and resources") !== -1 &&
+  home.indexOf("Personalized progress") !== -1 && home.indexOf("term-based organization") !== -1 &&
   home.indexOf("Access packages") !== -1,
   "home markets structured courses, flexible term-based learning, progress and access packages");
+check(home.indexOf("hero-visual") === -1 && home.indexOf("learning-preview") === -1 && home.indexOf("hero-path") === -1,
+  "the home hero stays a clean, uncluttered opening instead of carrying an app mock-up");
 check(home.indexOf('href="signup.html">Get Started</a>') !== -1 &&
   home.indexOf('href="login.html">Log In</a>') !== -1,
   "home presents clear Get Started and Log In calls to action");
