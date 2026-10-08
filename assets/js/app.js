@@ -1601,11 +1601,20 @@
       event.preventDefault();
       clearAuthFieldError(email);
       clearAuthFieldError(password);
+      if (message) message.innerHTML = "";
+      var emailValue = (email.value || "").trim();
+      if (!emailValue) {
+        if (authFieldError(email, "Enter your email address.")) { email.focus(); return; }
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        if (authFieldError(email, "Enter a valid email address.")) { email.focus(); return; }
+      }
+      if (!password.value) {
+        if (authFieldError(password, "Enter your password.")) { password.focus(); return; }
+      }
       var submit = form.querySelector('button[type="submit"]');
       authSubmitState(submit, true);
-      if (message) message.innerHTML = "";
       NT.auth.login({
-        email: (email.value || "").trim(),
+        email: emailValue,
         password: password.value
       }).then(function (payload) {
         if (payload.user && payload.user.learnerType) {
@@ -1724,6 +1733,16 @@
     return pathname.replace(/^\//, "") + (location.search || "");
   }
 
+  /* The account screens are a focused, chrome-less experience: the
+     redesigned sign-in / sign-up pages carry their own brand lockup,
+     appearance toggle and legal footer instead of the marketing
+     header and site footer. */
+  function renderPageChrome(page) {
+    if (ACCOUNT_PAGES.indexOf(page) !== -1) return;
+    NT.renderHeader();
+    NT.renderFooter();
+  }
+
   function startRoute() {
     var page = document.body.dataset.page || "home";
     var user = NT.auth.user();
@@ -1747,8 +1766,7 @@
       location.replace(NT.base() + safeNextPath());
       return;
     }
-    NT.renderHeader();
-    NT.renderFooter();
+    renderPageChrome(page);
     if (routes[page]) routes[page]();
     NT.initReveal();
   }
@@ -1760,8 +1778,7 @@
         location.replace(NT.base() + "login.html?next=" + encodeURIComponent(currentPageTarget()));
         return;
       }
-      NT.renderHeader();
-      NT.renderFooter();
+      renderPageChrome(page);
       if (routes[page]) routes[page]();
       NT.initReveal();
     });

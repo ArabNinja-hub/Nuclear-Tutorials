@@ -200,6 +200,44 @@
       });
     });
 
+    /* ---- appearance toggle (the focused auth pages have no site header) ---- */
+    var themeButton = document.querySelector("[data-auth-theme-toggle]");
+    if (themeButton && window.NT && NT.theme) {
+      var syncAuthTheme = function () {
+        var effective = NT.theme.getEffective();
+        var next = effective === "dark" ? "light" : "dark";
+        themeButton.innerHTML = NT.icon(effective === "dark" ? "sun" : "moon", "icon-sm");
+        themeButton.setAttribute("aria-label", "Switch to the " + next + " theme");
+      };
+      themeButton.addEventListener("click", function () {
+        NT.theme.set(NT.theme.getEffective() === "dark" ? "light" : "dark");
+        syncAuthTheme();
+      });
+      window.addEventListener("nt:themechange", syncAuthTheme);
+      syncAuthTheme();
+    }
+
+    /* ---- "Forgot password?" disclosure ---- */
+    var forgotToggle = root.querySelector("[data-forgot-toggle]");
+    var forgotHelp = document.getElementById("forgotHelp");
+    if (forgotToggle && forgotHelp) {
+      forgotToggle.addEventListener("click", function () {
+        var open = forgotHelp.hidden;
+        forgotHelp.hidden = !open;
+        forgotToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }
+
+    /* ---- point support links at the configured support email ---- */
+    var settings = window.NT && NT.store && NT.store.settings ? NT.store.settings() : null;
+    var supportEmail = settings ? String(settings.supportEmail || "").trim() : "";
+    if (supportEmail) {
+      Array.prototype.forEach.call(document.querySelectorAll("[data-support-email]"), function (link) {
+        link.href = "mailto:" + encodeURIComponent(supportEmail) +
+          "?subject=" + encodeURIComponent("Password reset request — Nuclear Tutorials");
+      });
+    }
+
     finishTransition(false);
     syncDocument(activeMode);
   }
