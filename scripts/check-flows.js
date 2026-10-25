@@ -228,7 +228,8 @@ request("GET", "/api/health").then(function (response) {
     displayName: "Flow Learner",
     email: state.learnerEmail,
     password: state.learnerPassword,
-    accessCode: state.code
+    accessCode: state.code,
+    consent: true
   });
 }).then(function (response) {
   check(response.status === 201 && response.json.user, "a learner account is created through the API");

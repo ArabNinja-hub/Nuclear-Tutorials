@@ -750,7 +750,12 @@ route("POST", "/api/auth/register", async function (req, res) {
   if (password.length < 10 || password.length > 256) {
     return fail(res, 400, "Use a password between 10 and 256 characters.", { field: "password" });
   }
-  if (body.consent === false) {
+  /* Consent must be affirmative. Only accepting an explicit `true` keeps the
+     Terms & Conditions / Privacy Policy acknowledgement real: a request that
+     leaves the field out (a script, a replayed body, an older client) is
+     refused exactly like one that sends `false`. The browser form always
+     sends `true`, and only after the checkbox is ticked. */
+  if (body.consent !== true) {
     return fail(res, 400, "Please agree to the Terms & Conditions and acknowledge the Privacy Policy to create an account.", { field: "consent" });
   }
   if (db.learnerAccountByEmail(email)) return fail(res, 409, "An account already exists for that email. Log in instead.", { field: "email" });
@@ -774,13 +779,19 @@ route("POST", "/api/auth/register", async function (req, res) {
 });
 
 route("POST", "/api/auth/login", async function (req, res) {
+  var address = remoteAddress(req);
+  if (loginBlocked("learner", address)) return loginRateLimited(res);
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
   var email = text(body.email, 254).toLowerCase();
   var password = String(body.password || "");
   if (!email || !password) return fail(res, 400, "Enter your email and password.");
   var account = db.verifyLearnerPassword(email, password);
-  if (!account) return fail(res, 401, "Email or password is incorrect.");
+  if (!account) {
+    noteLoginFailure("learner", address);
+    return fail(res, 401, "Email or password is incorrect.");
+  }
+  clearLoginFailures("learner", address);
   var session = db.createLearnerSession(account.id);
   res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400, LEARNER_COOKIE));
   ok(res, { authenticated: true, user: learnerPayload(account), access: publicAccess(learnerAccess(account)) });
@@ -1013,6 +1024,76 @@ function enquiryPayload(row) {
     rejectedAt: row.rejected_at || null,
     updatedAt: row.updated_at
   };
+}
+
+/* ------------------------------------------------------------
+   Sign-in throttling
+
+   The learner and administrator passwords are the only credentials in
+   the system, and without a limit a script can guess them as fast as the
+   network allows. Failures are counted per connection and per endpoint
+   in a short sliding window; a correct password clears the count, so a
+   student who mistypes twice is never inconvenienced. Only failures are
+   counted, so a busy shared connection (a campus lab, a NAT) can still
+   sign in normally.
+
+   The map is capped and emptied when it grows past the cap, so a spoofed
+   stream of addresses cannot grow it without bound.
+   ------------------------------------------------------------ */
+
+var LOGIN_WINDOW_MS = Number(process.env.NT_LOGIN_WINDOW_MS) > 0
+  ? Number(process.env.NT_LOGIN_WINDOW_MS)
+  : 10 * 60 * 1000;
+var LOGIN_MAX_FAILURES = Number(process.env.NT_LOGIN_MAX_FAILURES) > 0
+  ? Number(process.env.NT_LOGIN_MAX_FAILURES)
+  : 12;
+var loginFailures = {};
+
+function loginKey(scope, address) {
+  return scope + "|" + String(address || "unknown");
+}
+
+function recentLoginFailures(key) {
+  var currentTime = Date.now();
+  var hits = (loginFailures[key] || []).filter(function (time) {
+    return currentTime - time < LOGIN_WINDOW_MS;
+  });
+  if (hits.length) loginFailures[key] = hits;
+  else delete loginFailures[key];
+  return hits;
+}
+
+/* True when this connection has used up its attempts. The caller answers
+   429 before touching the password hash, so a blocked attempt is cheap. */
+function loginBlocked(scope, address) {
+  return recentLoginFailures(loginKey(scope, address)).length >= LOGIN_MAX_FAILURES;
+}
+
+function noteLoginFailure(scope, address) {
+  var key = loginKey(scope, address);
+  var hits = recentLoginFailures(key);
+  hits.push(Date.now());
+  loginFailures[key] = hits;
+  if (Object.keys(loginFailures).length > 5000) loginFailures = {};
+}
+
+function clearLoginFailures(scope, address) {
+  delete loginFailures[loginKey(scope, address)];
+}
+
+/* A freshly generated first-run password is printed once, so a lockout
+   here could strand an operator with no way back in. The cap is therefore
+   only reported, never fatal: it is stored in the environment so the
+   administrator can see why a sign-in is being refused. */
+function loginRetryMessage() {
+  var minutes = Math.max(1, Math.round(LOGIN_WINDOW_MS / 60000));
+  return "Too many sign-in attempts from this connection. Wait " + minutes +
+    " minutes and try again, or ask the administrator to reset the password.";
+}
+
+function loginRateLimited(res) {
+  res.setHeader("Retry-After", String(Math.ceil(LOGIN_WINDOW_MS / 1000)));
+  return fail(res, 429, loginRetryMessage());
 }
 
 /* A short window per connection keeps the public enquiry form from being
@@ -1265,14 +1346,22 @@ route("DELETE", "/api/progress", async function (req, res) {
    ------------------------------------------------------------ */
 
 route("POST", "/api/admin/login", async function (req, res) {
+  /* The administrator's password unlocks the whole catalogue, so this
+     endpoint is throttled harder than the student one. */
+  var address = remoteAddress(req);
+  if (loginBlocked("admin", address)) return loginRateLimited(res);
   var body = await readBody(req);
   if (!body) return fail(res, 400, "Could not read the request.");
   var password = String(body.password || "");
   if (!password) return fail(res, 400, "Enter the administrator password.");
-  if (!db.verifyAdminPassword(password)) return fail(res, 401, "That password is not correct.");
+  if (!db.verifyAdminPassword(password)) {
+    noteLoginFailure("admin", address);
+    return fail(res, 401, "That password is not correct.");
+  }
   if (db.adminMustChangePassword() && password === DEFAULT_FIRST_RUN_PASSWORD) {
     return fail(res, 403, "The first-run administrator password cannot be used for normal use. Sign in with the password you chose and change it in Settings.");
   }
+  clearLoginFailures("admin", address);
   var session = db.createSession();
   res.setHeader("Set-Cookie", sessionCookie(req, session.token, db.SESSION_DAYS * 86400));
   ok(res, { authenticated: true, expiresAt: session.expiresAt, mustChangePassword: db.adminMustChangePassword() });

@@ -294,6 +294,34 @@ accident:
 - a mask on a **parent** does not clip a child's backdrop blur, so the veil and
   the blur are siblings, each masked itself.
 
+## Sign-in, consent and response hardening
+
+Three protections guard the credentials and the pages:
+
+- **Registration needs affirmative consent.** `/api/auth/register` accepts only
+  `consent: true`. A request that leaves the field out — a script, a replayed
+  body, an older client — is refused exactly like one that sends `false`, so the
+  Terms & Conditions / Privacy Policy acknowledgement cannot be skipped. The
+  sign-up form sends `true` only after the checkbox is ticked.
+- **Sign-in is throttled per connection.** Failed learner and administrator
+  sign-ins are counted in a short sliding window (12 failures in 10 minutes by
+  default) and blocked attempts answer `429` with `Retry-After`. Only failures
+  count and a correct password clears the count, so a student who mistypes twice
+  is unaffected and a shared campus connection is not locked out. On the first
+  run the password printed in the log is the only way in, so the message says
+  what to do rather than locking the operator out silently. Tune with
+  `NT_LOGIN_MAX_FAILURES` and `NT_LOGIN_WINDOW_MS`.
+- **Every response carries protective headers** (`applySecurityHeaders` in
+  `server/index.js`): a Content-Security-Policy that allows only the site's own
+  scripts and styles, frames only from YouTube and Vimeo, and `frame-ancestors
+  'none'`, plus `X-Frame-Options: DENY` so the administrator screens cannot be
+  clickjacked; `Referrer-Policy: strict-origin-when-cross-origin` so access codes
+  in a query string never leak to a video host; `Permissions-Policy` turning off
+  camera, microphone, location, payment and USB; `Cross-Origin-Opener-Policy`; and
+  HSTS, added only when the request actually arrived over HTTPS. No page uses
+  inline `<script>` and nothing in `assets/js` uses `eval`, so the strict script
+  policy costs nothing.
+
 ## Honest limitations
 
 - Lessons stream or open from their original public source (for example MIT
