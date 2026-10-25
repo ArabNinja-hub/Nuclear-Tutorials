@@ -1,0 +1,218 @@
+/* ============================================================
+   NUCLEAR TUTORIALS — Scroll-linked edge dissolve
+
+   Content that approaches the bottom of the viewport dissolves into
+   the surface behind it instead of being sliced off by the viewport
+   edge. The effect is two fixed decorative layers pinned to the
+   bottom of the screen, so nothing on the page moves, transforms or
+   is re-laid out while scrolling.
+
+   How the band is built
+   ---------------------
+   1. `.scroll-fade-veil` is a flat fill in the colour of the surface
+      it covers. The colour is sampled from the page at runtime
+      (assets/js/scroll-fade.js) so the dissolve is seamless on pale
+      sections, on the dark footer and on the dark account screens
+      alike.
+   2. `.scroll-fade-blur` is a backdrop blur with no fill of its own,
+      so content loses a little definition before it loses contrast.
+      It is painted above the veil, which means it grades the veil and
+      the content together.
+   3. Each layer carries its own vertical mask: a CSS gradient that
+      takes the layer from full strength at one end of the band to
+      nothing at the other. The veil is strongest at the bottom edge;
+      the blur peaks in the middle of the band, where the veil is still
+      weak. The masks are what make the transition smooth — both layers
+      are cross-faded against the untouched backdrop, so there is no
+      hard seam anywhere.
+
+   Two browser facts shape this file
+   ---------------------------------
+   * `opacity` below 1 (and `filter`) makes an element a "backdrop
+     root", which stops its own backdrop-filter from seeing the page.
+     The band therefore never animates opacity: it arrives and leaves
+     by moving (translate), which keeps the blur alive the whole time.
+   * A mask on a *parent* does not clip a child's backdrop-filter, so
+     the blur and the veil are siblings, each masked itself. The blur
+     is deliberately not given a background: an opaque fill would hide
+     the very blur it carries.
+
+   How it is animated
+   ------------------
+   * Where CSS scroll-driven animations are supported, arrival and
+     retreat run on a `scroll()` timeline: no JavaScript per frame, and
+     the browser drives it on the compositor. Arrival animates the
+     individual `translate` property and retreat animates `transform`,
+     so the two compose instead of overwriting each other.
+   * Everywhere else the same two custom properties
+     (`--nt-fade-arrive` and `--nt-fade-recede`) are written by a
+     rAF-coalesced, passive scroll listener — one style write per frame,
+     never a layout read.
+   * `prefers-reduced-motion: reduce` withdraws the effect completely
+     (no band, no blur, no scroll link).
+   * The band is `pointer-events: none` and never touches wheel, touch
+     or scroll behaviour, so scrolling and tap targets are exactly as
+     they were.
+
+   Contrast safety: the veil never reaches fully opaque, and the band
+   slips below the viewport over the last few percent of the page, so
+   footer links stay legible and usable.
+   ============================================================ */
+
+.scroll-fade {
+  /* Sized in viewport units so a short phone screen gets a
+     proportionally shallower band than a desktop display. */
+  --nt-fade-h: clamp(112px, 20vh, 220px);
+  /* Replaced at runtime with the sampled surface colour; the fallback
+     is the platform's deep navy. */
+  --nt-fade-rgb: 6, 23, 35;
+  /* How much of that surface colour the veil carries at full strength. */
+  --nt-fade-tint: .93;
+  --nt-fade-blur: 5px;
+  /* Written by the JavaScript fallback; the animations below override
+     both properties wherever scroll timelines are supported. */
+  --nt-fade-arrive: 100%;
+  --nt-fade-recede: 0px;
+
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  height: var(--nt-fade-h);
+  pointer-events: none;
+  /* Decorative, never interactive. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Both layers fill the band, are graded by their own mask, and travel
+   together: `translate` carries the arrival, `transform` the retreat at
+   the end of the page. Neither is `opacity`, so the blur survives. */
+.scroll-fade-veil,
+.scroll-fade-blur {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  translate: 0 var(--nt-fade-arrive, 100%);
+  transform: translate3d(0, var(--nt-fade-recede, 0px), 0);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+/* The colour dissolve. Several stops rather than two, so the falloff
+   reads as a soft optical fade instead of a linear ramp. */
+.scroll-fade-veil {
+  background-color: rgb(var(--nt-fade-rgb) / var(--nt-fade-tint));
+  -webkit-mask-image: linear-gradient(to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, .9) 12%,
+    rgba(0, 0, 0, .7) 30%,
+    rgba(0, 0, 0, .46) 50%,
+    rgba(0, 0, 0, .26) 68%,
+    rgba(0, 0, 0, .11) 84%,
+    rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to top,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, .9) 12%,
+    rgba(0, 0, 0, .7) 30%,
+    rgba(0, 0, 0, .46) 50%,
+    rgba(0, 0, 0, .26) 68%,
+    rgba(0, 0, 0, .11) 84%,
+    rgba(0, 0, 0, 0) 100%);
+}
+
+/* The definition loss. No background of its own — an opaque fill would
+   hide the blur — and a hump-shaped mask so the blur is strongest in
+   the middle of the band, where the veil has not yet taken over. */
+.scroll-fade-blur {
+  -webkit-backdrop-filter: blur(var(--nt-fade-blur)) saturate(1.04);
+  backdrop-filter: blur(var(--nt-fade-blur)) saturate(1.04);
+  -webkit-mask-image: linear-gradient(to top,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, .18) 14%,
+    rgba(0, 0, 0, .5) 34%,
+    rgba(0, 0, 0, .78) 54%,
+    rgba(0, 0, 0, .56) 72%,
+    rgba(0, 0, 0, .24) 88%,
+    rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to top,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, .18) 14%,
+    rgba(0, 0, 0, .5) 34%,
+    rgba(0, 0, 0, .78) 54%,
+    rgba(0, 0, 0, .56) 72%,
+    rgba(0, 0, 0, .24) 88%,
+    rgba(0, 0, 0, 0) 100%);
+}
+
+/* Browsers without backdrop-filter keep the veil; the dissolve itself
+   never depended on the blur. */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .scroll-fade-blur { display: none; }
+}
+
+/* ---------- the phone app bar ---------- */
+/* The persistent bottom navigation is opaque and sits above the band,
+   so on phones the band is lifted to end where that bar begins. */
+@media (max-width: 760px) {
+  body.has-mobile-nav .scroll-fade {
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+  .scroll-fade { --nt-fade-h: clamp(88px, 17vh, 156px); }
+}
+
+/* Touch screens: keep the blur, but light enough that a mid-range
+   Android phone can repaint the band at 60fps. */
+@media (hover: none) and (pointer: coarse) {
+  .scroll-fade { --nt-fade-blur: 3px; }
+}
+
+/* ---------- scroll-driven animation ---------- */
+/* Arrival: the band starts one height below the viewport and eases up
+   over the first screenful of scrolling, so a resting hero is never
+   dimmed. Retreat: over the last few percent of the page it slips below
+   the viewport again, handing the footer back at full contrast. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-fade-veil,
+    .scroll-fade-blur {
+      animation-name: nt-fade-arrive, nt-fade-recede;
+      animation-duration: 1ms;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: scroll(root block), scroll(root block);
+      animation-range: 0 120px, 96% 100%;
+    }
+  }
+}
+
+@keyframes nt-fade-arrive {
+  from { translate: 0 100%; }
+  to { translate: 0 0; }
+}
+@keyframes nt-fade-recede {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 46%, 0); }
+}
+
+/* ---------- preference and media guards ---------- */
+/* Reduced motion: the effect is decoration built entirely from motion,
+   so it is withdrawn rather than frozen mid-state. */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-fade,
+  .scroll-fade-veil,
+  .scroll-fade-blur { display: none; }
+}
+
+/* Reduced transparency: drop the blur and let the veil carry the fade. */
+@media (prefers-reduced-transparency: reduce) {
+  .scroll-fade-blur { display: none; }
+  .scroll-fade { --nt-fade-tint: .98; }
+}
+
+@media print {
+  .scroll-fade { display: none; }
+}

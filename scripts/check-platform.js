@@ -42,14 +42,16 @@ var ADMIN_PAGES = [
 ];
 var SCRIPT_FILES = [
   "assets/js/icons.js", "assets/js/data.js", "assets/js/store.js", "assets/js/api.js",
-  "assets/js/ui.js", "assets/js/app.js", "assets/js/hero-rotator.js", "assets/js/admin.js",
+  "assets/js/ui.js", "assets/js/app.js", "assets/js/hero-rotator.js", "assets/js/scroll-fade.js",
+  "assets/js/admin.js",
   "server/index.js", "server/db.js", "server/api.js", "server/seed.js", "server/platform.js",
   "scripts/check-platform.js", "scripts/smoke-render.js", "scripts/check-flows.js",
   "scripts/check-access.js", "scripts/test-db.js", "scripts/check-production.js",
   "scripts/version-assets.js"
 ];
 var ASSETS = [
-  "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/img/logo.jpg",
+  "assets/css/fonts.css", "assets/css/main.css", "assets/css/admin.css", "assets/css/scroll-fade.css",
+  "assets/img/logo.jpg",
   "assets/fonts/inter-latin-400.woff2", "assets/fonts/manrope-latin-800.woff2"
 ];
 var OPS_FILES = ["railway.json", "render.yaml", ".env.example", ".gitignore", "server/seed/content.json"];
@@ -203,6 +205,62 @@ check(adminCss.indexOf(".adm-stats") === -1 && adminCss.indexOf(".rev-bars") ===
   "admin styles exclude fake metrics and upload UI");
 check(adminCss.indexOf(".adm-context") !== -1 && adminCss.indexOf(".adm-nav-link") !== -1,
   "the administration shell shows editing context and navigation");
+
+/* ---------------- scroll-linked edge dissolve ---------------- */
+
+group("Scroll-linked edge dissolve");
+var fadeCss = read("assets/css/scroll-fade.css");
+var fadeJs = read("assets/js/scroll-fade.js");
+check(balancedCss(fadeCss), "the edge-dissolve CSS is balanced");
+check(fadeCss.indexOf("mask-image: linear-gradient(") !== -1 && fadeCss.indexOf("-webkit-mask-image:") !== -1,
+  "the dissolve is drawn with a smooth gradient mask, prefixed for older WebKit");
+check(fadeCss.indexOf("mask-image: linear-gradient(to top,") !== -1 &&
+  /rgba\(0, 0, 0, \.46\) 50%/.test(fadeCss),
+  "the mask eases out through several stops instead of a hard linear ramp");
+check(/backdrop-filter: blur\(var\(--nt-fade-blur\)\)[\s\S]*?@media \(hover: none\) and \(pointer: coarse\)[\s\S]*--nt-fade-blur: 3px/.test(fadeCss),
+  "a subtle blur grades with its own mask and is lightened on touch screens");
+check(/\.scroll-fade-blur \{[^}]*backdrop-filter: blur/.test(fadeCss) &&
+  !/\.scroll-fade-blur \{[^}]*background(-color)?:/.test(fadeCss),
+  "the blur layer carries no fill, so the blur it applies stays visible");
+check(!/^\s*opacity\s*:/m.test(fadeCss) &&
+  /@keyframes nt-fade-arrive \{\s*from \{ translate: 0 100%; \}/.test(fadeCss),
+  "the band moves rather than fades, because opacity below 1 would stop its backdrop blur");
+check(/@supports \(animation-timeline: scroll\(\)\)[\s\S]*?animation-timeline: scroll\(root block\), scroll\(root block\);/.test(fadeCss) &&
+  fadeCss.indexOf("animation-range: 0 120px, 96% 100%;") !== -1,
+  "the effect uses CSS scroll-driven animations where they are supported, for arrival and retreat");
+check(fadeCss.indexOf("translate: 0 var(--nt-fade-arrive, 100%)") !== -1 &&
+  fadeCss.indexOf("transform: translate3d(0, var(--nt-fade-recede, 0px), 0)") !== -1 &&
+  fadeCss.indexOf("--nt-fade-arrive: 100%;") !== -1,
+  "the same two movements are driven by variables for the JavaScript fallback");
+check(fadeCss.indexOf("pointer-events: none") !== -1,
+  "the overlay never captures a click, a tap or a scroll gesture");
+check(/@media \(prefers-reduced-motion: reduce\) \{\s*\.scroll-fade,/.test(fadeCss) &&
+  /\.scroll-fade-blur \{ display: none; \}/.test(fadeCss),
+  "reduced-motion withdraws the effect completely");
+check(/@media \(prefers-reduced-transparency: reduce\)/.test(fadeCss) && /@media print[\s\S]*\.scroll-fade \{ display: none; \}/.test(fadeCss),
+  "the dissolve is dropped for reduced transparency and for print");
+check(fadeJs.indexOf('addEventListener("scroll", onScroll, { passive: true })') !== -1 &&
+  fadeJs.indexOf("preventDefault") === -1 && fadeJs.indexOf('"wheel"') === -1 && fadeJs.indexOf('"touchmove"') === -1,
+  "the fallback listens passively and never cancels a scroll or touch gesture");
+check(fadeJs.indexOf("requestAnimationFrame") !== -1 && fadeJs.indexOf('supports("animation-timeline: scroll(root block)")') !== -1 &&
+  /cssTimeline[\s\S]*?paint\(\)/.test(fadeJs),
+  "the fallback is rAF-coalesced and stands down when scroll timelines are available");
+check(fadeJs.indexOf('createElement("span")') !== -1 && fadeJs.indexOf('veil.className = "scroll-fade-veil"') !== -1 &&
+  fadeJs.indexOf('blur.className = "scroll-fade-blur"') !== -1,
+  "the blur and the veil are mounted as siblings, each with its own mask");
+check(fadeJs.indexOf("document.elementsFromPoint") !== -1 && fadeJs.indexOf("getComputedStyle") !== -1 &&
+  fadeCss.indexOf("--nt-fade-rgb: 6, 23, 35;") !== -1,
+  "the band samples the surface behind it so the dissolve matches pale sections and the dark footer alike");
+check(fadeJs.indexOf('matchMedia("(prefers-reduced-motion: reduce)")') !== -1 &&
+  /addEventListener\("change", sync\)|addListener\(sync\)/.test(fadeJs),
+  "the running page follows a change of the reduced-motion preference");
+var fadeWiring = PUBLIC_PAGES.filter(function (file) {
+  var html = read(file);
+  return html.indexOf("assets/css/scroll-fade.css") === -1 || html.indexOf("assets/js/scroll-fade.js") === -1;
+});
+check(fadeWiring.length === 0,
+  "every public page loads the dissolve stylesheet and its scroll fallback" +
+  (fadeWiring.length ? ": missing on " + fadeWiring.join(", ") : ""));
 
 /* ---------------- production readiness ---------------- */
 

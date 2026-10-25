@@ -256,6 +256,44 @@ With that in place the catalogue, access codes and student progress survive
 application restarts, redeploys and new releases. Without it, `npm start` still
 works locally but the data lives in `server/data/` and is disposable.
 
+## The scroll-linked edge dissolve
+
+Content approaching the bottom of the viewport does not get sliced off by the
+screen edge — it dissolves into the surface behind it. Two decorative layers are
+pinned to the bottom of the window (`assets/css/scroll-fade.css`,
+`assets/js/scroll-fade.js`), so nothing in the page moves, transforms or re-lays
+out while scrolling:
+
+- a veil filled with the colour of the surface it covers, and
+- a backdrop blur with no fill of its own, painted above the veil so it grades
+  the veil and the content together.
+
+Each layer carries its own vertical gradient mask, which is what makes the fade
+seamless: the veil is strongest at the bottom edge, the blur peaks in the middle
+of the band, and both cross-fade against the untouched backdrop. The veil's
+colour is sampled from the page at runtime (three points across the middle of the
+band, walking up from whatever is painted there to the first real surface), so
+the same effect is correct on pale sections, on the dark footer and on the dark
+account screens. It is re-sampled when the theme changes, on resize and every
+96px of scrolling.
+
+Where CSS scroll-driven animations are supported the band arrives over the first
+120px of scrolling and slips below the viewport over the last 4% of the page (so
+footer links stay legible), driven by a `scroll()` timeline with no JavaScript
+per frame. Elsewhere a passive, rAF-coalesced scroll listener writes the same two
+custom properties. The overlay is `pointer-events: none` and never listens to
+wheel or touch events, so scrolling and tap targets are untouched, and
+`prefers-reduced-motion: reduce` removes the effect entirely.
+
+Two browser rules shaped the implementation, and both are easy to undo by
+accident:
+
+- `opacity` below 1 makes an element a *backdrop root*, which stops its own
+  `backdrop-filter` from seeing the page. The band therefore never animates
+  opacity — it arrives and leaves by moving instead.
+- a mask on a **parent** does not clip a child's backdrop blur, so the veil and
+  the blur are siblings, each masked itself.
+
 ## Honest limitations
 
 - Lessons stream or open from their original public source (for example MIT
