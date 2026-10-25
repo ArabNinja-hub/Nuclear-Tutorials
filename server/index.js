@@ -249,7 +249,72 @@ var HEALTH_HEADERS = {
   "X-Content-Type-Options": "nosniff"
 };
 
+/* ------------------------------------------------------------
+   Response hardening
+
+   Every response carries the same small set of protective headers:
+
+   • Content-Security-Policy — the pages load only their own scripts
+     (there is no inline <script> and no eval anywhere in assets/js), so
+     script-src stays at 'self'. Styles keep 'unsafe-inline' because a
+     few pages and the renderers set style attributes. Images may come
+     from the video sources that supply thumbnails, frames only from the
+     three video providers the platform supports, and no frame may embed
+     this site, which closes clickjacking on the administrator screens.
+   • X-Frame-Options — the same protection for browsers without CSP
+     frame-ancestors support.
+   • Referrer-Policy — full URLs (including access codes in the query
+     string) are never leaked to third parties such as video hosts.
+   • Permissions-Policy — features the platform does not use are off.
+   • Strict-Transport-Security — added only when the request arrived over
+     HTTPS, so a local HTTP server is never pinned.
+   ------------------------------------------------------------ */
+
+var CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "media-src 'self' https:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "form-action 'self'",
+  "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+  "frame-ancestors 'none'",
+  "worker-src 'self'",
+  "manifest-src 'self'"
+].join("; ");
+
+var SECURITY_HEADERS = {
+  "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "X-Content-Type-Options": "nosniff"
+};
+
+/* True when the browser spoke HTTPS to us, directly or through the
+   platform proxy. */
+function requestIsSecure(req) {
+  var forwarded = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  if (forwarded) return forwarded === "https";
+  return !!(req.socket && req.socket.encrypted);
+}
+
+function applySecurityHeaders(req, res) {
+  Object.keys(SECURITY_HEADERS).forEach(function (name) {
+    res.setHeader(name, SECURITY_HEADERS[name]);
+  });
+  if (requestIsSecure(req)) {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+}
+
 var server = http.createServer(function (req, res) {
+  applySecurityHeaders(req, res);
   var parsed = url.parse(req.url, true);
   var pathname = parsed.pathname || "/";
 

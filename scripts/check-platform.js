@@ -262,6 +262,46 @@ check(fadeWiring.length === 0,
   "every public page loads the dissolve stylesheet and its scroll fallback" +
   (fadeWiring.length ? ": missing on " + fadeWiring.join(", ") : ""));
 
+/* ---------------- sign-in and response hardening ---------------- */
+
+group("Sign-in and response hardening");
+var hardeningApi = read("server/api.js");
+var hardeningServer = read("server/index.js");
+check(/if \(body\.consent !== true\) \{/.test(hardeningApi) && !/body\.consent === false/.test(hardeningApi),
+  "registration requires affirmative consent, so a request that omits the field cannot create an account");
+check(hardeningApi.indexOf('if (loginBlocked("learner", address)) return loginRateLimited(res);') !== -1 &&
+  hardeningApi.indexOf('if (loginBlocked("admin", address)) return loginRateLimited(res);') !== -1,
+  "both sign-in endpoints refuse further attempts once a connection has failed too often");
+check(/if \(!account\) \{\s*noteLoginFailure\("learner", address\);/.test(hardeningApi) &&
+  /if \(!db\.verifyAdminPassword\(password\)\) \{\s*noteLoginFailure\("admin", address\);/.test(hardeningApi) &&
+  (hardeningApi.match(/clearLoginFailures\(/g) || []).length >= 2,
+  "only failures are counted and a correct password clears the count, so a mistyped password never locks a student out");
+check(hardeningApi.indexOf("function loginRateLimited(res)") !== -1 &&
+  hardeningApi.indexOf('res.setHeader("Retry-After"') !== -1 &&
+  hardeningApi.indexOf("NT_LOGIN_MAX_FAILURES") !== -1,
+  "a throttled sign-in answers 429 with Retry-After and the limits are configurable");
+check(/if \(Object\.keys\(loginFailures\)\.length > 5000\) loginFailures = \{\};/.test(hardeningApi),
+  "the failure map is bounded, so spoofed addresses cannot grow it without limit");
+check(hardeningServer.indexOf('"Content-Security-Policy": CONTENT_SECURITY_POLICY') !== -1 &&
+  hardeningServer.indexOf("frame-ancestors 'none'") !== -1 && hardeningServer.indexOf("script-src 'self'") !== -1,
+  "every response carries a Content-Security-Policy that only allows the site's own scripts");
+check(hardeningServer.indexOf('"X-Frame-Options": "DENY"') !== -1 &&
+  hardeningServer.indexOf("frame-ancestors 'none'") !== -1,
+  "the administrator screens cannot be framed (clickjacking)");
+check(hardeningServer.indexOf('"Referrer-Policy": "strict-origin-when-cross-origin"') !== -1 &&
+  hardeningServer.indexOf('"Permissions-Policy":') !== -1 &&
+  hardeningServer.indexOf("Strict-Transport-Security") !== -1,
+  "referrer, permission and HTTPS-transport policies are sent on every response");
+check(/applySecurityHeaders\(req, res\);/.test(hardeningServer) &&
+  hardeningServer.indexOf("function applySecurityHeaders(req, res)") !== -1,
+  "the headers are applied once, before the API router and the static handler");
+check(hardeningServer.indexOf("function requestIsSecure(req)") !== -1 &&
+  /if \(requestIsSecure\(req\)\) \{\s*res\.setHeader\("Strict-Transport-Security"/.test(hardeningServer),
+  "HSTS is only pinned when the request actually arrived over HTTPS");
+check(!/<script>/.test(PUBLIC_PAGES.map(read).join("\n")) &&
+  !/eval\(|new Function/.test(["assets/js/ui.js", "assets/js/app.js", "assets/js/admin.js"].map(read).join("\n")),
+  "no page or script needs inline script or eval, so the strict script policy cannot break the app");
+
 /* ---------------- production readiness ---------------- */
 
 group("Production readiness");
